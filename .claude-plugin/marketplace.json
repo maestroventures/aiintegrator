@@ -6,12 +6,8 @@
   "plugins": [
     {
       "name": "aii-blueprint-probe",
-      "description": "Probe entry used to isolate a marketplace sync failure. Do not install.",
-      "source": {
-        "source": "archive",
-        "url": "https://www.aiintegratorhq.com/resources/onb/aii-blueprint-v0.8.7.plugin",
-        "sha256": "8912de489548380891205b5ef35058bceafb083cbeac7cd79d9a20fe137475d0"
-      }
+      "source": "./plugins/aii-blueprint-probe",
+      "description": "Throwaway probe used to test marketplace sync. Do not install."
     }
   ]
 }
