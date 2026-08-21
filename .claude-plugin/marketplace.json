@@ -8,6 +8,21 @@
       "name": "aii-blueprint-probe",
       "source": "./plugins/aii-blueprint-probe",
       "description": "Throwaway probe used to test marketplace sync. Do not install."
+    },
+    {
+      "name": "aii-blueprint",
+      "displayName": "AI Integrator - Blueprint Plugin",
+      "description": "The AI Integrator Blueprint, as one installable file. Brings the Blueprint board connector (your company's brain) and the AI Integrator Blueprint skill set together in a single install. Start by saying 'patch me up' or 'set me up'.",
+      "version": "0.8.7",
+      "author": {
+        "name": "AI Integrator"
+      },
+      "homepage": "https://aiintegratorhq.com",
+      "source": {
+        "source": "archive",
+        "url": "https://www.aiintegratorhq.com/resources/onb/aii-blueprint-v0.8.7.plugin",
+        "sha256": "8912de489548380891205b5ef35058bceafb083cbeac7cd79d9a20fe137475d0"
+      }
     }
   ]
 }
