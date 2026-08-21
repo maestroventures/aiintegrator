@@ -1,9 +1,0 @@
-{
-  "name": "aii-blueprint-probe",
-  "displayName": "Probe - do not install",
-  "version": "0.0.1",
-  "description": "Throwaway probe used to test whether marketplace sync works at all. Contains nothing. Safe to ignore.",
-  "author": {
-    "name": "AI Integrator"
-  }
-}

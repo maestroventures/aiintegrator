@@ -1,0 +1,31 @@
+{
+  "name": "aii-blueprint",
+  "displayName": "AI Integrator - Blueprint Plugin",
+  "version": "0.8.8",
+  "description": "The AI Integrator Blueprint, as one installable file. Brings the Blueprint board connector (your company's brain) and the AI Integrator Blueprint skill set together in a single install. Start by saying 'patch me up' or 'set me up'.",
+  "author": {
+    "name": "AI Integrator",
+    "email": "bebeling@aiintegratorhq.com"
+  },
+  "homepage": "https://aiintegratorhq.com",
+  "keywords": [
+    "onboarding",
+    "ai-integrator",
+    "setup",
+    "patch-me-up",
+    "blueprint",
+    "connectors"
+  ],
+  "interface": {
+    "displayName": "AI Integrator - Blueprint Plugin",
+    "shortDescription": "The AI Integrator Blueprint: your company's brain plus the Blueprint skill set.",
+    "developerName": "AI Integrator",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://aiintegratorhq.com"
+  }
+}

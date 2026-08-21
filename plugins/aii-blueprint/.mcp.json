@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "AI Integrator - Blueprint": {
+      "type": "http",
+      "url": "https://www.aiintegratorhq.com/api/blueprint/mcp"
+    }
+  }
+}
