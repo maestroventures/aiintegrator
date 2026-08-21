@@ -5,8 +5,8 @@
   },
   "plugins": [
     {
-      "name": "aii-blueprint",
-      "description": "The AI Integrator Blueprint, as one installable file.",
+      "name": "aii-blueprint-probe",
+      "description": "Probe entry used to isolate a marketplace sync failure. Do not install.",
       "source": {
         "source": "archive",
         "url": "https://www.aiintegratorhq.com/resources/onb/aii-blueprint-v0.8.7.plugin",
