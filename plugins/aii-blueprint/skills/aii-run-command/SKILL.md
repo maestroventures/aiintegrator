@@ -161,7 +161,10 @@ delivered file is bound to a **real path in the user's run folder** on a connect
 not a throwaway cloud/`/tmp` copy. So delivery is one fixed, ordered sequence, and it is not
 "done" until every step runs:
 
-1. **Send** the file (SendUserFile) and keep the file id it returns.
+1. **Send** the file (SendUserFile) and keep the file id it returns. ⚠ **DO NOT PASS `display`.**
+   Omit the parameter entirely and let the client choose by file type. `display: "attach"` selects the
+   download-styled card and OVERRIDES the bind in step 2 — see the correction under the delivery gate
+   below.
 2. **Bind that SAME file id** to the real run-folder path with the file-commit tool
    (e.g. `device_commit_files` → `▶ RUN/<file>`). Resolve that path from whatever workspace
    folder is connected THIS session — **never hardcode it**; a Mac and a PC each resolve to
@@ -186,8 +189,23 @@ file — it is what turns "usually Show-in-Folder" into "Show-in-Folder every ti
 If no computer with the run folder is connected (a pure cloud run, or mobile — a phone has no
 folder to show), the Show-in-Folder card **cannot** be produced: say so plainly and stop; do
 not hand a Download-only copy. Never deliver a run file from a cloud/`/tmp` copy alone — an
-unbound copy renders as "Download and open," which is the exact failure this step kills. (The
-SendUserFile `display` param does not force the button; the id→path binding does.)
+unbound copy renders as "Download and open," which is the exact failure this step kills. ⚠ **THIS PARENTHESIS USED TO READ: *"(The SendUserFile `display` param does not force the button;
+the id→path binding does.)"* IT IS HALF FALSE, AND IT IS QUOTED RATHER THAN DELETED BECAUSE IT IS THE
+SENTENCE THAT MADE SESSIONS PASS THE PARAMETER WITHOUT QUESTIONING IT.** The bind is NECESSARY and it
+is NOT SUFFICIENT. **FALSIFIED 2026-08-24 (`slog_doc2_t1_s23_20260824`), and the operator is the one
+who reported it after seeing "Download and open" on nearly every file he had ever been handed.**
+Two deliveries, one session, the same run folder path, the bind proven in the same turn both times —
+the ONLY variable changed was the parameter:
+
+| the send | the card's default button |
+|---|---|
+| `display: "attach"` | **Download and open** |
+| parameter omitted | **Show in Folder** |
+
+**So: bind AND omit `display`.** A missing bind gives a Download-only card; a present bind plus
+`attach` gives one too, and from the outside those two failures are identical. `attach` means "a file
+to save, not to look at" — which is a true description of a run file and the wrong instruction here,
+which is exactly why it never looked like a mistake.
 
 **Re-delivery is a fresh card, never a mutated one.** Every time you hand a run file again — a
 rebuilt step after an error, or a re-send of the same step — run the full send→bind→`chmod +x`

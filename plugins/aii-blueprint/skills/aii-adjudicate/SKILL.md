@@ -190,7 +190,7 @@ decision in four plain lines was a quarter the words and lost nothing.)
 The moment the ruling is decided, write it to the candidate's card — status is a field, never
 prose:
 
-- **Adopt / Consolidate survivor** → `Staged` **while the edit is still pending**; it graduates to the terminal **done-verified** state **only once the edit has landed AND been grep/prove-verified** (`aii-prove-it`). A finished, proven promotion must not sit at the interim `Staged` — a done item that still reads in-progress makes the board lie. The concrete terminal status id is instance-specific — see the overlay.
+- **Adopt / Consolidate survivor** → the **interim, edit-not-yet-landed** status while the edit is still pending; it graduates to the **terminal proven** status only once the edit has landed AND been grep/prove-verified (`aii-prove-it`). A finished, proven promotion must not sit at the interim status — a done item that still reads in-progress makes the board lie. **Both status ids are instance-specific — see the overlay.**
 - **Covered / Retire / merged cousins** → `Retired`, with a stamp that names the canonical home
   (file + §/line) and the source map, e.g. *"COVERED — homed in Core §X line NNN; skill + standard
   point to it. No edit."*
