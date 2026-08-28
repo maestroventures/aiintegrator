@@ -3,6 +3,34 @@
     "AI Integrator - Blueprint": {
       "type": "http",
       "url": "https://www.aiintegratorhq.com/api/blueprint/mcp"
+    },
+    "AI Integrator - Workspace": {
+      "type": "http",
+      "url": "https://www.aiintegratorhq.com/api/workspace/mcp"
+    },
+    "AI Integrator - Close": {
+      "type": "http",
+      "url": "https://www.aiintegratorhq.com/api/close/mcp"
+    },
+    "AI Integrator - Git Hub": {
+      "type": "http",
+      "url": "https://www.aiintegratorhq.com/api/github/mcp"
+    },
+    "AI Integrator - HubSpot": {
+      "type": "http",
+      "url": "https://www.aiintegratorhq.com/api/hubspot/mcp"
+    },
+    "AI Integrator - WooCommerce": {
+      "type": "http",
+      "url": "https://www.aiintegratorhq.com/api/woocommerce/mcp"
+    },
+    "AI Integrator - QuickBooks": {
+      "type": "http",
+      "url": "https://www.aiintegratorhq.com/api/quickbooks/mcp"
+    },
+    "AI Integrator - All-Access": {
+      "type": "http",
+      "url": "https://www.aiintegratorhq.com/api/allaccess/mcp"
     }
   }
 }

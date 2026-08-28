@@ -88,6 +88,36 @@ substitute a similar tool, and never quietly do nothing.**
 SELECT * FROM job_reap();
 ```
 
+> ⚠ **AMENDED 2026-08-26 — `job_reap()` FREES EVERY TENANT'S WORK, NOT YOURS. The correction is FIRST; the original paragraph is quoted verbatim at the end of this block and NOT deleted.**
+>
+> **`job_reap()` TAKES NO TENANT AND RETURNS NONE.** Measured from `pg_proc` on 2026-08-26: its argument
+> list is **empty**, and it returns `(r_job_name, r_run_id, r_claimed_by)` — no tenant on the way in, no
+> tenant on the way out. **The step directly below it, `job_claim_next(p_tenant, …)`, takes one.** So a
+> single executor, poking for a single tenant, reaps the expired leases of **every tenant in the queue**.
+>
+> ⛔ **SO DO NOT REPORT REAPED ROWS AS YOUR OWN.** The original wording said *"Any rows returned are jobs
+> that woke and never finished; mention them."* **Mention them as what they are: work this call freed,
+> which may belong to another tenant.** You cannot tell from the return value which is which, and
+> presenting a foreign tenant's abandoned job as your operator's is a leak of the plainest kind — it
+> names another company's job to a person who should never have seen it. **If you cannot say whose a
+> row is, say that you cannot.**
+>
+> ⚠ **AND NO WORDING IN THIS FILE CAN FIX IT — STATED SO NOBODY THINKS THIS AMENDMENT CLOSED ANYTHING.**
+> The store CAN tell tenants apart: `job_run` carries a tenant column and `job_claim_next` takes
+> `p_tenant`. **This one door chooses not to.** The fix is a `p_tenant` parameter on `job_reap()` and a
+> `WHERE` clause behind it — a STORE change, owned by whoever owns the queue, not by this skill. Until
+> that lands, every executor on every platform reaps across the whole queue, and this block is the only
+> thing standing between that and a cross-tenant disclosure.
+>
+> ⛔ **THE ORIGINAL PARAGRAPH, QUOTED VERBATIM AND NOT DELETED:**
+>
+> *"An executor that claimed a job and then died — hit its weekly usage limit, closed its laptop, got
+> killed mid-session — holds a lease it will never release. Reaping turns that into a recorded warning
+> and puts the job back in the queue. **This is the step that makes an executor's death survivable.**
+> Any rows returned are jobs that woke and never finished; mention them."*
+>
+> Every sentence of it is still true of what reaping DOES. What it never said is WHOSE.
+
 An executor that claimed a job and then died — hit its weekly usage limit, closed its laptop, got
 killed mid-session — holds a lease it will never release. Reaping turns that into a recorded warning
 and puts the job back in the queue. **This is the step that makes an executor's death survivable.**
