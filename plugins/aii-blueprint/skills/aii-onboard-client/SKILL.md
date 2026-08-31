@@ -147,11 +147,65 @@ one owner: the client's vocabulary lives in the client's store.)*
 
 ---
 
+## Step 3c — Read what they already gave you, BEFORE you ask them anything
+
+Numbered 3c for the same reason 3b is 3b: a small step at a specific moment, not a re-cut of the
+walk. It is the **session reads** half of the operator's ruling on the intake step (option label
+verbatim and complete: *"Both — walk collects, session reads, client confirms on screen
+(Recommended)"*). The walk's collect step is the first half; Step 4's opening bullet is the third.
+
+**Why it is a step and not a courtesy, measured.** Against one real client's artifact set: of the
+five seeded onboarding cards, **3 were already fully answered** in documents we authored and
+delivered to them eleven weeks earlier, **2 were partly answered**, and **0 were genuinely new
+questions**. The worst asked them to run a multi-hour engine whose finished output — 46,000 words,
+marked Final — had been in their folder for thirteen days. Skipping this does not waste their
+minutes. It teaches them in the first five that this room does not remember what they paid us to
+write down.
+
+- **Check the store can hold it before you open a single file.** If the intake tables are absent from
+  the client's own store, that is a **schema apply that is owed, not a table to build** — the house
+  declaration already carries them and nothing re-applies it after a client is provisioned. Say that
+  in those words and stop. Never regenerate the install schema; it is already correct.
+- **Read the declared set, never a walk of their tree.** Every file read becomes a document the
+  interview **states out loud it has read**, so a tree walk swallows another client's notes the first
+  time somebody drops a folder in. Reading too little costs one question they were going to be asked
+  anyway; reading too much silences a question forever and nothing goes red.
+- **You do the reading, and you own what you write down.** The loader calls no model. It hands you
+  each document and the closed menu of elements; you return quoted claims. Quote only from the
+  extract you were handed, never from a fuller copy of the file — the store keeps and re-checks the
+  extract, and a quote from outside it lands marked verified against text nobody can check again.
+- **Report what you could NOT read, by name, out loud.** A skipped file, two folders holding the same
+  filename, a renamed folder, a document longer than the extract — each is a question the client
+  still gets asked, and that is the correct failure. Never let *"we could not read your PDF"* reach
+  them as *"your document answered nothing"*: the first is true about us, the second is false about
+  them.
+- **A quote proves it came from their document. It does not prove it answers the question.** A real
+  sentence filed under the wrong element passes every wall here, silences its question permanently,
+  and nothing goes red. That gap is open and named on the board; your judgement is the only thing
+  standing in it.
+- **Do not report this step done if you did not open a file.** Same rule as every other step here. A
+  client who handed over nothing gives an honest empty result — and that is indistinguishable from a
+  step that never ran unless you say which one happened.
+
+*(Lens: Christensen — the job they hired us for includes taking setup work off them, and asking for
+what they already sent is the opposite. Nygard — the preflight names the real cause instead of
+throwing a raw missing-table error at whoever reads it next.)*
+
+---
+
 ## Step 4 — The interview is a conversation, and every answer is written back
 
 Now the questions. They already exist as data — this skill does not author them and must not restate
 them; it **runs** them, in order, in the client's own words.
 
+- **OPEN BY SAYING WHAT YOU ALREADY KNOW, AND ASK THEM TO CONFIRM IT.** This is the *"client confirms
+  on screen"* half of the operator's intake ruling and it is the first thing out of your mouth in
+  this step, before a single question. Name the documents you read, in their own filenames. Say what
+  those documents already answer. Where two of their documents answer the same thing differently, do
+  not tick it off and do not adjudicate it — **ask them the ordinary question**, because two
+  different answers means the element is unsettled, not that somebody is wrong (option label
+  verbatim: *"Don't tick it off — just ask them (Recommended)"*). Then ask only what is genuinely
+  still open.
 - **Ask them here, one at a time, in plain language.** This is the half the walk was always doing
   badly: a form cannot follow up, cannot notice an answer that contradicts an earlier one, and cannot
   tell the difference between *"I do not know"* and *"that does not apply to us."* A conversation can.

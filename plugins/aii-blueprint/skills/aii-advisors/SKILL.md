@@ -38,28 +38,56 @@ the value is in choosing the relevant few.
 
 ## Step 1.5 — Resolve the ORDER, don't invent it
 
-Once you know WHICH advisors, **the order is not yours to choose.** Within a domain some advisors
-must run before others, and running out of sequence wastes the work. Resolve the order from the
+Once you know WHICH advisors, **the order is not yours to choose.** Resolve it from the
 **sequence store** — resolved BY CATEGORY (`advisor-map` / `resolve_sequence`, per Core §11 rule 4),
-never by a table or connector name.
+never by a table or connector name. ONE call returns the WHOLE string, in order and already
+de-duplicated. You do not assemble it, and you do not remember it.
 
-State the order in the same line you name the lens:
+**Every call runs the same loop.** Ruled by the operator 2026-08-29. The steps around the lens are
+fixed; the LENS in the middle is the only part that changes with the situation:
 
 ```
-Applying the marketing sequence (Sinek → Dunford → Miller → Wiebe → Vaynerchuk)
-— purpose before positioning before message before copy.
+Observe → Orient → WHY → FRAME → Decide → look up LENS → Act → back to Observe
 ```
 
+- **Observe / Orient** — is the picture you are acting on CURRENT, or the one you last looked at?
+- **WHY** — what this is FOR.
+- **FRAME** — what this is ABOUT. A fence you stay inside, never a step you pass.
+- **Decide** — NAME THE SITUATION: which department, which moment, which registered job. This is
+  what the lookup takes as its INPUT, which is why it cannot come after it. Decide does not mean
+  pick the answer; a lens that arrives after the answer can only decorate it.
+- **look up LENS** — the moment / department / job benches. Never a list you typed from memory.
+- **Act** — carry it out, then go back to Observe. Your own decision and action are new
+  information, and that is what makes it a loop rather than a line.
+
+State what CAME BACK, never what you remembered — and name the roles, because the bench is
+per-client and a rule keyed to a surname cannot be inherited:
+
+```
+Resolved for marketing — 10 steps: the rails, then price → positioning → message → copy →
+distribution, then act. Frame owned by the corporate umbrella; price is inside marketing.
+```
+
+- **⛔ NEVER TYPE A RUNNING ORDER INTO A FILE — INCLUDING THIS ONE.** A hand-maintained list of
+  names loses members. Two advisors went missing from the written marketing order between
+  2026-08-14 and 2026-08-29 and nothing went red, because a grep runs over FILES and can never
+  see a STORE. This block deliberately names no surname for that reason.
+- **ONE ADVISOR MAY HOLD SEVERAL POSITIONS IN THE LOOP.** Observe, Orient, Decide and Act are one
+  advisor's four moves. A resolution that returns the same name more than once across the rails is
+  correct; the same name twice below the rails, or once as a rail and again as a lens, is a defect.
 - **A sequence that declares NO fixed order is a stated fact, not a miss.** Say so and pick by fit.
 - **A conditional member carries the condition that admits it.** Name the condition, never the
   advisor alone — an advisor admitted by a condition nobody stated is an invented order.
 - **No sequence registered for that domain → say so and route it to the adjudication gate**
   (Step 3). Never invent an order to fill the silence. An unregistered sequence is a roster gap.
+- **An area with a bench and no standing order is legal.** The door returns a DECLARED-ABSENCE row
+  naming the missing layer plus the job's own bench. Report that as the answer it is — never as
+  "that advisor is not for this," which is a false statement about someone sitting right there.
 
-*Why the order is load-bearing and not taste: the sequence IS the alignment mechanism. Purpose is
-what a person tests an offer against, a frame is what makes an incentive legible, and pain is the
-incentive stated out loud — so running the lenses out of order asks someone to act before they have
-a reason.*
+*Why the order is load-bearing and not taste: the sequence IS the alignment mechanism. You cannot
+state a why about a picture you have not looked at, purpose is what a person tests an offer
+against, a frame is what makes an incentive legible, and pain is the incentive stated out loud — so
+running the lenses out of order asks someone to act before they have a reason.*
 
 ---
 

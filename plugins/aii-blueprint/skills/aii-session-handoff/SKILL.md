@@ -122,8 +122,13 @@ does in the prompt. Measured cost of not asking, 2026-08-18: a live record title
 way to reconcile them, so it wrote the disagreement into its own title.
 
 So:
-- **Print the suggested title plainly, on its own line.** It is the thing the user copies; it is not
-  decoration inside the prompt block.
+- **The title is LINE 1 INSIDE the Step-4 block, then a blank line** — form `[Session Name] S[n+1]`.
+  The copy control copies the block, so a title beside the block is a second hand-selection and the
+  measured failure is that no name gets set at all. Print it a second time in the launch card, where
+  the reader is the USER setting the name before pasting — two readers, two places, same string.
+  ⚠ **This bullet used to read: _"Print the suggested title plainly, on its own line. It is the thing
+  the user copies; it is not decoration inside the prompt block."_ — QUOTED, not deleted. The operator
+  overturned the placement 2026-08-31. It is still printed once per reader, never twice to one.**
 - **Carry the number only when it arrived in the prompt you were pasted.** Never invent one and never
   reconstruct one from the board — an invented number is indistinguishable from a real one. Measured
   2026-08-18 on one seat: the session number was ABSENT on 194 of 527 records and COLLIDED 7 times in
@@ -142,6 +147,19 @@ Two write touch-points fulfill the contract:
 - **Session END (this handoff)** — flip the record to `status='done'` and fill the **distilled summary** (this handoff's own "what this covered / decisions / open items" content), the **keywords**, the **touched-card ids** (by id, never a copy), and the **best route back** the running AI supports. The summary MUST stand on its own — complete enough to be the whole answer — because the guaranteed floor is "find it by title + date"; a richer route back (a reopen link, or a quoted line) is a per-AI bonus, never a guarantee.
 
 **Fail-loud (Nygard):** the write counts only on a confirmed single-row result; a record that did not land is called out in the ledger, never silent.
+
+#### The PICKUP — the one thing n+1 actually reads (REQUIRED, and it is not the summary)
+**The distilled summary above is the ARCHIVE: it is read later, by a person, through `aii-session-search`. It is NOT what the next session reads.** Those are two different readers and they were served by one field until 2026-08-31 — measured that day on one seat, `distilled_summary` averaged 6,900 characters and ran to 33,372, so the next session either read an essay or read the board instead.
+
+So write BOTH, and know which is which:
+- **`distilled_summary`** — the full close-out. Long is fine. Nobody reads it on turn one.
+- **`pickup`** — capped, and it is the handover. Four parts, no more: **where THIS session left off** (≤900 chars, your own words), **the ONE next move** (≤500), **what this leg forbids**, and **the ids** — cards and decisions this leg named, full form, never truncated.
+
+**The door refuses what breaks the next session, so let it:** an empty next move, a left-off over the cap, and — the one that matters — **any id that resolves to nothing**, because an unresolvable id costs n+1 its first turn hunting something that was never there.
+
+**Write it LAST**, after the board reconciliation below, so the ids you name are ids you have already verified. The exact call, the tenant and the store are **instance-specific — see the overlay**.
+
+⚠ **HONEST LIMIT: nothing refuses a session that never writes a pickup.** This instructs; it does not enforce. The close gate has seven armed receipt clauses and this is deliberately not the eighth yet — the instrument is built and unarmed on purpose, the same discipline `board_creation_refusal` states in its own body: build it, measure it, THEN arm it. **The residue to measure is a `done` session with no pickup — count it, never quote a count.**
 
 **One fact, one file:** a session's status lives in the record's `status` column and nowhere else — this retires the manual `DONE:` chat-title prefix. The record is the **write half**; `aii-session-search` is the **read half** that searches it. The table shape, the connector/tenant, the exact SQL, and which route-back tier this AI can reach are **instance-specific — see the overlay**; the full design is `04 — Daily Operating System/specs/Session-Log-SPEC-DRAFT.md`.
 
@@ -399,19 +417,46 @@ degrades **silently** — nothing errors and the output still reads like a hando
 
 **Self-check, in this order:** (0) the fenced block was emitted INTO THE CHAT — check this first,
 because the other three only inspect a block that already exists; (1) it opens with a fence; (2) the
-first line inside is `## ▶ New session — start immediately`; (3) nothing inside is rendering.
+first line inside is the SESSION NAME (`[Session Name] S[n+1]`), followed by a BLANK LINE, and the
+third line is `## ▶ New session — start immediately`; (3) nothing inside is rendering.
 
-**The suggested chat title is NOT printed here — it is printed BELOW the block, in the launch card.**
-See *Finishing up*. It is still printed OUTSIDE the block in plain text, because a title reachable
-only by hand-selecting it out of a code block is a title the user will not set; what changed is
-WHERE. See Step 2 → *Session naming*.
+**THE SESSION NAME IS THE FIRST LINE INSIDE THE BLOCK, FOLLOWED BY A BLANK LINE.** Form:
+`[Session Name] S[n+1]`, then an empty line, then `## ▶ New session — start immediately`.
+**Why it is inside and not beside: the copy control copies the BLOCK.** A title printed next to the
+block is a second thing to select by hand, and the measured failure is not that the user sets the
+wrong name — it is that he sets none. Inside, one copy carries the name and the launch instruction
+together, and the name is the first thing the receiving surface sees. It also gives `aii-run-job`
+the `JOBNAME: Session N` shape it fires on.
+
+⚠ **OVERTURNED BY THE OPERATOR 2026-08-31 — the old wording is QUOTED, not deleted, because it was
+a deliberate ruling and a session that remembers it will move the title back out.** It read:
+*"The suggested chat title is NOT printed here — it is printed BELOW the block, in the launch card.
+It is still printed OUTSIDE the block in plain text, because a title reachable only by
+hand-selecting it out of a code block is a title the user will not set."* **His words:** *"I want the
+first line to be <Session Name> S(n+1) with a line return before printing the handoff information
+(it all prints in the box that has the copy text function)."* The 2026-08-18 change that row records
+— print the title ONCE, never twice — STANDS and is not touched: it is still printed once. What moved
+is WHERE, from beside the block to inside it. Also print it in the launch card as the name to SET
+before pasting; that reader is the user, not the next session. See Step 2 → *Session naming*.
 
 ⚠ **RETIRED 2026-08-18, quoted rather than deleted.** This paragraph used to read: *"Print the
 suggested chat title on its own line OUTSIDE the block too."* — and in practice that put it ABOVE the
 block, at the top of the wrap. A session that remembers the old placement will print the title twice,
 once at the top and once in the launch card. Print it ONCE, in the launch card, last.
 
+⚠ **THE WIDE BOARD VIEW IS A SEPARATE, DELIBERATE CALL AND DOES NOT GO IN THE `Resume` SLOT.**
+`SELECT <track>_resume('<tenant>');` returns the whole track — every open card, everything held, every
+blocker, every startable stray. It is the right call when the next move actually needs it and the WRONG
+call for getting oriented. **Measured 2026-08-31 on one seat: that seat's widest track resume returned 13,191
+characters, most of it board pile; the pickup for the same track returned 775 — 17× smaller.** Putting the
+wide call in the `Resume` slot is exactly how a session that needed one sentence opens on the whole board,
+which is the thing the operator does not trust. **Carrying the address instead of the claim was right and
+it shrank nothing, because the address resolved to the board.** Name the wide call in *First move* if and
+only if that move needs it.
+
 ```
+[Session Name] S[n+1]
+
 ## ▶ New session — start immediately
 You are the continuation of a prior chat. Do NOT summarize this, ask what to do, or wait for me. Run **Resume** FIRST — it carries the state, this prompt does not — then run the **First move**. No preamble, no recap.
 
@@ -425,8 +470,8 @@ It runs until it needs one specific thing only the operator can give — then it
 (omit 📍 if this work is genuinely a one-off; carry the number ONLY if it arrived in the prompt that started this session)
 
 ### Resume — run this before anything else
-SQL: SELECT <track>_resume('<tenant>');
-[One line naming what it returns and nothing more. The call itself carries the done-criterion, the live counts, the three things that matter, what is held, and the pending decisions by id — all measured at call time. Do not preview them here.]
+SQL: SELECT session_pickup('<tenant>', '<track name, character-for-character>');
+[Nothing else. This returns the PREVIOUS session's own close-out — where it left off, the one next move, what this leg forbids, and the LIVE status of only the ids that session named. It is one session's handover, not the board. Do not preview what it returns.]
 
 ### Resolve these first
 - `<board-card id>` — [two words: what it is]
