@@ -1,7 +1,7 @@
 {
   "name": "aii-blueprint",
   "displayName": "AI Integrator - Blueprint Plugin",
-  "version": "0.9.3",
+  "version": "0.9.2",
   "description": "The AI Integrator Blueprint, as one installable file. Brings your company's brain, the AI Integrator Blueprint skill set, and every AI Integrator connector — Workspace, Close, Git Hub, HubSpot, WooCommerce, QuickBooks and All-Access — together in a single install. You connect only the ones you need. Start by saying 'patch me up' or 'set me up'.",
   "author": {
     "name": "AI Integrator",
