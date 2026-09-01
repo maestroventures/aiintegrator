@@ -199,7 +199,32 @@ Only do this if the user asked for calendar reach. **Hard rule: no potential att
 
 ## Step 5 — Regenerate (existing guide + new details)
 
-Same flow, with two changes: read the existing guide's context first, fold in the user's new details (what changed, what they learned), and **overwrite the same filename** so the meeting link stays intact. Don't spawn a second file for the same meeting.
+**READ THE STORED GUIDE FIRST. DO NOT RE-DERIVE IT.** Every guide built from 2026-08-07 forward keeps its full content JSON in the store as versioned KEPT STATE, and the locked builder can rebuild the HTML straight from it. Re-reading the CRM, re-reading the calendar and re-running the advisor sequence when the authored guide is already sitting one query away is the single most expensive mistake this skill can make — measured on this estate: it turns a re-render into a twenty-minute re-authoring.
+
+> ⚠ **THIS STEP USED TO READ, IN FULL:** *"Same flow, with two changes: read the existing guide's context first, fold in the user's new details (what changed, what they learned), and **overwrite the same filename** so the meeting link stays intact. Don't spawn a second file for the same meeting."*
+> **IT IS QUOTED RATHER THAN DELETED BECAUSE IT WAS NOT WRONG, IT WAS INCOMPLETE — and the missing half was the expensive half.** *"Read the existing guide's context"* was read for 27 days as *read the rendered HTML and start over*, which is what it literally permits. The operator ruled the correct behaviour on **2026-08-05**: `dr_callguide_refresh_is_per_segment_20260805` D3 — *"THE GUIDE JSON IS KEPT STATE, not a build artifact — no stored JSON means no per-segment refresh, ever"* — and `dr_callguide_regen_is_server_side_20260805` D4, server-side, never the clipboard. The store, the builder flags and the server door were all built by 2026-08-07. **This body was the only thing that never learned they existed.**
+
+**THE THREE MOVES — the same plan / result / settle seam as a first build, because the builder still has no database connection of its own and you are still the wire.**
+
+**(a) Ask for the read plan.**
+```
+node "<skill-folder>/build-call-guide.js" --regen-plan <docId>
+```
+It prints `{sql, params}`. `docId` is `call_doc.doc_id` — it is on the guide page itself as `CONFIG.docId`, and the daily brief carries it.
+
+**(b) Run that `sql` with its `params`** through the board connector, resolved BY CATEGORY (Core §11 rule 4), and **save the FULL result** — do not summarise it and do not trim the JSON. The row carries the kept `guide_json` and its version.
+
+**(c) Rebuild from it.**
+```
+node "<skill-folder>/build-call-guide.js" --regen <readplan.json> --rows <result.json>
+```
+It re-renders from the stored content, bumps the kept version, and stamps the change note `regenerated from kept state`. Then file it exactly as Step 4 does — **register → settle → file → confirm is still ONE unit of work**, and Step 4.5's pointer still gets written.
+
+**FOLD THE NEW DETAILS IN PER SEGMENT — never by rewriting the guide.** Change only the segments the operator's notes actually touch, carry every untouched segment through unchanged, and mark what changed. A regeneration that rewrites a segment nobody commented on has thrown away authored work and called it an update. (Ruling D1, same 2026-08-05 card: auto-fix anything the note touches, and every auto-changed segment is VISIBLY MARKED with one-click revert.)
+
+⛔ **WHEN THERE IS NO KEPT STATE — SAY SO OUT LOUD AND NEVER FALL BACK SILENTLY.** 39 of the 82 guides on this estate were built before 2026-08-07 and have no stored JSON; for those the full re-derivation in Steps 1–4 is the only option and it is correct. Tell the operator in one line that this guide predates kept state and is being rebuilt from scratch — so a twenty-minute rebuild is never mistaken for the normal cost of an update.
+
+⚠ **DO NOT TELL THE OPERATOR TO "JUST CLICK UPDATE ON THE GUIDE."** The live page's *"Update this guide"* button POSTs to the Command Center and it **refuses on a `file://` page by design** — a guide opened straight from the Mac has no session cookie and cannot sign in. Since Step 4.5's pointer deliberately opens guides at `file://<localPath>` (a file store shows raw HTML source instead of a page), the one-click path is unreachable in the way guides are normally opened. It works only on a guide the Command Center is SERVING at `/api/cc/drive?mode=serve&fileId=…`. **And the queue that button writes to has no scheduled claimer** — an ask can sit `pending` indefinitely. Until both are fixed, the route above is the working one.
 
 ---
 
