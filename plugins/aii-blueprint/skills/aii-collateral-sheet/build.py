@@ -269,6 +269,84 @@ def frame_sql(tenant, template):
             """ ORDER BY anchor""" % (tenant, template))
 
 
+def gate_sql(tenant, template, review_due=None):
+    """The SELECT that produces a --gate. Same no-defaults rule as frame_sql, and the
+    same reason: a default tenant here would clear a build against somebody else's row.
+
+    THE GATE IS NOT THE FRAME AND NEITHER REPLACES THE OTHER. --frame proves the WORDS
+    arrived. --gate proves this template is allowed to be built at all: that it is in
+    the catalogue, that its stored hash still matches its stored body, and that it
+    carries a review date in the future. A frame can be complete on a template nobody
+    may build from, and that is exactly the case this adds.
+
+    review_due is OPTIONAL on purpose. Ruled 2026-09-09
+    (dr_an_asset_is_measured_against_company_state_every_time_the_function_is_called):
+    ninety days is the RECOMMENDED PACING and a shorter interval is explicitly allowed
+    ("can happen more often"). Omit it and the gate defaults to ninety days itself -
+    the default lives in the store, never in this file."""
+    missing = [f for f, v in (("--tenant", tenant), ("--template", template)) if not v]
+    if missing:
+        raise SystemExit(
+            "build.py: REFUSED - --print-sql needs %s, and there is no default.\n"
+            "  --tenant    the tenant whose words these are - the SENDING company, not ours.\n"
+            "  --template  the asset_template template_id this sheet is built from.\n"
+            % " and ".join(missing))
+    for flag, v in (("--tenant", tenant), ("--template", template), ("--review-due", review_due)):
+        if v and not _ID_OK.match(v):
+            raise SystemExit(
+                "build.py: REFUSED - %s %r is not a plain identifier. No SQL printed."
+                % (flag, v))
+    due = "'%s'::date" % review_due if review_due else "NULL"
+    return ("""SELECT ok, detail\n"""
+            """  FROM asset_build_gate('%s', '%s', %s)""" % (tenant, template, due))
+
+
+def load_gate(path):
+    """FAILS LOUD, and REFUSES ON A FALSE VERDICT rather than warning about one.
+
+    THIS IS THE HALF THAT WAS MISSING UNTIL 2026-09-09. asset_build_gate existed in the
+    store and NOTHING CALLED IT - a wall standing beside an open door. The gate can only
+    stop a build if a builder asks it and then obeys the answer, which is why this
+    refuses instead of printing a caution: a caution in a build log is read by nobody
+    and the PDF still lands in a client folder.
+
+    The pattern is register-call-doc.js's registerOrUnlink(), one family over: the
+    artifact does not survive a failed registration. That single mechanism is why
+    call_doc is the only store on this estate at 100%."""
+    import json
+    if not path:
+        raise SystemExit(
+            "build.py: REFUSED - no --gate given, and no sheet was written.\n"
+            "The gate says whether this template may be built AT ALL: is it in the\n"
+            "catalogue, does its stored hash still match its stored words, does it carry\n"
+            "a review date in the future. Run --print-sql, run the asset_build_gate\n"
+            "SELECT through the board connector, save the row, and pass it with --gate.\n"
+            "Ruled 2026-09-09: the database is the master and a file is a projection, so\n"
+            "a sheet built without asking the store is a projection of nothing.")
+    p = pathlib.Path(path)
+    if not p.exists():
+        raise SystemExit("build.py: REFUSED - --gate %s does not exist. No sheet written." % path)
+    try:
+        raw = json.loads(p.read_text(encoding="utf-8"))
+    except ValueError as e:
+        raise SystemExit(
+            "build.py: REFUSED - --gate %s is not readable JSON (%s). No sheet written."
+            % (path, e))
+    row = raw[0] if isinstance(raw, list) and raw else raw
+    if not isinstance(row, dict) or "ok" not in row:
+        raise SystemExit(
+            "build.py: REFUSED - --gate %s carries no `ok` column. No sheet written.\n"
+            "Expected the row asset_build_gate returns: ok and detail. An empty result is\n"
+            "NOT a pass - a gate that returned nothing was never asked." % path)
+    if row.get("ok") in (True, "true", "t", 1):
+        return row
+    raise SystemExit(
+        "build.py: REFUSED BY THE GATE - no sheet was written.\n\n%s\n\n"
+        "This is the store refusing, not this file. Fix what it names and re-run; do not\n"
+        "re-run with --gate omitted, which is the one move that turns this wall back into\n"
+        "a door." % (row.get("detail") or "(the gate returned ok=false and no detail)"))
+
+
 def load_sheets():
     """The prospect's own content, written by the caller beside this file. FAILS LOUD
     in this file's own words rather than as a Python traceback — see the import block."""
@@ -556,6 +634,13 @@ def _flag(name):
 
 def main():
     if "--print-sql" in sys.argv:
+        # BOTH statements, always, in the order they must be run. Printing only the
+        # frame is how the gate went uncalled for the whole of its existence.
+        print("-- 1 of 2 - THE GATE. Run this FIRST and save the row for --gate.")
+        print("--   If ok is false, STOP: nothing below matters and no sheet may be built.")
+        print(gate_sql(_flag("--tenant"), _flag("--template"), _flag("--review-due")))
+        print()
+        print("-- 2 of 2 - THE FRAME. Save these rows for --frame.")
         print(frame_sql(_flag("--tenant"), _flag("--template")))
         return
     if "--selftest-frame" in sys.argv:
@@ -565,6 +650,11 @@ def main():
     #   the guard: load_frame() above any write_text() is what makes "REFUSES and
     #   writes no file" true rather than aspirational.
     require_work()
+    # THE GATE RUNS BEFORE THE FRAME, AND BOTH RUN BEFORE ANY WRITE. Ordering is the
+    # guard. The gate is first because it answers the bigger question - may this be
+    # built at all - and a complete frame on a template nobody may build from is the
+    # case that would otherwise sail straight through.
+    G = load_gate(_flag("--gate"))
     F = load_frame(_flag("--frame"))
     load_brand()
     OUT.mkdir(exist_ok=True)
