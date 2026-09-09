@@ -96,6 +96,50 @@ Write the JSON to a temp file, e.g. `guide.json`.
 
 ---
 
+## Step 3.5 — Load the Quick-access aspects from the ASSET LIBRARY (the builder now REFUSES without them)
+
+**The words are an ASSET, not part of this skill and not part of any overlay.** They live per-tenant
+in `asset_template_body`, beside their catalogue row in `asset_template`. Run this through the board
+connector — category `initiatives-board` / `query_board`, which Gate 0 already resolves as REQUIRED
+on every run, so a seat that can open its session row can always get these:
+
+```sql
+SELECT string_agg(b.body, E'\n\n---\n\n'
+         ORDER BY (b.anchor <> '__drawer_header__'), t.sort_order) AS aspects_markdown
+  FROM asset_template_body b
+  JOIN asset_template t
+    ON t.tenant_id = b.tenant_id AND t.template_id = b.template_id
+ WHERE b.tenant_id = '<tenant>' AND t.channel = 'call' AND t.sort_order IS NOT NULL;
+```
+
+Put the result in `guide.json` as **`aspectsMarkdown`**. That is the whole step.
+
+**⚠ THE `ORDER BY` IS LOAD-BEARING, NOT TIDINESS.** `t.sort_order` carries the deliberate order —
+Background, AI Integrator, VisitorResolve, Differentiation. Drop it and the store returns them
+ALPHABETICALLY, which silently reshuffles the pitch into a different argument. That order used to
+exist only as line order inside a markdown file; it was nearly lost in the 2026-09-09 migration and
+was caught by a round-trip proof, not by review.
+
+**If the query returns NULL or fewer than four aspects, STOP. Do not build.** A guide with an empty
+Quick-access drawer looks exactly like a guide that never had a pitch, and the operator finds out
+mid-call. Escalate the gap against the `initiatives-board` category naming the tenant, and say
+plainly which aspects are missing.
+
+**⛔ NEVER READ A FILE FOR THIS, and never re-add a path fallback to the builder.** Until 2026-09-09
+`build-call-guide.js` walked up from its own directory looking for
+`02 — Clients/AI Integrator/sales/AI Integrator - Call Guide Aspects.md` — one tenant's folder path
+compiled into the plugin every client installs. It meant a cloud executor seat could never build a
+guide (auto-guide-debrief-sweep broke eight times in eight weeks, a different cause each time, while
+its Gate 0 stayed green because Gate 0 resolves a tool CATEGORY and never the ARTIFACT), and it meant
+a client whose workspace matched that path would have been served another company's pitch inside
+their own guide. The fallback is what made both invisible: it worked perfectly on the author's own
+machine, so every check anyone ran was green by construction.
+
+`aspects` (the already-parsed object) still wins if you pass it, which is how a per-prospect override
+works. Pass neither and the builder throws — deliberately, and it names this step in the error.
+
+---
+
 ## Step 4 — Build the shell + save to the client folder
 
 1. Write `config.json`:
