@@ -315,62 +315,52 @@ const STANDALONE_RUNTIME =
 "function lcnSave(){var st=document.getElementById('lcnStatus');var sb=document.getElementById('lcnSave');if(!document.getElementById('lcnNotes').value.trim()){st.textContent='Add your call notes first.';st.className='lcn-status warn';return;}var txt=lcnTextOut();var no=ccWhyNot();if(no){lcnCopyFallback(txt,st,no);return;}st.textContent='Saving to your CRM…';st.className='lcn-status';if(sb)sb.disabled=true;ccLogNote(txt).then(function(r){if(sb)sb.disabled=false;if(r.ok){st.textContent='✓ Saved to your CRM'+(LCN_TRANS?' · transcript pending':'');st.className='lcn-status ok';setTimeout(lcnClose,1500);return;}lcnCopyFallback(txt,st,r.why);});}"+
 "restoreNotes();";
 
-/* ══ Quick-access ASPECTS — the WORDS LIVE IN ONE FILE, NOT HERE ══
-   Static, jump-to reference Bryce hits mid-call instead of flipping
-   between docs. Each aspect: a LEAD line he says then STOPS, deeper
-   tiers he opens only on a lean-in, punchy "ah-ha" hooks, and a stop
-   rule.
+/* ══ Quick-access ASPECTS — THE WORDS COME FROM THE ASSET LIBRARY ══
+   Static, jump-to reference the operator hits mid-call instead of flipping
+   between docs. Each aspect: a LEAD line they say then STOP, deeper tiers
+   opened only on a lean-in, punchy "ah-ha" hooks, and a stop rule.
 
-   ONE HOME (Bryce's ruling, 2026-08-04). These words used to be a
-   literal object right here, and Call-Guide-Content-SPEC-v1.0 §6 told
-   everyone to keep this copy and the spec's copy in sync BY HAND. That
-   convention is what let a retired throughline sentence ship inside a
-   builder for a day and take edits in three separate files to remove.
-   The words now live in exactly one place:
+   ⛔ THE WORKSPACE-FILE FALLBACK WAS REMOVED 2026-09-09 AND ITS REMOVAL IS THE
+   POINT. DO NOT RESTORE IT. Until that date this file carried:
 
-     02 — Clients/AI Integrator/sales/AI Integrator - Call Guide Aspects.md
+     const ASPECTS_REL = ['02 — Clients', 'AI Integrator', 'sales',
+                          'AI Integrator - Call Guide Aspects.md'];
 
-   ...and this builder READS it at build time. Change a word once and
-   every new guide gets it. Registered in Neon `asset_template`
-   (tenant bryce, channel call), one row per anchor in that file.
-   Shape + throttle rules are still governed by
-   04 — Daily Operating System/specs/Call-Guide-Content-SPEC-v1.0.md §4.
+   — ONE TENANT'S FOLDER PATH, compiled into the plugin every client installs,
+   plus a resolveAspectsPath() that walked up from __dirname to find it and an
+   AII_CALL_GUIDE_ASPECTS env override. Two consequences, both measured:
 
-   guide.json may still pass its own `aspects` object to override per
-   prospect; otherwise the file above renders on every guide. */
+   (a) A cloud executor seat cannot read a file on somebody's laptop. The job
+       auto-guide-debrief-sweep broke EIGHT times in eight weeks, a different
+       cause each time, while its Gate 0 stayed GREEN throughout — because
+       Gate 0 resolves the storage CATEGORY and never the ARTIFACT. A live
+       connector and a missing file produce the identical green.
+   (b) A client whose workspace happened to match that path would have been
+       served the AUTHOR'S pitch — his credentials, his pricing, his own
+       post-mortem on a lost call — inside their own guide.
+
+   THE FALLBACK IS WHAT MADE BOTH INVISIBLE. It succeeded perfectly on the
+   author's own machine, so every check anyone ran was green by construction.
+   A fallback that works locally is not a safety net; it is the thing that
+   hides the failure from the only person who could fix it.
+
+   THE WORDS NOW LIVE IN asset_template_body, read by the caller and passed in:
+     guide.json.aspects          — the parsed object (unchanged contract, wins)
+     guide.json.aspectsMarkdown  — the markdown reassembled from the store and
+                                   parsed HERE by the same parser that used to
+                                   read the file, so the drawer renders
+                                   byte-identically. Proven 2026-09-09 by an
+                                   object-level round-trip against the
+                                   pre-migration file: same items, same order,
+                                   same title, same tiers.
+   Neither present = REFUSE. There is deliberately no third source.
+   How the caller builds it: aii-call-guide SKILL.md Step 3.5.
+   Shape + throttle rules still governed by
+   04 — Daily Operating System/specs/Call-Guide-Content-SPEC-v1.0.md §4. */
 
 const path = require('path');
 
-/* The address is RESOLVED AT RUN TIME, never baked: env override first, then
-   walk up from this script's own directory until the workspace-relative path
-   exists. A literal absolute path would keep resolving after the tree moved
-   and answer confidently about a file nobody edits. */
-const ASPECTS_REL = ['02 — Clients', 'AI Integrator', 'sales', 'AI Integrator - Call Guide Aspects.md'];
 const ASPECTS_REQUIRED_IDS = ['asp-bg', 'asp-ai', 'asp-vr', 'asp-diff'];
-
-function resolveAspectsPath() {
-  const override = process.env.AII_CALL_GUIDE_ASPECTS;
-  if (override) {
-    /* An override that does not exist must say SO, naming the variable that set it.
-       A bare ENOENT reports what failed and leaves the reader to guess why — and the
-       likeliest guess (the file is gone) is wrong when the real cause is a stale env var. */
-    if (!fs.existsSync(override)) {
-      throw new Error('build-call-guide: AII_CALL_GUIDE_ASPECTS is set to "' + override +
-        '" and no file is there. Unset it to fall back to the workspace copy, or point it at ' +
-        ASPECTS_REL.join('/') + '. Refusing to build a guide with no Quick-access words in it.');
-    }
-    return override;
-  }
-  let dir = __dirname;
-  for (let i = 0; i < 10; i++) {
-    const cand = path.join.apply(path, [dir].concat(ASPECTS_REL));
-    if (fs.existsSync(cand)) return cand;
-    const up = path.dirname(dir);
-    if (up === dir) break;
-    dir = up;
-  }
-  return null;
-}
 
 /* Markdown -> the aspects object. Mirror of the emitter that produced the file;
    the migration was proven by an exact round-trip (object -> markdown -> object)
@@ -410,28 +400,30 @@ function parseAspectsMarkdown(md) {
   return A;
 }
 
-/* FAILS LOUD, never quietly generic (Nygard). A missing or half-parsed file would
-   otherwise render a guide with an empty drawer — a guide missing the entire pitch,
-   which looks exactly like a guide that never had one. */
-let _aspectsCache = null;
-function loadDefaultAspects() {
-  if (_aspectsCache) return _aspectsCache;
-  const p = resolveAspectsPath();
-  if (!p) {
-    throw new Error('build-call-guide: cannot resolve "' + ASPECTS_REL.join('/') +
-      '" walking up from ' + __dirname + '. Set AII_CALL_GUIDE_ASPECTS to its full path. ' +
-      'That file holds the Quick-access words; building without it would ship a guide with no pitch in it.');
+/* FAILS LOUD, never quietly generic (Nygard). A guide with an empty drawer looks
+   exactly like a guide that never had a pitch in it — so this refuses rather than
+   returning an empty set. See the block above for why there is no file fallback. */
+function loadDefaultAspects(g) {
+  const md = (g && typeof g.aspectsMarkdown === 'string') ? g.aspectsMarkdown : '';
+  if (!md.trim()) {
+    throw new Error('build-call-guide: guide.json carries neither `aspects` nor ' +
+      '`aspectsMarkdown`. The Quick-access words live in the asset library ' +
+      '(asset_template_body), not in a file — see aii-call-guide SKILL.md Step 3.5 for the ' +
+      'one query that assembles them. Refusing to build a guide with no pitch in it. ' +
+      'NOTE: the workspace-file fallback was removed 2026-09-09 deliberately; if you are ' +
+      'about to add it back, read the comment block above this function first.');
   }
-  const A = parseAspectsMarkdown(fs.readFileSync(p, 'utf8'));
+  const A = parseAspectsMarkdown(md);
   const ids = ((A && A.items) || []).map(function (x) { return x.id; });
   const missing = ASPECTS_REQUIRED_IDS.filter(function (id) { return ids.indexOf(id) < 0; });
   if (!A.title || !A.howToUse || missing.length) {
-    throw new Error('build-call-guide: parsed ' + ids.length + ' aspects from ' + p +
+    throw new Error('build-call-guide: parsed ' + ids.length +
+      ' aspect(s) from guide.json.aspectsMarkdown' +
       (missing.length ? ' — MISSING required id(s): ' + missing.join(', ') : '') +
       (!A.title ? ' — missing TITLE' : '') + (!A.howToUse ? ' — missing HOW TO USE' : '') +
-      '. Call-Guide-Content-SPEC-v1.0 §4.1 requires the four-aspect set; refusing to build a partial drawer.');
+      '. Call-Guide-Content-SPEC-v1.0 §4.1 requires the four-aspect set; refusing to build ' +
+      'a partial drawer.');
   }
-  _aspectsCache = A;
   return A;
 };
 
@@ -447,7 +439,7 @@ const ASPECTS_RUNTIME =
 
 /* ── aspects HTML builder ── */
 function buildAspectsHtml(g) {
-  const A = (g && g.aspects) || loadDefaultAspects();
+  const A = (g && g.aspects) || loadDefaultAspects(g);
   if (!A || !A.items || !A.items.length) return '';
   const chips = A.items.map(function (a) {
     return '<button class="asp-chip" onclick="jumpAspect(\'' + esc(a.id) + '\')">' + esc(a.label) + '</button>';
@@ -1063,7 +1055,7 @@ function cgRefItems(g) {
 
   /* loadDefaultAspects() THROWS rather than return an empty set — a guide with no
      Quick-access words looks exactly like a guide that never had any. Do not catch it. */
-  const A = (g && g.aspects) || loadDefaultAspects();
+  const A = (g && g.aspects) || loadDefaultAspects(g);
   /* THE HINT MOVED UP, IT DID NOT DISAPPEAR. Every one of these four rows carried the
      identical line "say the lead line, then STOP", so the rail said the same sentence four
      times and it stopped being read. A rule shared by every row in a group belongs on the
