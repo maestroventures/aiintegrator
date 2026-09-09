@@ -427,6 +427,103 @@ function loadDefaultAspects(g) {
   return A;
 };
 
+/* ────────────────────────────────────────────────────────────────────────────
+   THE BUILD GATE — may these words be built from AT ALL?
+   Added 2026-09-09. PORTED from skills/aii-collateral-sheet/build.py, which got it the
+   same day from session slog_solo_20260909_130027_c4e9a1. Deliberately the same shape
+   and the same refusal wording: one mechanism, two builders, so a reader who has met it
+   once recognises it here.
+
+   THE GATE IS NOT THE ASPECTS AND NEITHER REPLACES THE OTHER. loadDefaultAspects()
+   proves the WORDS ARRIVED. The gate proves they are ALLOWED to be built from: each
+   template is in the catalogue, its stored hash still matches its stored body, and it
+   carries a review date in the future. A guide can carry four perfectly complete aspects
+   drawn from templates nobody may build from — exactly the case this closes.
+
+   ⚠ IT IS A SET HERE, NOT A SINGLE ROW — THE ONE REAL DIFFERENCE FROM THE SHEET.
+   A collateral sheet is built from ONE template, so its gate is one row. A call guide
+   assembles from the FOUR aspect templates (asset_template, channel='call', sort_order
+   NOT NULL). Measured 2026-09-09: 27 call templates exist, 4 carry a sort_order, all 4
+   return ok. So this refuses on ANY row being false AND on fewer than four arriving.
+   Copying the single-row shape would have let a guide build with one aspect ungated,
+   which is the quiet half of the same defect.
+
+   FEWER THAN FOUR IS THE SKILL'S OWN RULE, not a number invented here: SKILL.md Step 3.5
+   says "If the query returns NULL or fewer than four aspects, STOP. Do not build."
+   This turns that sentence into a wall instead of a request.                        */
+
+const ASPECT_GATE_MIN = 4;
+
+function gateSql(tenant) {
+  if (!tenant) {
+    throw new Error(
+      'build-call-guide: --print-gate-sql needs --tenant, and there is no default.\n' +
+      'A default tenant would clear a build against somebody else\'s rows.');
+  }
+  if (!/^[A-Za-z0-9_.:-]{1,120}$/.test(tenant)) {
+    throw new Error('build-call-guide: --tenant ' + JSON.stringify(tenant) +
+      ' is not a plain identifier. No SQL printed.');
+  }
+  return "SELECT t.template_id, g.ok, g.detail\n" +
+         "  FROM asset_template t\n" +
+         "  CROSS JOIN LATERAL asset_build_gate('" + tenant + "', t.template_id) g\n" +
+         " WHERE t.tenant_id = '" + tenant + "' AND t.channel = 'call'\n" +
+         "   AND t.sort_order IS NOT NULL\n" +
+         " ORDER BY t.sort_order";
+}
+
+function loadBuildGate(gatePath) {
+  /* FAILS LOUD, and REFUSES ON A FALSE VERDICT rather than warning about one. A caution
+     in a build log is read by nobody and the guide still lands in a client folder. */
+  if (!gatePath) {
+    throw new Error(
+      'build-call-guide: REFUSED - no --gate given, and no guide was written.\n' +
+      'The gate says whether these aspect templates may be built from AT ALL: are they in\n' +
+      'the catalogue, does each stored hash still match its stored words, does each carry\n' +
+      'a review date in the future. Run --print-gate-sql --tenant <t>, run that SELECT\n' +
+      'through the board connector, save the rows, and pass them with --gate.\n' +
+      'The words arriving is not the same question as the words being allowed.');
+  }
+  if (!fs.existsSync(gatePath)) {
+    throw new Error('build-call-guide: REFUSED - --gate ' + gatePath +
+      ' does not exist. No guide written.');
+  }
+  let raw;
+  try { raw = JSON.parse(fs.readFileSync(gatePath, 'utf8')); }
+  catch (e) {
+    throw new Error('build-call-guide: REFUSED - --gate ' + gatePath +
+      ' is not readable JSON (' + e.message + '). No guide written.');
+  }
+  const rows = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.rows) ? raw.rows : [raw]);
+  if (!rows.length || !rows.every(function (r) { return r && typeof r === 'object' && 'ok' in r; })) {
+    throw new Error(
+      'build-call-guide: REFUSED - --gate ' + gatePath + ' carries no `ok` column.\n' +
+      'Expected the rows asset_build_gate returns: template_id, ok, detail. An empty result\n' +
+      'is NOT a pass - a gate that returned nothing was never asked.');
+  }
+  if (rows.length < ASPECT_GATE_MIN) {
+    throw new Error(
+      'build-call-guide: REFUSED - --gate carried ' + rows.length + ' row(s), expected at least ' +
+      ASPECT_GATE_MIN + '. No guide written.\n' +
+      'SKILL.md Step 3.5: "If the query returns NULL or fewer than four aspects, STOP."\n' +
+      'A short gate set and a clean one read identically, which is why the count is checked.');
+  }
+  const bad = rows.filter(function (r) {
+    return !(r.ok === true || r.ok === 'true' || r.ok === 't' || r.ok === 1);
+  });
+  if (bad.length) {
+    throw new Error(
+      'build-call-guide: REFUSED BY THE GATE - no guide was written.\n\n' +
+      bad.map(function (r) {
+        return '  ' + (r.template_id || '(unnamed template)') + ': ' +
+               (r.detail || '(ok=false and no detail)');
+      }).join('\n') +
+      '\n\nThis is the store refusing, not this file. Fix what it names and re-run; do not\n' +
+      're-run with --gate omitted, which is the one move that turns this wall back into a door.');
+  }
+  return rows;
+}
+
 /* ── aspects CSS (appended to STANDALONE_CSS) ── */
 const ASPECTS_CSS = ".aspects-drawer{max-width:820px;margin:14px auto 0;background:#fff;border:1px solid #e5e5ef;border-radius:10px;overflow:hidden}.asp-drawer-head{padding:12px 18px;cursor:pointer;display:flex;align-items:center;gap:10px;user-select:none;background:#0d0d24}.asp-drawer-head:hover{background:#161636}.asp-drawer-title{flex:1;font-size:.82rem;font-weight:700;color:#fff;letter-spacing:.02em}.asp-drawer-head .chevron{color:#a5a5c0;font-size:.7rem;transition:transform .2s}.aspects-drawer.open .asp-drawer-head .chevron{transform:rotate(180deg)}.asp-drawer-body{display:none;padding:14px 16px}.aspects-drawer.open .asp-drawer-body{display:block}.asp-howto{background:#fff7ed;border-left:3px solid #f59e0b;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:.78rem;color:#7c2d12;line-height:1.55}.asp-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}.asp-chip{padding:6px 13px;border-radius:99px;font-size:.76rem;font-weight:700;border:1px solid #c7d2fe;background:#eef2ff;color:#4338ca;cursor:pointer;transition:all .15s}.asp-chip:hover{background:#4f46e5;color:#fff;border-color:#4f46e5}.asp-cards{display:flex;flex-direction:column;gap:8px}.asp-card{border:1px solid #e5e5ef;border-radius:9px;overflow:hidden}.asp-card.open{border-color:#4f46e5;box-shadow:0 0 0 1px #4f46e540}.asp-head{padding:11px 14px;cursor:pointer;display:flex;align-items:center;gap:9px;user-select:none}.asp-head:hover{background:#f5f5fa}.asp-icon{color:#4f46e5;font-size:.8rem}.asp-label{flex:1;font-size:.85rem;font-weight:700;color:#0d0d24}.asp-card .chevron{color:#b5b5c8;font-size:.7rem;transition:transform .2s}.asp-card.open .chevron{transform:rotate(180deg)}.asp-body{display:none;padding:0 14px 14px;border-top:1px solid #eef0f7}.asp-card.open .asp-body{display:block}.asp-lead{background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;padding:12px 15px;margin:12px 0;font-size:.9rem;line-height:1.6;color:#1e1b4b;font-weight:600}.asp-lead::before{content:'SAY THIS FIRST — THEN STOP';display:block;font-size:.6rem;font-weight:700;letter-spacing:.06em;color:#6366f1;margin-bottom:6px}.asp-tier{border:1px solid #e5e5ef;border-radius:7px;margin:8px 0;overflow:hidden}.asp-tier-head{padding:9px 12px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:.78rem;font-weight:600;color:#4338ca;background:#fafaff;user-select:none}.asp-tier-head:hover{background:#f0f0ff}.asp-caret{margin-left:auto;transition:transform .2s;color:#9a9ab0}.asp-tier.open .asp-caret{transform:rotate(90deg)}.asp-tier-body{display:none;padding:11px 13px;font-size:.82rem;line-height:1.6;color:#33334d}.asp-tier.open .asp-tier-body{display:block}.asp-hooks{margin:12px 0;padding:11px 13px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px}.asp-hooks-lbl{font-size:.62rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#059669;margin-bottom:6px}.asp-hook{font-size:.84rem;line-height:1.55;color:#065f46;font-weight:600;padding:5px 0;border-top:1px dashed #a7f3d0}.asp-hook:first-of-type{border-top:none;padding-top:0}.asp-stop{margin-top:12px;background:#fef2f2;border-left:3px solid #dc2626;border-radius:6px;padding:9px 13px;font-size:.76rem;color:#991b1b;line-height:1.5}.asp-stop strong{display:block;font-size:.64rem;letter-spacing:.05em;text-transform:uppercase;color:#dc2626;margin-bottom:2px}";
 
@@ -1613,6 +1710,14 @@ async function main() {
     return;
   }
 
+  /* --gate is a FLAG on a positional CLI, so it is lifted out BEFORE the destructure.
+     Doing it after would shift guidePath/configPath/outPath and the failure would look
+     like a bad argument rather than a parsing bug. */
+  let gatePath = null;
+  {
+    const gi = argv.indexOf('--gate');
+    if (gi >= 0) { gatePath = argv[gi + 1] || null; argv.splice(gi, gatePath ? 2 : 1); }
+  }
   const [guidePath, configPath, outPath] = argv;
   if (!guidePath || !configPath || !outPath) {
     console.error('Usage: node build-call-guide.js <guide.json> <config.json> <output.html>');
@@ -1634,6 +1739,11 @@ async function main() {
 
      The registrar therefore loads BEFORE the html is rendered, not after. It used to load on
      the next line down; moving it up is the whole change. */
+
+  /* THE BUILD GATE RUNS BEFORE A BYTE IS RENDERED, beside the CRM-record gate and for the
+     same reason: a refusal that arrives after the file exists is not a refusal. */
+  loadBuildGate(gatePath);
+
   const R = loadRegistrar();
   if (!config.docId) config.docId = R.deriveDocId('guide', config.eventId);
 

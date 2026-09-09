@@ -169,8 +169,28 @@ them in the config. `meetingDate` must equal the `YYYYMMDD` slot in the filename
    its own, on purpose. Resolve the real mounted path for this session.
 
    **(a) Build.** This writes the HTML under a QUARANTINE name and prints a plan on stdout:
+   ⛔ **`--gate` IS REQUIRED AND HAS NO DEFAULT — ADDED 2026-09-09, ships in v0.9.6.** Without it
+   the builder REFUSES and writes nothing. It is the set of rows `asset_build_gate` returns for
+   the four Quick-access aspect templates, and it answers a question Step 3.5 never could:
+   **Step 3.5 proves the words ARRIVED. The gate proves they are ALLOWED to be built from** —
+   each template is in the catalogue, its stored hash still matches its stored body, and its
+   review date is in the future. A guide can carry four perfectly complete aspects drawn from
+   templates nobody may build from, and it would look correct on the way out.
+
+   Get it the same way you got the aspects — one SELECT through the board connector, resolved
+   BY CATEGORY (`initiatives-board` / `query_board`), saved to `gate.json`:
 ```
-node "<skill-folder>/build-call-guide.js" guide.json config.json out.html
+node "<skill-folder>/build-call-guide.js" --print-gate-sql --tenant <tenant>
+```
+   ⚠ **IT REFUSES ON FEWER THAN FOUR ROWS, and that is Step 3.5's own rule made mechanical**
+   ("If the query returns NULL or fewer than four aspects, STOP. Do not build."). A short gate
+   set and a clean one read identically, which is why the count is checked and not just the
+   verdicts. It also refuses if ANY row is false, and NAMES the template that failed.
+   ⚠ **`--regen` is deliberately NOT gated:** it rebuilds from kept state and never re-reads the
+   aspect templates, so demanding a gate for templates it is not reading would be theatre.
+
+```
+node "<skill-folder>/build-call-guide.js" guide.json config.json out.html --gate gate.json
 ```
    The plan carries `sql`, `params`, `planPath`, `resultPath` and `quarantinePath`. The file on
    disk right now is **not** a call document — its name deliberately does not match the
