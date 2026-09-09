@@ -104,8 +104,7 @@ STANDING_CHECK = {
         "names beginning with an underscore, judged against the work_drawer term snapshot supplied by "
         "--drawers. It carries no drawer list of its own. It sees DIRECTORIES only.",
     "reds_at":
-        "the CLAUDE.md standing-check block (run before reporting any file work done); exit 1 = a "
-        "finding",
+        "a session running the fleet before reporting file work, per the standing-check line in CLAUDE.md - this field named the CLAUDE.md standing-check BLOCK until 2026-09-05, and that block was DELETED 2026-08-11 when CLAUDE.md was cut to a ~9,000-character router; the obligation survived, the enumeration did not (run before reporting any file work done); exit 1 = a finding",
 }
 
 import argparse
