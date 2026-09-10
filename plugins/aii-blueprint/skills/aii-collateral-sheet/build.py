@@ -72,11 +72,59 @@ import base64, pathlib, re, sys, asyncio
 WORK = None   # set by require_work(); a default here is what would hide the failure
 OUT  = None
 
-INDIGO   = "#4F46E5"
-TEAL     = "#00D4AA"
-BLACK    = "#0D0D24"
-OFFWHITE = "#F0EFFF"
-SLATE    = "#6366A0"
+# ⛔ BRAND IS A PARAMETER. RESTORED 2026-09-10 by session slog_solo_20260910_113552_b3e91c.
+#    THIS IS A RESTORATION, NOT A NEW DESIGN. The 2026-08-20 copy of this family
+#    (two-sided-sheet-source-20260820.zip) already had BRANDS{} + css_for(brand); its own
+#    README says "BRAND IS A PARAMETER ... so one family serves two registered brands.
+#    Layout, zones and type scale untouched. The accent-once-per-view assert is per brand."
+#    The 2026-09-09 port moved the sending company's WORDS out to asset_template_body and
+#    correctly refused a default for them -- and in the same move put the sending company's
+#    COLOUR back in as a literal (PRIMARY/ACCENT/BLACK/OFFWHITE/MUTED plus three inline
+#    hexes in the stylesheet). So a VisitorResolve sheet built here came out with
+#    VisitorResolve's logo and AI Integrator's accent.
+#
+#    That is the defect this file's own docstring warns about, committed against colour
+#    instead of words: "a hardcoded literal wearing a generic builder ... would have
+#    shipped AI INTEGRATOR'S PITCH inside their own client's sheet, and it would have
+#    looked perfect on the way out."
+#
+#    ⚠ ONLY THE COLOURS LIVE HERE. The spine line and the STEPS strip were in the
+#    2026-08-20 BRANDS map too; they are NOT restored here, because they are WORDS and
+#    the 2026-09-09 ruling put words in asset_template_body, read through --frame. Two
+#    homes for one fact is the defect this program already fixed once.
+BRANDS = {
+    "aii": {"PRIMARY": "#4F46E5", "ACCENT": "#00D4AA", "BLACK": "#0D0D24",
+            "OFFWHITE": "#F0EFFF", "MUTED": "#6366A0",
+            "RULE": "#DEDCF5", "RULE2": "#D5D2F2", "FOOTRULE": "#262647"},
+    "vr":  {"PRIMARY": "#007FFF", "ACCENT": "#B5F44A", "BLACK": "#2B2D42",
+            "OFFWHITE": "#EDF2F4", "MUTED": "#857F74",
+            "RULE": "#D8DEE2", "RULE2": "#CFD7DC", "FOOTRULE": "#3E4157"},
+}
+
+PRIMARY = ACCENT = BLACK = OFFWHITE = MUTED = RULE = RULE2 = FOOTRULE = None
+
+
+def load_palette():
+    """The sending company's COLOURS, chosen by --brand. REQUIRED, no default -- same
+    discipline as --work/--frame/--gate and for the same reason: a default paints one
+    company's identity onto another company's sheet and it looks finished on the way out."""
+    global PRIMARY, ACCENT, BLACK, OFFWHITE, MUTED, RULE, RULE2, FOOTRULE
+    b = _flag("--brand")
+    if not b:
+        raise SystemExit(
+            "build.py: REFUSED - no --brand given, and no sheet was written.\n"
+            "--brand names the SENDING company's palette. Registered: %s\n"
+            "There is no default: the accent colour is an identity, not a style."
+            % ", ".join(sorted(BRANDS)))
+    if b not in BRANDS:
+        raise SystemExit(
+            "build.py: REFUSED - --brand %r is not registered. No sheet written.\n"
+            "Registered: %s" % (b, ", ".join(sorted(BRANDS))))
+    P = BRANDS[b]
+    PRIMARY, ACCENT, BLACK = P["PRIMARY"], P["ACCENT"], P["BLACK"]
+    OFFWHITE, MUTED = P["OFFWHITE"], P["MUTED"]
+    RULE, RULE2, FOOTRULE = P["RULE"], P["RULE2"], P["FOOTRULE"]
+    return P
 
 
 BRAND_FILES = ["assets/Archivo-400.ttf", "assets/Archivo-600.ttf", "assets/Archivo-700.ttf",
@@ -156,10 +204,10 @@ body {{ font-family:'Archivo', Helvetica, Arial, sans-serif; color:{BLACK}; }}
 .bar img {{ height:20px; }}
 .mono {{ font-family:'PlexMono', 'Courier New', monospace; font-weight:500;
          letter-spacing:.10em; text-transform:uppercase; }}
-.bar .mono {{ font-size:6.6pt; color:{SLATE}; text-align:right; line-height:1.5; }}
+.bar .mono {{ font-size:6.6pt; color:{MUTED}; text-align:right; line-height:1.5; }}
 
 /* ---- hero ---- */
-.hero {{ background:{INDIGO}; padding:.25in .55in .27in; }}
+.hero {{ background:{PRIMARY}; padding:.25in .55in .27in; }}
 .hero .eyebrow {{ font-size:6.8pt; color:{OFFWHITE}; opacity:.78; margin-bottom:.11in; }}
 .hero h1 {{ font-size:21pt; line-height:1.06; font-weight:700; letter-spacing:-.018em;
             color:#fff; margin-bottom:.115in; }}
@@ -168,41 +216,41 @@ body {{ font-family:'Archivo', Helvetica, Arial, sans-serif; color:{BLACK}; }}
 /* ---- body ---- */
 .body {{ flex:1; padding:.22in .55in .06in; }}
 h2 {{ font-size:13.4pt; font-weight:700; letter-spacing:-.012em; margin-bottom:.06in; }}
-.note {{ font-size:8.2pt; line-height:1.4; color:{SLATE}; margin-bottom:.115in; max-width:6.4in; }}
+.note {{ font-size:8.2pt; line-height:1.4; color:{MUTED}; margin-bottom:.115in; max-width:6.4in; }}
 
 .leak {{ display:grid; grid-template-columns:.30in 1fr; margin-bottom:.058in; }}
 .leak .n {{ font-family:'PlexMono','Courier New',monospace; font-weight:500; font-size:8pt;
-            color:{INDIGO}; padding-top:.022in; }}
+            color:{PRIMARY}; padding-top:.022in; }}
 .leak h3 {{ font-size:9.1pt; font-weight:700; line-height:1.26; margin-bottom:.028in; }}
-.leak .what {{ font-size:7.7pt; line-height:1.35; color:{SLATE}; margin-bottom:.032in; }}
+.leak .what {{ font-size:7.7pt; line-height:1.35; color:{MUTED}; margin-bottom:.032in; }}
 .orch {{ display:grid; grid-template-columns:1fr 1fr; background:{OFFWHITE};
-          border-left:2px solid {INDIGO}; }}
+          border-left:2px solid {PRIMARY}; }}
 .orch > div {{ padding:.05in .11in .055in; }}
-.orch > div + div {{ border-left:1px solid #D5D2F2; }}
+.orch > div + div {{ border-left:1px solid {RULE2}; }}
 .orch .k {{ font-family:'PlexMono','Courier New',monospace; font-weight:500; font-size:5.9pt;
-            letter-spacing:.09em; text-transform:uppercase; color:{INDIGO}; margin-bottom:.028in; }}
-.orch > div + div .k {{ color:{SLATE}; }}
+            letter-spacing:.09em; text-transform:uppercase; color:{PRIMARY}; margin-bottom:.028in; }}
+.orch > div + div .k {{ color:{MUTED}; }}
 .orch p {{ font-size:7.6pt; line-height:1.34; color:{BLACK}; }}
 
 /* ---- questions ---- */
 .q {{ display:grid; grid-template-columns:.32in 1fr; margin-bottom:.185in; }}
 .q .n {{ font-family:'PlexMono','Courier New',monospace; font-weight:500; font-size:8pt;
-         color:{INDIGO}; padding-top:.03in; }}
+         color:{PRIMARY}; padding-top:.03in; }}
 .q h3 {{ font-size:10.6pt; font-weight:700; line-height:1.28; margin-bottom:.035in; }}
-.q p {{ font-size:8.8pt; line-height:1.42; color:{SLATE}; }}
+.q p {{ font-size:8.8pt; line-height:1.42; color:{MUTED}; }}
 .q p b {{ color:{BLACK}; font-weight:600; }}
 
 /* ---- handle / bring ---- */
 .split {{ display:grid; grid-template-columns:1fr 1fr; gap:.34in; margin-top:.30in;
-          border-top:1px solid #DEDCF5; padding-top:.24in; }}
+          border-top:1px solid {RULE}; padding-top:.24in; }}
 .split h4 {{ font-size:10pt; font-weight:700; margin-bottom:.08in; }}
 .split ul {{ list-style:none; }}
-.split li {{ font-size:9.1pt; line-height:1.42; color:{SLATE}; padding-left:.15in;
+.split li {{ font-size:9.1pt; line-height:1.42; color:{MUTED}; padding-left:.15in;
              position:relative; margin-bottom:.055in; }}
-.split li:before {{ content:'—'; position:absolute; left:0; color:{INDIGO}; }}
+.split li:before {{ content:'—'; position:absolute; left:0; color:{PRIMARY}; }}
 
 /* ---- footer band ---- */
-.closer {{ margin-top:.30in; border-left:3px solid {INDIGO}; background:{OFFWHITE};
+.closer {{ margin-top:.30in; border-left:3px solid {PRIMARY}; background:{OFFWHITE};
              padding:.16in .20in; font-size:9.1pt; line-height:1.45; color:{BLACK}; }}
 .closer b {{ font-weight:700; }}
 .foot {{ background:{BLACK}; padding:.22in .55in .21in; }}
@@ -210,13 +258,13 @@ h2 {{ font-size:13.4pt; font-weight:700; letter-spacing:-.012em; margin-bottom:.
                margin-bottom:.12in; }}
 .foot .line span {{ color:{OFFWHITE}; opacity:.72; font-weight:400; }}
 .steps {{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:.26in; margin-bottom:.14in; }}
-.steps .s .k {{ font-size:6.6pt; color:{SLATE}; margin-bottom:.05in; }}
+.steps .s .k {{ font-size:6.6pt; color:{MUTED}; margin-bottom:.05in; }}
 .steps .s h5 {{ font-size:9.4pt; color:#fff; font-weight:700; margin-bottom:.04in; }}
 .steps .s p {{ font-size:7.0pt; line-height:1.34; color:{OFFWHITE}; opacity:.70; }}
-.cta {{ border-top:1px solid #262647; padding-top:.14in; display:flex;
+.cta {{ border-top:1px solid {FOOTRULE}; padding-top:.14in; display:flex;
         justify-content:space-between; align-items:baseline; }}
-.cta .big {{ font-size:9.5pt; font-weight:700; color:{TEAL}; }}
-.cta .sm {{ font-size:7.4pt; color:{SLATE}; text-align:right; line-height:1.55; }}
+.cta .big {{ font-size:9.5pt; font-weight:700; color:{ACCENT}; }}
+.cta .sm {{ font-size:7.4pt; color:{MUTED}; text-align:right; line-height:1.55; }}
 """
 
 # ---------------------------------------------------------------------------
@@ -452,7 +500,7 @@ def front(s, F):
     return f"""
 <div class="page">
   <div class="bar">
-    <img src="data:image/png;base64,{LOGO_DARK}" alt="AI Integrator">
+    <img src="data:image/png;base64,{LOGO_DARK}" alt="{F['frame-signature'].split('<br>')[0]}">
     <div class="mono">{s['meta']}<br>Side 1 of 2</div>
   </div>
   <div class="hero">
@@ -488,7 +536,7 @@ def back(s, F):
     return f"""
 <div class="page">
   <div class="bar">
-    <img src="data:image/png;base64,{LOGO_DARK}" alt="AI Integrator">
+    <img src="data:image/png;base64,{LOGO_DARK}" alt="{F['frame-signature'].split('<br>')[0]}">
     <div class="mono">{s['meta']}<br>Side 2 of 2</div>
   </div>
   <div class="body" style="padding-top:.44in">
@@ -562,6 +610,51 @@ def canonical_name(s):
     return " - ".join(x.strip() for x in slots if x and x.strip())
 
 
+PROBE_JS = """() => [...document.querySelectorAll('.page')].map(p => {
+                const foot = p.querySelector('.foot');
+                const body = p.querySelector('.body');
+                const last = body.lastElementChild;
+                const ov = Math.max(0, p.scrollHeight - p.clientHeight);
+                const slack = Math.round(foot.getBoundingClientRect().top
+                                         - last.getBoundingClientRect().bottom);
+                return {ov, slack};
+            })"""
+
+
+def render_via_chrome(items):
+    """FALLBACK, ADDED 2026-09-10 (session slog_solo_20260910_113552_b3e91c) because
+    Playwright is NOT on this operator's Mac and the plugin install shipped no build.py
+    either, so the contracted path could not run at all.
+
+    ⛔ THIS PATH PRODUCES THE PDF AND DOES NOT RUN THE ASSERTION. Chrome's --print-to-pdf
+    gives no page handle, so the ov/slack probe cannot run here. It therefore REFUSES to
+    report a pass. PROBE_JS above is the probe, lifted verbatim out of render() so there is
+    exactly one copy of it: run it against the emitted HTML in a real browser and read the
+    numbers yourself. A build that silently skipped a layout assertion and printed nothing
+    about it is the failure this whole family exists to prevent."""
+    import shutil, subprocess
+    chrome = next((c for c in [
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/Applications/Chromium.app/Contents/MacOS/Chromium",
+        "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+        shutil.which("google-chrome"), shutil.which("chromium")] if c and pathlib.Path(c).exists()), None)
+    if not chrome:
+        raise SystemExit(
+            "build.py: REFUSED - playwright is not installed and no Chrome/Chromium was found.\n"
+            "Install one, or run: python3 -m pip install playwright && python3 -m playwright install chromium")
+    for name, path in items:
+        pdf = OUT / f"{name}.pdf"
+        subprocess.run([chrome, "--headless", "--disable-gpu", "--no-pdf-header-footer",
+                        f"--print-to-pdf={pdf}", f"file://{path}"],
+                       check=True, capture_output=True)
+        print(f"  {name:>52}  PDF via Chrome", file=sys.stderr)
+    print("\n⚠ LAYOUT ASSERTION NOT RUN ON THIS PATH - Chrome --print-to-pdf exposes no page\n"
+          "  handle. The PDFs above are built and UNVERIFIED for overflow/collision. Run\n"
+          "  build.PROBE_JS against each emitted .html in a browser and read ov/slack.\n"
+          "  ov must be 0 and slack must be >= 0 on every page.", file=sys.stderr)
+    return None   # NOT 0. 0 would read as "zero bad pages" and this path cannot know that.
+
+
 async def render(items):
     from playwright.async_api import async_playwright
     async with async_playwright() as p:
@@ -570,15 +663,7 @@ async def render(items):
         for name, path in items:
             await pg.goto(f"file://{path}")
             await pg.wait_for_timeout(350)
-            over = await pg.evaluate('''() => [...document.querySelectorAll('.page')].map(p => {
-                const foot = p.querySelector('.foot');
-                const body = p.querySelector('.body');
-                const last = body.lastElementChild;
-                const ov = Math.max(0, p.scrollHeight - p.clientHeight);
-                const slack = Math.round(foot.getBoundingClientRect().top
-                                         - last.getBoundingClientRect().bottom);
-                return {ov, slack};
-            })''')
+            over = await pg.evaluate(PROBE_JS)
             print(f"  {name[-28:]:>28}  {over}", file=sys.stderr)
             pdf = OUT / f"{name}.pdf"
             await pg.pdf(path=str(pdf), format="Letter", print_background=True,
@@ -656,6 +741,7 @@ def main():
     # case that would otherwise sail straight through.
     G = load_gate(_flag("--gate"))
     F = load_frame(_flag("--frame"))
+    load_palette()
     load_brand()
     OUT.mkdir(exist_ok=True)
 
@@ -664,17 +750,73 @@ def main():
         h = html_for(s, F)
         # ---- teal-once-per-view check, countable in the source
         for i, page in enumerate(h.split('<div class="page">')[1:]):
-            n = len(re.findall(re.escape(TEAL), page))
-            assert n == 0, f"{s['slug']} page {i+1}: literal teal in markup"
-        assert CSS.count(TEAL) == 1, "teal declared more than once in the stylesheet"
+            n = len(re.findall(re.escape(ACCENT), page))
+            assert n == 0, f"{s['slug']} page {i+1}: literal accent {ACCENT} in markup"
+        assert CSS.count(ACCENT) == 1, \
+            "accent %s declared more than once in the stylesheet" % ACCENT
         name = file_name(s)
         p = WORK / f"{s['slug']}.html"
         p.write_text(h, encoding="utf-8")
         items.append((name, p))
-    asyncio.run(render(items))
+    try:
+        import playwright  # noqa: F401
+        bad = asyncio.run(render(items))
+    except ModuleNotFoundError:
+        bad = render_via_chrome(items)
     print("built:")
     for n, _ in items:
         print("  ", (OUT / f"{n}.pdf").name)
+
+    # ══════════════════════════════════════════════════════════════════════════════
+    # ⛔ A BUILD IS NOT A DELIVERY. THIS PROGRAM NO LONGER EXITS 0 HERE.
+    # ══════════════════════════════════════════════════════════════════════════════
+    # Added 2026-09-10 (session:slog_solo_20260910_183000_a55et2) on Bryce's instruction
+    # to "build the registration into the delivery step".
+    #
+    # WHY IT IS A REFUSAL AND NOT A REMINDER. Delivery and registration have always been
+    # TWO ACTS, and the second one runs without the first, forever — measured that day at
+    # 112 finished documents in the client folders against 34 the library could name. A
+    # printed suggestion to go register the file is act two wearing act one's clothes.
+    # The only thing this program can do that a reminder cannot is REFUSE TO SUCCEED.
+    #
+    # ⚠ THE PDFs ARE WRITTEN AND THEY ARE FINE. This is not a rollback and nothing is
+    #   deleted — the exit code is the whole mechanism. A caller that reads exit 0 as
+    #   "done" now gets 9 instead, and 9 has exactly one meaning: the file exists and
+    #   the library cannot see it yet.
+    #
+    # THE REGISTRAR IS A SEPARATE FILE ON PURPOSE, and that is a port, not a preference:
+    # register-call-doc.js is the same fix one family over for call_doc, and it is its own
+    # module rather than a block inside build-call-guide.js. Same reason here — on
+    # 2026-09-10 there were TWO live copies of this builder (this one and a parked patch
+    # under 02 — Clients/AI Integrator/sales/templates), so registration living INSIDE a
+    # builder is registration half the estate does not have.
+    print()
+    print("⛔ BUILT, NOT DELIVERED — exit 9. The library cannot see these files yet.")
+    print("   Register them, then this build counts as done:")
+    print()
+    # ⛔ THE PATH IS DERIVED FROM THIS FILE, NEVER TYPED. The registrar ships BESIDE this
+    #    program in the plugin (skills/aii-collateral-sheet/) and sits in 04/scripts in the
+    #    workspace. A hardcoded workspace path is a path NO SEAT HAS — which is the very
+    #    defect this skill was fixed for on 2026-09-09, when its body told a reader to run a
+    #    builder that was not on the machine. Caught 2026-09-10 by unzipping the built
+    #    plugin and reading it, not by any gate.
+    _reg = pathlib.Path(__file__).resolve().parent / "register-delivered-asset.py"
+    if not _reg.exists():
+        _reg = pathlib.Path("04 — Daily Operating System/scripts/register-delivered-asset.py")
+    print('     python3 "%s" \\' % _reg)
+    print('       --scan "%s" \\' % OUT)
+    print('       --deliver-to "02 — Clients/<where these will actually live>" \\')
+    print("       --tenant <t> --company <c> --department sales --asset-type concept_sheet \\")
+    print("       --program <program_id> --by session:<your session id>")
+    print()
+    print("   then --sql, run it through the board, and hand the rows back with --settle.")
+    print("   ⚠ A rebuild that produces the SAME BYTES comes back `unchanged` and writes")
+    print("     nothing. That is a pass, not a miss: the file name was never the question.")
+    raise SystemExit(9)
+    if bad is None:
+        print("layout overflow/collision pages: UNVERIFIED (see the warning above)")
+    else:
+        print("layout overflow/collision pages:", bad)
 
 
 if __name__ == "__main__":

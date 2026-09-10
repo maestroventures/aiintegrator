@@ -198,6 +198,11 @@ function buildSectionsHtml(g) {
     if (isMain) step++;
   });
 
+  /* ⚠ THIS HTML IS DISCARDED — buildStandaloneHtml() consumes only `labels` from this
+     function. The LIVE follow-ups now render in cgRefItems() as reference group 'post'.
+     Kept here because `labels['followups']` is still read for the CRM log text. Do NOT
+     'fix' follow-ups by editing the block below; it has not reached a page since the
+     live board landed. (2026-09-10) */
   if (g.followups && g.followups.length) {
     labels['followups'] = 'After the call';
     html += '<div class="section" id="followups"><div class="section-header" onclick="toggleSection(\'followups\')">' +
@@ -943,7 +948,7 @@ function cgOrderedItems(g) {
 }
 
 /* ── the board (left) — .panel + .stackhead + .panel h2 + .room ── */
-function buildBoardHtml(g) {
+function buildBoardHtml(g, config) {
   const refs = cgRefItems(g);
   const ordered = cgOrderedItems(g);
   const byLane = {}; CG_LANES.forEach(function (l) { byLane[l.key] = []; });
@@ -994,8 +999,38 @@ function buildBoardHtml(g) {
 
   /* ruling 2 — the marker is PERMANENT and is rendered even when there is no close, because
      an absent marker reads as "nothing to reach." */
-  const marker = '<div class="stackhead"><span class="u-pill" id="cgMust" data-close="' +
-    esc(closeItem ? closeItem.sid : '') + '">Close: not yet</span></div>';
+  /* ── THE TOP PILL IS THE CRM GATE, NOT THE CLOSE TRACKER. Ruled by Bryce 2026-09-10,
+     his words: *"One always says close, not yet. That should say CRM, and this should
+     basically tell me whether or not this person's in the CRM. I shouldn't have a call
+     with anyone that's not already in the CRM to begin with."*
+
+     WHY THE CLOSE TRACKER LOST THE SLOT RATHER THAN GAINING A NEIGHBOUR: close coverage
+     is ALREADY visible — the close row carries its own ✓ in the Land-it lane, and cgCov
+     counts it. The pill was a second rendering of a fact already on screen, which is why
+     it read as noise. CRM presence is on screen NOWHERE ELSE and is a PRE-call condition:
+     it is answerable before the call starts and it is actionable only before the call
+     starts. A slot at the top of the board should carry the thing you can still act on.
+
+     THE THREE STATES ARE THE REGISTERED ONES, not new words. call_doc_lead_declaration_ck
+     already separates ATTACHED (a lead id) / DECLARED (a human sentence saying there is
+     deliberately no single lead) / UNKNOWN (neither). Reusing them means the pill cannot
+     drift from what the registrar stores, and UNKNOWN keeps its meaning — "nobody ever
+     recorded the lead", which must never render as "this call has no lead." */
+  const crmName = esc((config && config.crmName) || 'CRM');
+  const leadId  = String((config && config.leadId) || '').trim();
+  const noLead  = String((config && config.noLeadReason) || '').trim();
+  const leadUrl = String((config && config.leadUrl) || '').trim();
+  let crmText, crmState;
+  if (leadId)      { crmText = 'In ' + crmName + ' \u2713';              crmState = 'verified'; }
+  else if (noLead) { crmText = 'No single lead \u2014 ' + esc(noLead);   crmState = 'delivered'; }
+  else             { crmText = 'NOT IN ' + crmName.toUpperCase();         crmState = 'blocked'; }
+  const crmInner = (leadId && leadUrl)
+    ? '<a href="' + esc(normUrl(leadUrl)) + '" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">' + crmText + '</a>'
+    : crmText;
+  const marker = '<div class="stackhead">' +
+    '<span class="u-pill" id="cgCrm" data-crm="' + (leadId ? 'attached' : (noLead ? 'declared' : 'unknown')) + '"' +
+    ' style="background:var(--st-' + crmState + '-bg);color:var(--st-' + crmState + '-fg)">' + crmInner + '</span>' +
+    '<span class="u-pill" id="cgMust" data-close="' + esc(closeItem ? closeItem.sid : '') + '" hidden></span></div>';
 
   /* the reference group. NO tick, and these sids never enter CG_ITEM_IDS. */
   function refRow(r) {
@@ -1021,9 +1056,14 @@ function buildBoardHtml(g) {
     refLane('talk', CG_TALK_LABEL,     CG_TALK_HINT,
             refs.filter(function (r) { return r.group === 'talk'; }));
 
+  /* AFTER the coverage lanes, never with the pre-call group: it is the only rail row
+     that is reached for once the call is over. */
+  const postLane = refLane('after', 'After the call', 'tick what you owe',
+                           refs.filter(function (r) { return r.group === 'after'; }));
+
   const board = '<div class="panel cgb-board">' +
     '<div class="stackhead"><h2>Coverage</h2><span class="ctx" id="cgCov">0 of ' + ordered.length + ' covered</span></div>' +
-    marker + refLanes + lanes + '<div style="height:10px"></div></div>';
+    marker + refLanes + lanes + postLane + '<div style="height:10px"></div></div>';
 
   return { boardHtml: board, items: ordered, refs: refs };
 }
@@ -1161,6 +1201,53 @@ function cgRefItems(g) {
     R.push({ sid: 'ref-' + a.id, label: a.label, hint: '', group: 'talk',
              body: cgAspectBody(a, A.howToUse), aspect: true });
   });
+
+  /* ── AFTER THE CALL — the authored follow-ups, as ticks that reach the CRM note.
+     Added 2026-09-10. THEY WERE NEVER MISSING, THEY WERE ORPHANED. buildSectionsHtml()
+     has rendered this exact block since the old contract, but since the live board
+     landed that function is called for its LABELS ONLY — buildStandaloneHtml says so
+     in its own comment, "still built: SECTION_LABELS feeds the CRM log" — and its
+     html is thrown away. So the label 'After the call' shipped on every guide while
+     the checkboxes it names did not, which is why the feature looked present.
+
+     THE COLLECTOR HAS BEEN READING ELEMENTS THAT WERE NEVER EMITTED. gatherData()
+     does document.querySelectorAll('.fu:checked') and pulls data-fu off each, then
+     buildLogText() writes them under "Follow-ups to send:". With no .fu elements in
+     the document that list is empty BY CONSTRUCTION on every guide ever built — and
+     an empty list reads as "no follow-ups were needed" rather than "nothing was
+     rendered to check", which is the same deliberate-vs-accidental-empty ambiguity
+     the leadId refusal (2026-08-11) exists to end.
+
+     MEASURED 2026-09-10 across four guides on disk — Trackly/Evan Manning,
+     Cinergy/Tony Scelzo, Rialto/Tim Fitzpatrick, Finsider/Mitch Petracca: data-fu
+     occurs exactly ONCE in each, and that one is the getAttribute call inside the
+     runtime, never an element.
+
+     GROUP 'after', NOT A LANE ITEM, ON PURPOSE. (It was 'post' for ten minutes on
+     2026-09-10 and was renamed before shipping: term_already_exists('bryce','post')
+     returns an EXACT match — connector-registry/post, "something published publicly,
+     to everyone rather than to a named person". Same word, different concept, and a
+     collision is worse than an unregistered word because both readings are correct.) A follow-up is not covered DURING the
+     call, so it must not enter cgOrderedItems and must not inflate the coverage
+     denominator. Reference rows carry no tick and never enter CG_ITEM_IDS — the same
+     rule the pre-call and talking-point rows already run on. Styling is inline and
+     copied from the retired block rather than added to BOARD_CSS, because
+     checkBoardIsCanonical() guards that stylesheet against exactly this kind of
+     well-meant addition. */
+  if (g.followups && g.followups.length) {
+    R.push({ sid: 'ref-followups', label: 'After the call',
+             hint: 'tick what you owe — it lands in the CRM note',
+             group: 'after', afterCall: true,
+             body: '<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">' +
+               g.followups.map(function (f) {
+                 return '<label style="display:flex;gap:10px;align-items:flex-start;' +
+                   'font-size:0.82rem;color:#33334d;cursor:pointer;">' +
+                   '<input type="checkbox" class="fu" data-fu="' + esc(f) +
+                   '" style="accent-color:#4f46e5;width:15px;height:15px;flex:none;margin-top:2px;"> ' +
+                   '<span>' + esc(f) + '</span></label>';
+               }).join('') + '</div>' });
+  }
+
   return R;
 }
 
@@ -1183,7 +1270,7 @@ function cgAspectBody(a, howToUse) {
 
 function cgRefCardHtml(r) {
   return '<div class="card cgb-card" id="c-' + esc(r.sid) + '">' +
-    '<div class="row1"><span class="badge">' + (r.aspect ? esc(CG_TALK_LABEL.toUpperCase()) : 'PRE-CALL') + '</span></div>' +
+    '<div class="row1"><span class="badge">' + (r.aspect ? esc(CG_TALK_LABEL.toUpperCase()) : (r.afterCall ? 'AFTER THE CALL' : 'PRE-CALL')) + '</span></div>' +
     '<div class="title">' + esc(r.label) + '</div>' +
     (r.hint ? '<div class="why">' + esc(r.hint) + '</div>' : '') +
     r.body + '</div>';
@@ -1255,8 +1342,8 @@ const BOARD_RUNTIME =
 "cgApplyRail();cgPaint();";
 
 /* ── the whole live surface: ONE rail, ONE main frame. ── */
-function buildLiveBoardHtml(g) {
-  const B = buildBoardHtml(g);
+function buildLiveBoardHtml(g, config) {
+  const B = buildBoardHtml(g, config);
   const cards = B.refs.map(cgRefCardHtml).join('') + B.items.map(cgCardHtml).join('');
   return {
     html: '<div class="cgb"><div class="cgb-wrap">' +
@@ -1284,7 +1371,7 @@ function buildStandaloneHtml(g, config) {
       'aii-site/design-system/components.css (dead, and it ships a call-guide.html decoy).');
   }
 
-  const live = buildLiveBoardHtml(g);
+  const live = buildLiveBoardHtml(g, config);
   const sec = buildSectionsHtml(g);           /* still built: SECTION_LABELS feeds the CRM log */
   const cfg = Object.assign({}, config, { totalSections: live.ids.length });
   const title = (g.header && g.header.title) || ('Call Guide — ' + config.prospect);
