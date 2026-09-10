@@ -52,7 +52,7 @@ Collateral & Messaging Standard v1.0:
    deliverable that was never written to disk. Neither of them is a write door on
    `assets`; there is still no asset_put.
 """
-import base64, pathlib, re, sys, asyncio
+import base64, json, pathlib, re, sys, asyncio
 
 # ⛔ content.py IS NOT IMPORTED AT MODULE LEVEL — GENERICIZED 2026-09-09, same reason
 #    as the frame below. content.py holds the SHEETS for ONE prospect and is written
@@ -92,39 +92,157 @@ OUT  = None
 #    2026-08-20 BRANDS map too; they are NOT restored here, because they are WORDS and
 #    the 2026-09-09 ruling put words in asset_template_body, read through --frame. Two
 #    homes for one fact is the defect this program already fixed once.
-BRANDS = {
-    "aii": {"PRIMARY": "#4F46E5", "ACCENT": "#00D4AA", "BLACK": "#0D0D24",
-            "OFFWHITE": "#F0EFFF", "MUTED": "#6366A0",
-            "RULE": "#DEDCF5", "RULE2": "#D5D2F2", "FOOTRULE": "#262647"},
-    "vr":  {"PRIMARY": "#007FFF", "ACCENT": "#B5F44A", "BLACK": "#2B2D42",
-            "OFFWHITE": "#EDF2F4", "MUTED": "#857F74",
-            "RULE": "#D8DEE2", "RULE2": "#CFD7DC", "FOOTRULE": "#3E4157"},
-}
+# ⛔ BRANDS{} DELETED 2026-09-10. Two keys, aii and vr, compiled into a builder every client
+#    is meant to run. It was a second home for a fact the `brand` + `company_asset` stores
+#    already own, and it was the mechanical reason a partner sheet could not be branded as the
+#    partner. The colours are READ now — see load_palette() and --palette.
 
 PRIMARY = ACCENT = BLACK = OFFWHITE = MUTED = RULE = RULE2 = FOOTRULE = None
+# Set by load_palette() from the STORE, never by a flag: true when the sending company's
+# brand is a `candidate` — derived from their own website rather than given to us.
+BRAND_IS_REPRESENTATIVE = False
+REPRESENTATIVE_NOTE = "Branding shown is representative, based on publicly available materials."
+
+
+def palette_sql(tenant, brand_key):
+    """The SELECT that produces --palette. Printed by --print-sql, run by the caller through
+    the board, handed back as rows. Same two-step door as --frame and --gate, and for the same
+    reason: this program holds no credential and never will."""
+    return (
+        "-- 3 of 3 - THE PALETTE. The SENDING company's colours, out of the store.\n"
+        "--   `candidate` rows are DERIVED (sampled off that company's own website) and are a\n"
+        "--   PASS: representative, not canonical, is the standard. `retired` is refused below.\n"
+        "SELECT ca.asset_key, ca.value, b.status AS brand_status, ca.status AS element_status\n"
+        "  FROM company_asset ca\n"
+        "  JOIN brand b ON b.tenant_id = ca.tenant_id AND b.brand_key = ca.company\n"
+        " WHERE ca.tenant_id = %s AND ca.company = %s\n"
+        "   AND ca.asset_kind = 'palette' AND ca.status <> 'retired' AND b.active;\n"
+        "-- params: tenant=%s brand=%s"
+        % (_q(tenant), _q(brand_key), tenant, brand_key))
+
+
+def _q(v):
+    return "'" + str(v).replace("'", "''") + "'"
+
+
+# ⛔ THE EIGHT SLOTS THIS PROGRAM PAINTS WITH. Not a brand — a CONTRACT. The store may hold
+#    sixty palette rows (AI Integrator holds 61) or two (a freshly derived partner holds two);
+#    either way a sheet needs exactly these eight, and the mapping below is how a store of any
+#    size becomes a sheet. Missing slots FALL BACK ALONG A STATED CHAIN rather than refusing,
+#    because "representative, not canonical" is the ruling and a two-colour partner brand must
+#    still produce a sheet.
+SLOTS = ["PRIMARY", "ACCENT", "BLACK", "OFFWHITE", "MUTED", "RULE", "RULE2", "FOOTRULE"]
+SLOT_KEYS = {
+    "PRIMARY":  ["primary", "indigo", "blue", "navy"],
+    "ACCENT":   ["accent", "teal", "lime"],
+    "BLACK":    ["black", "near-black", "ink-reading", "navy", "ink"],
+    "OFFWHITE": ["offwhite", "off-white", "surface", "surface-page"],
+    "MUTED":    ["muted", "slate", "taupe", "ink-quiet"],
+    "RULE":     ["rule", "hairline"],
+    "RULE2":    ["rule2", "hairline-soft"],
+    "FOOTRULE": ["footrule", "brand-bar-control", "near-black"],
+}
+# ⛔ WHERE THE LINE SITS, AND IT IS THE WHOLE ARGUMENT. Only TWO of the eight slots are
+#    IDENTITY: PRIMARY and ACCENT. Those must come out of the store or the sheet is not that
+#    company's. The other six are PAPER AND INK — a page background, a text colour, three
+#    hairlines and a footer bar — and neutral paper is not a brand claim about anybody.
+#
+#    THE FIRST VERSION FELL EVERYTHING BACK TO PRIMARY and it was caught by running it: a
+#    two-colour partner brand produced navy text on a navy page. Unreadable is worse than
+#    wrong-coloured, and "representative" was never a licence to ship something nobody can
+#    read. So the neutrals fall back to neutrals, and the identity slots fall back to nothing —
+#    ACCENT to PRIMARY (one identity colour is still theirs) and PRIMARY to a REFUSAL.
+NEUTRAL = {"BLACK": "#111111", "OFFWHITE": "#FFFFFF", "MUTED": "#6B6B6B",
+           "RULE": "#E3E3E3", "RULE2": "#EDEDED", "FOOTRULE": "#111111"}
+FALLBACK_OF = {"ACCENT": "PRIMARY"}
 
 
 def load_palette():
-    """The sending company's COLOURS, chosen by --brand. REQUIRED, no default -- same
-    discipline as --work/--frame/--gate and for the same reason: a default paints one
-    company's identity onto another company's sheet and it looks finished on the way out."""
-    global PRIMARY, ACCENT, BLACK, OFFWHITE, MUTED, RULE, RULE2, FOOTRULE
+    """The sending company's COLOURS, READ OUT OF THE STORE. REQUIRED, no default.
+
+    ⛔ THE HARDCODED BRANDS{} MAP IS GONE, 2026-09-10. It held two keys, `aii` and `vr`, and
+       that was the whole reason a Galson sheet came out in AI Integrator's colours: a required
+       parameter whose value set is two rows deep is a WALL for every partner, and a wall
+       invites shipping without their identity. It was also a SECOND HOME for a fact the
+       database already owned — this file's own docstring forbids exactly that for WORDS, and
+       colour is no different. Bryce, naming the root: "I am a tenant of the platform ... we
+       need to make sure this works for any client." A map compiled into a builder cannot serve
+       a client whose partners nobody typed in.
+
+    ⭐ A `candidate` BRAND IS A PASS. That is the ruling, in his words: "perfection without us
+       having their canonical is not the goal. It's to be representative." A palette sampled
+       off a partner's own website paints a sheet. What is refused is `retired`, and nothing.
+    """
+    global PRIMARY, ACCENT, BLACK, OFFWHITE, MUTED, RULE, RULE2, FOOTRULE, BRAND_IS_REPRESENTATIVE
     b = _flag("--brand")
+    p = _flag("--palette")
     if not b:
         raise SystemExit(
             "build.py: REFUSED - no --brand given, and no sheet was written.\n"
-            "--brand names the SENDING company's palette. Registered: %s\n"
-            "There is no default: the accent colour is an identity, not a style."
-            % ", ".join(sorted(BRANDS)))
-    if b not in BRANDS:
+            "--brand names the SENDING company's brand_key in the store. There is no default:\n"
+            "the accent colour is an identity, not a style.\n"
+            "Run --print-sql to get the SELECT that lists what this tenant actually has.")
+    if not p:
         raise SystemExit(
-            "build.py: REFUSED - --brand %r is not registered. No sheet written.\n"
-            "Registered: %s" % (b, ", ".join(sorted(BRANDS))))
-    P = BRANDS[b]
-    PRIMARY, ACCENT, BLACK = P["PRIMARY"], P["ACCENT"], P["BLACK"]
-    OFFWHITE, MUTED = P["OFFWHITE"], P["MUTED"]
-    RULE, RULE2, FOOTRULE = P["RULE"], P["RULE2"], P["FOOTRULE"]
-    return P
+            "build.py: REFUSED - no --palette given, and no sheet was written.\n"
+            "The colours live in the STORE, not in this file. Run --print-sql --brand %s,\n"
+            "put statement 3 through the board, save the rows, and pass them as --palette.\n"
+            "⚠ IF THAT SELECT COMES BACK EMPTY, that company has no brand yet - and the fix is\n"
+            "  NOT to paint the sheet in ours. Derive one from their own website:\n"
+            "    derive-brand-from-site.py --url <their site> --company %s --name <Name> \\\n"
+            "        --tenant <tenant> --by session:<id>\n"
+            "  Representative, not canonical, is the standard." % (b, b))
+    try:
+        with open(p, encoding="utf-8") as fh:
+            blob = json.load(fh)
+    except Exception as e:
+        raise SystemExit("build.py: REFUSED - could not read --palette %s: %s" % (p, e))
+    rows = blob.get("rows", blob) if isinstance(blob, dict) else blob
+    if not isinstance(rows, list) or not rows:
+        raise SystemExit(
+            "build.py: REFUSED - --palette carried NO ROWS, and no sheet was written.\n"
+            "An empty palette and a palette nobody looked up are the same file, so this cannot\n"
+            "be read as 'they have no colours'. Either that brand is unregistered - derive it -\n"
+            "or the SELECT was never run.")
+    have = {}
+    for r in rows:
+        if isinstance(r, dict) and r.get("asset_key") and r.get("value"):
+            have[str(r["asset_key"]).lower()] = r["value"]
+    picked, how = {}, {}
+    for slot in SLOTS:
+        for k in SLOT_KEYS[slot]:
+            if k in have:
+                picked[slot], how[slot] = have[k], k
+                break
+    for slot, src in FALLBACK_OF.items():   # identity may borrow ONLY from identity
+        if slot not in picked and src in picked:
+            picked[slot], how[slot] = picked[src], "fell back to " + src + " (identity)"
+    for slot, hexv in NEUTRAL.items():      # paper and ink, stated, never a brand claim
+        if slot not in picked:
+            picked[slot], how[slot] = hexv, "NEUTRAL default - paper/ink, not their brand"
+    if "PRIMARY" not in picked:
+        raise SystemExit(
+            "build.py: REFUSED - this brand has no PRIMARY colour and no sheet was written.\n"
+            "The store returned: %s\n"
+            "PRIMARY is IDENTITY: there is no neutral that can stand in for it, because a sheet\n"
+            "with no identity colour is not that company's sheet. Everything else on this page\n"
+            "has an honest default; this one cannot. Add it:\n"
+            "  brand_element_put(<tenant>,'%s','palette','primary',session:<id>,'#RRGGBB')\n"
+            "or derive the whole brand from their own website with derive-brand-from-site.py."
+            % (", ".join(sorted(have)) or "nothing", b))
+    PRIMARY, ACCENT, BLACK = picked["PRIMARY"], picked["ACCENT"], picked["BLACK"]
+    OFFWHITE, MUTED = picked["OFFWHITE"], picked["MUTED"]
+    RULE, RULE2, FOOTRULE = picked["RULE"], picked["RULE2"], picked["FOOTRULE"]
+    st = {str(r.get("brand_status")) for r in rows if isinstance(r, dict) and r.get("brand_status")}
+    print("palette for %r, read from the store (%d row(s), brand status: %s)"
+          % (b, len(rows), ", ".join(sorted(st)) or "unstated"), file=sys.stderr)
+    for slot in SLOTS:
+        print("   %-9s %s   <- %s" % (slot, picked[slot], how[slot]), file=sys.stderr)
+    BRAND_IS_REPRESENTATIVE = ("candidate" in st)
+    if "candidate" in st:
+        print("   ⚠ CANDIDATE BRAND - these colours were DERIVED from that company's own site,\n"
+              "     not given to us. Representative, not canonical. That is a pass.", file=sys.stderr)
+    return picked
 
 
 BRAND_FILES = ["assets/Archivo-400.ttf", "assets/Archivo-600.ttf", "assets/Archivo-700.ttf",
@@ -178,6 +296,10 @@ def load_brand():
     LOGO_DARK = b64("assets/logo-dark.png")
     CSS = _css()
     return CSS
+
+
+REPNOTE_CSS = (".repnote{font-family:'PlexMono',ui-monospace,monospace;font-size:6.2pt;"
+               "letter-spacing:.02em;color:%s;opacity:.75;margin:0 0 3pt 0;}")
 
 
 def _css():
@@ -473,7 +595,25 @@ def esc(s):
     return s
 
 
+def _rep_note():
+    """⛔ THE SHEET SAYS SO ON ITS OWN FACE WHEN THE BRANDING IS DERIVED.
+
+    Bryce, 2026-09-10: "It can even have a small little identifier. This is representative,
+    which we continuously do that inside of the email bodies anyway."
+
+    It is NOT a disclaimer and it is not an apology — representative branding is a PASS, and
+    the standard he set is "perfection without us having their canonical is not the goal."
+    What it prevents is the other thing: a partner seeing their own colours on a document and
+    reasonably concluding we hold their brand guide. Small, quiet, and only when it is true —
+    the flag comes off the STORE (brand.status = candidate), never off a caller's opinion.
+    """
+    if not BRAND_IS_REPRESENTATIVE:
+        return ""
+    return ('<div class="repnote">%s</div>' % esc(REPRESENTATIVE_NOTE))
+
+
 def front(s, F):
+    rep_note = _rep_note()
     def _leak(row):
         # 4-tuple = legacy (Waldon sheets, unchanged default label).
         # 5-tuple = per-item label for the last 10%, so the sheet can say WHO decides.
@@ -514,6 +654,7 @@ def front(s, F):
     {leaks}
   </div>
   <div class="foot">
+    {rep_note}
     <div class="line">{F['frame-ninety-ten']} <span>{F['frame-throughline']}</span></div>
     <div class="steps">{steps}</div>
     <div class="cta">
@@ -725,8 +866,14 @@ def main():
         print("--   If ok is false, STOP: nothing below matters and no sheet may be built.")
         print(gate_sql(_flag("--tenant"), _flag("--template"), _flag("--review-due")))
         print()
-        print("-- 2 of 2 - THE FRAME. Save these rows for --frame.")
+        print("-- 2 of 3 - THE FRAME. Save these rows for --frame.")
         print(frame_sql(_flag("--tenant"), _flag("--template")))
+        print()
+        # ⭐ THIRD STATEMENT ADDED 2026-09-10 — the COLOURS, which used to be a two-key map
+        #    compiled into this file. Printing it here rather than in a separate tool is the
+        #    same reason the gate is printed with the frame: a step that has to be remembered
+        #    is a step that runs without the one before it, forever.
+        print(palette_sql(_flag("--tenant"), _flag("--brand")))
         return
     if "--selftest-frame" in sys.argv:
         raise SystemExit(selftest_frame_refusal())
