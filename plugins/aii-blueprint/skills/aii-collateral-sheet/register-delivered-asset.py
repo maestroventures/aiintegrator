@@ -70,6 +70,27 @@ false fact:
    words for kept state: "a new version here would be a lie about what happened."
 
 ============================================================================
+THE RUN CHAIN — 2026-09-11, and why this script stopped choosing a dispatch mode
+============================================================================
+Until 2026-09-11 every asset_put() this script emitted carried the literal
+'stationed'. The `assets` table forbids a stationed row from carrying a step
+(assets_only_dispatched_has_timing), so every file registered through here was
+BARRED from ever being placed in a campaign — 0 of 71 pieces registered 2026-09-09/10
+reached one. Bryce ruled the fix (dr_touchpoint_record_may_reach_client_stores_20260911_084747;
+spec 04 — Daily Operating System/specs/Campaign-Engine-Touchpoint-Record-SPEC-DRAFT.md §4.5):
+
+  --dispatch-mode   REQUIRED. dispatched | stationed | governing. No default: a default
+                    is how sent sheets were filed as stationed without anyone choosing.
+  --touchpoint      the step a MESSAGE was made for (asset_touchpoint.touchpoint_id).
+  --inherited-from  the canonical asset a personalised piece was made from. A piece
+                    with --inherited-from and no --touchpoint is refused HERE and at the
+                    door: a message must name its moment.
+
+⛔ THIS SCRIPT NEVER TAKES A POSITION OR AN OFFSET. Placement is written only by
+   asset_touchpoint_put(), and the caller READS which step a piece is for from the
+   debrief or program that asked for it. Nothing here infers a step.
+
+============================================================================
 NO NETWORK, BY DESIGN — the two-step door, same as every other script here
 ============================================================================
 Local scripts cannot reach Neon; that credential path was deliberately removed
@@ -81,7 +102,9 @@ USAGE
   register-delivered-asset.py --scan <dir> --deliver-to <path under 02 — Clients> \
       --tenant bryce --company ai-integrator --department sales \
       --asset-type concept_sheet --program <program_id> --by session:<id> \
-      [--template <template_id>] [--channel <text>] [--note <change note>]
+      --dispatch-mode dispatched|stationed|governing \
+      [--template <touchpoint template id>] [--touchpoint <touchpoint_id>] \
+      [--inherited-from <canonical asset_id>] [--channel <text>] [--note <change note>]
                                           # hashes every deliverable, writes _delivery.json
   register-delivered-asset.py --plan <_delivery.json> --sql
                                           # prints one asset_put() per file
@@ -150,6 +173,8 @@ def scan(args):
             "company_id": args.company, "department": args.department,
             "asset_type": args.asset_type, "program_id": args.program,
             "template_id": args.template or "", "channel": args.channel or "",
+            "dispatch_mode": args.dispatch_mode, "touchpoint_id": args.touchpoint or "",
+            "inherited_from": args.inherited_from or "",
             "change_note": args.note or "", "files": []}
     for f in files:
         p = os.path.join(d, f)
@@ -179,19 +204,45 @@ def sql_for(plan):
              "-- `unchanged` is a PASS and writes nothing — a rebuild producing the same bytes",
              "-- is not an event. Hand the rows back with --settle."]
     for r in plan["files"]:
+        # A plan written before 2026-09-11 has no dispatch_mode key. It is emitted as NULL on
+        # purpose, so asset_put() refuses a NEW row rather than this script supplying a mode.
         lines.append(
-            "SELECT * FROM asset_put(%s, %s, %s, %d, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'stationed', %s);"
+            "SELECT * FROM asset_put(%s, %s, %s, %d, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);"
             % (q(plan["tenant"]), q(r["source_ref"]), q(r["content_sha"]), r["content_bytes"],
                q(plan["by"]), q(plan["company_id"]), q(plan["department"]), q(plan["asset_type"]),
                q(plan["program_id"]), q(r["format"]), q(r["canonical_name"]),
-               q(plan["channel"]) if plan["channel"] else "NULL",
-               q(plan["template_id"]) if plan["template_id"] else "NULL",
-               q(plan["change_note"])))
+               q_or_null(plan.get("channel")), q_or_null(plan.get("template_id")),
+               q_or_null(plan.get("dispatch_mode")), q(plan.get("change_note", "")),
+               q_or_null(plan.get("touchpoint_id")), q_or_null(plan.get("inherited_from"))))
     return "\n".join(lines)
 
 
 def q(s):
     return "'" + str(s).replace("'", "''") + "'"
+
+
+def q_or_null(s):
+    return q(s) if s else "NULL"
+
+
+DISPATCH_MODES = ("dispatched", "stationed", "governing")
+
+
+def placement_problem(dispatch_mode, touchpoint, inherited_from):
+    """The same refusals asset_put() makes, said before anything is hashed, so a caller
+    learns at the scan that a message has no step - not after running the SQL."""
+    if dispatch_mode not in DISPATCH_MODES:
+        return ("--dispatch-mode is required and must be one of %s. There is no default: the old "
+                "hardcoded 'stationed' filed sent sheets where no step can ever be recorded."
+                % "|".join(DISPATCH_MODES))
+    if inherited_from and not touchpoint:
+        return ("--inherited-from %s makes this a personalised piece - a MESSAGE - and a message must "
+                "name the touchpoint it was made for. Read the step from the debrief or program that "
+                "asked for it, create it with asset_touchpoint_put() if it does not exist, and pass "
+                "--touchpoint." % inherited_from)
+    if touchpoint and dispatch_mode == "governing":
+        return "a governing asset reaches no one, so it cannot sit at touchpoint %s." % touchpoint
+    return None
 
 
 def settle(plan, rows_path):
@@ -277,6 +328,36 @@ def selftest():
         settle(plan, good); print("  pass  a complete set (including `unchanged`) exits 0")
     except SystemExit as e:
         ok = False; print("  FAIL  a complete set was refused: %s" % e.code)
+
+    # the run chain (2026-09-11): the script may never choose a dispatch mode, and a message needs a step
+    base = {"tenant": "t", "by": "b", "company_id": "c", "department": "d", "asset_type": "a",
+            "program_id": "p", "channel": "", "template_id": "tmpl_x", "change_note": "",
+            "files": [{"source_ref": "02 — Clients/x.pdf", "content_sha": "a" * 64, "content_bytes": 1,
+                       "format": "pdf", "canonical_name": "x"}]}
+    legacy_sql = sql_for(base)
+    if "'stationed'" in legacy_sql or "asset_put(" not in legacy_sql:
+        ok = False; print("  FAIL  a plan with no dispatch_mode still emitted a hardcoded mode")
+    elif legacy_sql.count(", NULL") >= 3:
+        print("  pass  a plan written before the run chain emits dispatch_mode NULL, so the door refuses a new row")
+    else:
+        ok = False; print("  FAIL  legacy plan did not emit NULLs for dispatch_mode/touchpoint/inherited_from")
+    msg = dict(base, dispatch_mode="dispatched", touchpoint_id="tp_x_1", inherited_from="asset_parent")
+    msg_sql = sql_for(msg)
+    if "'dispatched'" in msg_sql and msg_sql.rstrip(";").endswith("'tp_x_1', 'asset_parent')"):
+        print("  pass  dispatch mode, touchpoint and parent reach asset_put() as its last three arguments")
+    else:
+        ok = False; print("  FAIL  touchpoint/inherited_from not emitted in position: %s" % msg_sql[-90:])
+    cases = [(None, None, None, True, "no --dispatch-mode"),
+             ("dispatched", None, "asset_parent", True, "a message with no --touchpoint"),
+             ("governing", "tp_x_1", None, True, "a governing piece at a touchpoint"),
+             ("dispatched", "tp_x_1", "asset_parent", False, "a message with its touchpoint"),
+             ("stationed", None, None, False, "a stationed canonical piece")]
+    for mode, tp, parent, want_refused, label in cases:
+        refused = placement_problem(mode, tp, parent) is not None
+        if refused == want_refused:
+            print("  pass  %s is %s" % (label, "REFUSED" if want_refused else "accepted"))
+        else:
+            ok = False; print("  FAIL  %s was %s" % (label, "refused" if refused else "accepted"))
     print("SELF-TEST %s" % ("PASS" if ok else "FAIL"))
     return 0 if ok else 1
 
@@ -288,6 +369,8 @@ def main():
     ap.add_argument("--asset-type", dest="asset_type"); ap.add_argument("--program")
     ap.add_argument("--by"); ap.add_argument("--template"); ap.add_argument("--channel")
     ap.add_argument("--note")
+    ap.add_argument("--dispatch-mode", dest="dispatch_mode")
+    ap.add_argument("--touchpoint"); ap.add_argument("--inherited-from", dest="inherited_from")
     ap.add_argument("--plan"); ap.add_argument("--sql", action="store_true")
     ap.add_argument("--settle"); ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args()
@@ -302,6 +385,10 @@ def main():
                       "key, so a guess would be a false fact rather than a convenience."
                       % need.replace("_", "-"), file=sys.stderr)
                 raise SystemExit(6)
+        problem = placement_problem(a.dispatch_mode, a.touchpoint, a.inherited_from)
+        if problem:
+            print("EXIT 6 — %s" % problem, file=sys.stderr)
+            raise SystemExit(6)
         raise SystemExit(scan(a))
     if not a.plan:
         print(__doc__.split("USAGE")[1].split("EXIT CODES")[0], file=sys.stderr)

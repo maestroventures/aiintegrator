@@ -16,7 +16,7 @@ description: >
 ## Why this exists
 
 **A salesperson said "let me write something up for you."** That is the whole moment. Not a brochure,
-not a campaign — one person on one call telling one other person they will put something together for
+not a mass mailing — one person on one call telling one other person they will put something together for
 them to look at.
 
 **What normally happens next is the problem.** That promise goes into a queue. It gets scoped,
@@ -295,8 +295,8 @@ Not a claim. A run, with its output shown:
 ## Step 6 — Register BOTH rows at creation
 
 Both files. At creation, not later. Populated, not null: the brand reference, the template, the
-program, the job, what success *is*, the provenance and its source, and the openable pointer to the
-file.
+program, the campaign step (touchpoint) the personalised one was made for, the job, what success
+*is*, the provenance and its source, and the openable pointer to the file.
 
 The row's identity and the file's name are **two different facts** and follow two different rules — the
 spec at 0.2 says so explicitly. Do not collapse them.

@@ -950,11 +950,24 @@ def main():
     _reg = pathlib.Path(__file__).resolve().parent / "register-delivered-asset.py"
     if not _reg.exists():
         _reg = pathlib.Path("04 — Daily Operating System/scripts/register-delivered-asset.py")
+    # ⭐ 2026-09-11 — THE RUN CHAIN (Campaign-Engine-Touchpoint-Record-SPEC-DRAFT §4.6; ruling
+    #   dr_touchpoint_record_may_reach_client_stores_20260911_084747). The command below used to name
+    #   a program only, and the registrar stamped every file 'stationed' - so no sheet could ever be
+    #   placed in a campaign. The canonical sheet and the personalised one are now registered as what
+    #   they are: the canonical is the content of a TOUCHPOINT TEMPLATE (never the layout), the
+    #   personalised one is a MESSAGE and must name the touchpoint it was made for. The step is READ
+    #   from the debrief that asked for the sheet; if it does not exist yet, create it with
+    #   asset_campaign_put() / asset_touchpoint_put() first. asset_put() refuses a message with no step.
+    print('     # 1. the CANONICAL sheet (for the audience):')
     print('     python3 "%s" \\' % _reg)
     print('       --scan "%s" \\' % OUT)
     print('       --deliver-to "02 — Clients/<where these will actually live>" \\')
     print("       --tenant <t> --company <c> --department sales --asset-type concept_sheet \\")
-    print("       --program <program_id> --by session:<your session id>")
+    print("       --program <program_id> --by session:<your session id> \\")
+    print("       --dispatch-mode dispatched --template <touchpoint template id, NOT the layout>")
+    print()
+    print("     # 2. the PERSONALISED sheet (for one person) - the same command, plus:")
+    print("       --inherited-from <canonical asset_id> --touchpoint <touchpoint_id from the debrief>")
     print()
     print("   then --sql, run it through the board, and hand the rows back with --settle.")
     print("   ⚠ A rebuild that produces the SAME BYTES comes back `unchanged` and writes")
