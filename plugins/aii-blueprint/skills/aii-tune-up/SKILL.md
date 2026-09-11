@@ -44,6 +44,11 @@ operating-system specs folder.
 > (`aii-patch-me-up`, Step 4) hands off to. Two bounded contexts (Evans); the gate lives on the seam
 > between them, not around the whole skill.
 
+**One entry point, three states.** However the person asked — tune me up, patch me up, onboard me — it
+is one door, and this skill is the room that measures the company against its ideal. Which state they
+are in, and so which room runs first, is read from their record and never picked by them: see
+`aii-onboard-client`, *One entry point, three states*.
+
 ---
 
 ## Step 1 — Set the goal and the scope (the only exec input you need)
@@ -221,7 +226,9 @@ into this skill; point at it.
 Order surfaced gaps by **biggest blocker to the goal first.** Because the unit is a model's job
 (gates, decision-rights, validation included), the true constraint always enters the ranking — the
 "founder is the system," "no repeatable sales process," a sole-supplier dependency, etc. all rank as
-model jobs that fall short or are missing, and outrank any cosmetic asset gap. This is the Goldratt
+model jobs that fall short or are missing. **An asset gap is not cosmetic by kind:** an asset that is out
+of line with the company today is a gap in the job it serves, and it ranks by what it blocks like any
+other gap (Patch Me Up, Step 2e, reviews each asset; this step only ranks what that review finds). This is the Goldratt
 constraint lens, and it is the engine's real sharpening over a hand-built audit: rank the constraint
 that **gates everything upstream** at #1, even if a human would have listed something more visible first.
 
@@ -311,3 +318,14 @@ marked Step 2 as the connector-less pre-call build half, and marked Step 3 as wh
 reconciling real data needs Live connectors. Sibling edits: `aii-patch-me-up` v1.2 (Step 4 split) +
 engine spec §6 (lifecycle split). Lens: Evans (two bounded contexts; gate on the seam). No change to
 what the engine reconciles or how it ranks.*
+*v1.4 — 2026-09-11. Step 5 no longer calls an asset gap cosmetic: an asset out of line with the company
+today is a gap in the job it serves and ranks by what it blocks, and the review itself lives in
+`aii-patch-me-up` Step 2e (this step only ranks what it finds). Plus a one-line pointer to the one
+entry point, homed in `aii-onboard-client`. Adjudicated EXISTS-BUT-WRONG → corrective sharpen (the one
+sentence asserted the opposite of Bryce's ruling); the decision-gate paragraph below it is unchanged and
+still correct — a downstream asset gap never outranks a broken gate. Bryce approved the exact wording
+2026-09-11 (Campaign Assets & Cohort Profile S4); registers
+`dr_an_asset_is_measured_against_company_state_every_time_the_function_is_called_20260909`,
+`dr_what_the_asset_pass_does_with_an_asset_20260911_074423`,
+`dr_locked_03_edit_asset_review_and_entry_20260911_083405`. Lens: Goldratt (rank by what it blocks,
+never by what kind of thing it is), Evans (Patch Me Up measures, Tune-Up ranks).*

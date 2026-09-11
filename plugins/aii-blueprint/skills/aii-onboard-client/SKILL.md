@@ -28,6 +28,31 @@ version of one. Every argument about "what onboarding means" has been this line,
 
 ---
 
+## One entry point, three states — the words the person used do not choose the room
+
+*"Patch me up," "tune me up," "onboard me," "set me up"* — however a person asks to be brought right,
+it is **one entry point**. They never pick between onboarding, a setup check and a company audit. The
+system works out which of three states they are in, and routes:
+
+- **Installed** — they have already been set up. Check their skills, tools and connections, review the
+  assets they already hand out (Patch Me Up), then offer to measure the company against its ideal
+  (Tune-Up).
+- **New, with files** — they have started, or they have handed over real material (a transcribed
+  meeting, an executive summary). Continue where it left off, starting from what they gave.
+- **New, with nothing** — there are no documents to start from. Start from scratch.
+
+**These are separate rooms behind one door, and they call each other:** this skill stands a new client
+up, Patch Me Up keeps a set-up person current, and Tune-Up measures the company against its ideal. How
+many skills that is does not matter to the person and is never a question to put to them.
+
+**The steps for each state are a lookup, not a list in this file** — the instance's first-run route
+returns them in order for the state given. **Read the state from the person's own record; never infer
+it from the words they used.** If the record cannot say which state they are in, say so in one plain
+line and ask one plain question — *"have you been set up before, and is there anything written about
+the company you want to bring?"* — rather than guessing.
+
+---
+
 ## Step 0 — Know which side of the line you are on
 
 Before anything else, establish **where this client is**: have they finished the setup walk, or not?
@@ -261,6 +286,8 @@ Not for a client who is already stood up and running — that is `aii-patch-me-u
 run, once, for a new client.
 
 ---
+
+*v1.1 — 2026-09-11. New section **One entry point, three states** above Step 0 — the single home for Bryce's ruling that however a person asks to be brought right, it is one door, the system reads which of three states they are in (installed · new with files · new with nothing), and the skills are rooms behind it that call each other. `aii-patch-me-up` and `aii-tune-up` each carry a one-line pointer here and never restate it. Registers `dr_one_entry_point_onboard_or_realign_20260821_165142` (item (b) of its landing, amended to three states 2026-09-09) and `dr_locked_03_edit_asset_review_and_entry_20260911_083405` (his approval of the exact wording, 2026-09-11, Campaign Assets & Cohort Profile S4). Additive: Step 0 and every numbered step unchanged. Lens: Evans (three bounded contexts behind one door), Nygard (never infer the state from the words used; say so and ask when the record cannot tell), Krug (the person never picks a mode).*
 
 *v1.0 — 2026-08-06. New deployable body, Bryce pop-up-approved (T14 S74). Adopted via `aii-adjudicate`:
 KIND = SKILL (a procedure that must run in order); classify = **Absent** — 18 bodies in

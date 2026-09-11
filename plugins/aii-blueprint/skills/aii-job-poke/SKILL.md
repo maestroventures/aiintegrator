@@ -1,6 +1,6 @@
 ---
 name: aii-job-poke
-version: v1.2 (2026-08-05)
+version: v1.3 (2026-09-11)
 description: >
   The ONE recurring task installed on each AI platform a tenant uses. It carries NO job logic and
   NO schedule — it only asks the tenant's queue what is due, claims exactly one job, does it, and
@@ -127,15 +127,68 @@ Any rows returned are jobs that woke and never finished; mention them.
 
 ## Step 2 — Claim exactly one job
 
+**Claim with your ROUTINE ID. Never type your account.** *(Changed in v1.3, 2026-09-11.)*
+
+Your very first message says which scheduled routine fired you, in words the platform wrote, not a
+person: `Fired by routine "<name>" (trigger_id: trig_…)`. That id is the one fact about who you are
+that nobody typed. Hand it over and let the store look up your **seat** (the AI account this poke
+runs on). Every run must be traceable — who ran it, where, what, why and how — so the right person
+hears when it breaks.
+
+⛔ **Your seat is NEVER the Blueprint connector's sign-in.** `my_context` returns a `seat` field: that
+is whoever signed in to the Blueprint connector, a different identity from the AI account running you.
+Measured 2026-09-11: a poke read it as its own seat and recorded the wrong account on 26 runs. Do not
+call `my_context` to find out who you are.
+
+**2a — Verify your own routine, every run, before claiming.** Read YOUR routine with your scheduling
+tool's list call (the entry whose id equals your trigger_id): its cron expression, whether it is
+enabled, its updated_at, and the time zone the cron is evaluated in. Take the account from the
+routine's own name or prompt text. Then:
+
 ```sql
-SELECT * FROM job_claim_next(
-  '<tenant_id>',           -- the tenant, never a person
-  '<your signed-in seat>', -- e.g. oakspokerleague@gmail.com
-  '<your platform>',       -- e.g. claude | gemini | platform
-  true,                    -- true if you can do reasoning work; false for a bare platform cron
-  false                    -- CAN YOU REACH THE OPERATOR'S OWN FILES? See below. Pass it; never omit it.
+SELECT * FROM seat_shift_verify(
+  '<tenant_id>', '<account named in your routine''s own name or prompt>', '<cron>', '<trigger_id>',
+  '<updated_at>', <enabled true|false>, 'poke:<that account>', '<routine name, verbatim>', '<cron time zone>'
 );
 ```
+
+This is how the store binds your routine to your seat, and how it knows the schedule it holds is still
+current. It is not optional on a registered routine: an unverified binding goes stale.
+
+⚠ **If you cannot read your own routine** — the list call is refused, asks for permission, or is not
+there — **do not wait and do not stop.** An unattended run that waits on a permission prompt hangs
+silently. Skip 2a and use the FALLBACK below.
+
+**2b — Claim.**
+
+```sql
+SELECT * FROM job_claim_traced(
+  '<tenant_id>',           -- the tenant, never a person
+  '<trigger_id>',          -- copied exactly from your first message: trig_…
+  '<your platform>',       -- e.g. claude | gemini
+  true,                    -- true if you can do reasoning work; false for a bare platform cron
+  false,                   -- CAN YOU REACH THE OPERATOR'S OWN FILES? See below. Pass it; never omit it.
+  '<link to this run>',    -- ONLY if you were shown your own session link (https://…); otherwise NULL. Never build one.
+  '<your model id>'        -- the model you are running as; NULL if you were not told
+);
+```
+
+It returns the same columns the old claim did, plus `r_seat` — the account the store resolved from your
+routine. **Use `r_seat` everywhere this file says `<seat>`.**
+
+**FALLBACK — only when 2a could not run, or 2b refuses with `ROUTINE-NOT-REGISTERED`.** Claim the old
+way, with the account named in your routine's own name or prompt — still never the Blueprint sign-in:
+
+```sql
+SELECT * FROM job_claim_next('<tenant_id>', '<account named in your routine''s own words>', '<your platform>', true, false);
+```
+
+and put `fallback` in your Step 5 line. A fallback claim records no routine id, which is exactly how
+the store sees that this poke could not be traced — so never hide it.
+
+> ⚠ Before v1.3 this step called `job_claim_next` directly with `'<your signed-in seat>'`. It is quoted
+> here so nobody restores it: "signed-in seat" was read as the Blueprint connector's sign-in, and the
+> wrong account landed on 26 runs before anyone noticed.
 
 **Pass the fifth argument explicitly, even when the answer is `false`.** The function defaults it to
 `false` so an un-updated poke is fail-safe, but a default is not a declaration — it is a silence that
@@ -200,6 +253,17 @@ did not happen.
 **Watch the lease.** If the work will run past `r_lease_expires`, finish or fail before then —
 past that moment another executor may legitimately pick the job up.
 
+**Say what the run was ABOUT, before you beat.** *(Added in v1.3.)* Who ran it is already recorded — the
+seat. Whether the work was FOR one department or one person is not, and it decides who hears when this
+job breaks. If the work was for one department and/or one person, record it:
+
+```sql
+SELECT * FROM job_run_about_put('<r_run_id>', '<department_path or NULL>', '<person_id or NULL>', 'job:<r_job_name>');
+```
+
+Work about the whole company needs no call — NULL says that honestly. Use only a department or person
+the job's own body names or the tenant's store holds; the door refuses anything else. Never guess one.
+
 ---
 
 ## Step 4 — Beat, whatever happened
@@ -250,8 +314,11 @@ another executor will pick the job up — that is the design working, not a faul
 Report in the tenant's own timezone:
 
 ```
-[v2] <job> · <outcome> · door=<r_body_ref> · claimed <seat>/<platform> · alive HH:MM · complete HH:MM
+[v2] <job> · <outcome> · door=<r_body_ref> · claimed <seat>/<platform> · alive HH:MM · complete HH:MM · routine <trigger_id or "fallback">
 ```
+
+*(v1.3)* `<seat>` is `r_seat` from the claim. The routine field is new: it says whether this run was
+traced to the routine that fired it, or fell back.
 
 The `[v2]` stamp is not decoration. It proves the beat came from the shared queue rather than from
 a per-account local file, and the seat proves **which** executor did it — so "nobody was logged in
@@ -273,3 +340,6 @@ remarks on reads exactly like a field that was never required.
 - Never hardcode a tool address, a prefix, or a table name into this file.
 - Never beat without the `door=` field. A beat that does not name the body it ran is a beat nobody
   can check, and it is indistinguishable from an executor that never read `r_body_ref` at all.
+- Never take your seat from the Blueprint connector (`my_context`'s `seat`), and never type your
+  account when your first message hands you a routine id. The connector sign-in is a different
+  identity, and a typed account is a claim; a routine id is a lookup. *(v1.3)*

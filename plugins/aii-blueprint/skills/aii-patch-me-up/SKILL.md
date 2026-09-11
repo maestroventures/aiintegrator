@@ -35,6 +35,11 @@ Knowledge Hygiene (`aii-knowledge-hygiene`): the system does the noticing so no 
 the human stays in control of the change. *(Lens: the framework's passive/draft-first capture,
 operating-method §2.8.)*
 
+**One entry point, three states.** However the person asked — patch me up, tune me up, onboard me — it
+is one door, and this skill is the setup-check and asset-review room behind it. Which state they are in,
+and so which room runs first, is read from their record and never picked by them: see `aii-onboard-client`,
+*One entry point, three states*.
+
 ---
 
 ## Step 1 — Look: read the user's setup
@@ -235,6 +240,38 @@ the job, never a connector, a tool or a table.)*
 
 ---
 
+## Step 2e — And review the ASSETS this company already hands out
+
+The setup is not the only thing that drifts. **Every run treats every existing asset — a sheet, a
+deck, an email, a message, a page — as stale,** because the company has moved since it was made.
+Stale is not a defect; it is the reason to look. What makes the review happen is someone running this
+skill, not a date passing (every three months is the recommended pace, and more often is fine).
+
+**For each asset, the advisors open the file itself** and write three short lines anyone can read:
+
+1. **In line / not in line** with the company as it is today — its brand, its framing, and the right
+   message for whoever receives it.
+2. **Our recommendation** — update it, or leave it.
+3. **What is possibly out of date** — a very brief list of what we would change.
+
+Where an ideal state exists, **match each touchpoint it names to the user's own piece first** (for
+example, a five-day pre-appointment email: *"we have one — where is yours? Here it is."*). An ideal
+touchpoint with no match is a gap; say so.
+
+**The user decides, never this skill.** A stale asset is not an updated one. For a matched piece the
+user has three choices: **use their own · use the one the advisors wrote · use theirs as the base and
+blend the two into one to work from.** Nothing changes until they pick. Until the card that shows this
+exists, each verdict lands on the board as one plain item.
+
+**Honest limit, said with every result.** Brand can be checked against stored values. Framing and the
+reader's message are the advisors' reading, and no check can prove them today — a clean result means
+nothing looked out of line to the reader, never that the asset is proven current.
+
+*(Instance note: where the asset library, the brand values and the company's through line are read
+from is instance-specific and lives in the overlay. This body names the job, never a table.)*
+
+---
+
 ## Step 3 — Offer: one plain fix at a time, user says yes or skip
 
 For everything that isn't **Live**, hand over the fix **one item at a time**, in plain language, worst
@@ -309,6 +346,8 @@ reconnect, remove, or install anything on its own, even when the right fix looks
 is the user's yes.
 
 ---
+
+*v1.7 — 2026-09-11. New **Step 2e — review the assets this company already hands out**, and a pointer to the one entry point. Bryce approved the exact wording in his own prose 2026-09-11 (Campaign Assets & Cohort Profile S4); registers `dr_what_the_asset_pass_does_with_an_asset_20260911_074423` (every asset is stale on each run, the advisors give a verdict, **only the user updates**), `dr_what_merge_means_on_the_existing_20260911_080052` (match the touchpoint, then use theirs · use ours · blend with theirs as the base), `dr_locked_03_edit_asset_review_and_entry_20260911_083405` (the approval), refining clause 3 of `dr_an_asset_is_measured_against_company_state_every_time_the_function_is_called_20260909`, and item (b) of `dr_one_entry_point_onboard_or_realign_20260821_165142`. **Adjudicated ABSENT → Adopt-fresh for Step 2e** (no framework file named an asset review; this skill named "asset" zero times) and **ABSENT → one home plus pointers for the entry point** (the statement lives once, in `aii-onboard-client`). Additive: no step renumbered, no behavior removed; detect-and-offer is unchanged and now extends to assets — the review recommends, the user acts. Lens: Goldratt (an asset out of line ranks by what it blocks), Evans (three rooms, one door), Nygard (the honest limit prints with every result), Redman (the route is a lookup; this body never restates it).*
 
 *v1.6 — 2026-08-15. New **Step 2d — the per-verb permissions on each connector**, the fourth inventory beside connectors (Step 2), skills (Step 2b) and storage doors (Step 2c), plus a **sixth bucket** — *not the way you set it* — which is the first bucket that is not a presence bucket. Bryce ruled the locked-03 edit 2026-08-15 (T14 S154); registers `dr_ai_may_not_change_user_settings_20260815_131500` (**his own prose, verbatim, unprompted**) and `dr_OPEN_user_actual_verb_blocks_scope_20260815_122043`. Additive: no step renumbered, no existing bucket changed, no behavior removed, Step 3's offer shape unchanged, client overrides unaffected. **Adjudicated PARTIALLY PRESENT → Adopt-sharpen, explicitly NOT Adopt-fresh** — the headline was already homed at Step 2b (*"The registry knows what is REGISTERED. Only this running session knows what is VISIBLE… Compare the two."*); the net-new facets are the fourth inventory and the drift bucket. Third instance of a pattern this skill has grown by twice.
 **THE STANDING RULE IS THE POINT OF THE SECTION, AND IT IS WRITTEN AS A RULE RATHER THAN LEFT TO INCAPACITY ON PURPOSE.** A session reports a permission; it never changes one. Bryce classed it himself with the email-send block: the Workspace connector *can* send email on a user's behalf, and `email_send` is recommended Blocked anyway — the block is not an incapacity, it is a deliberate human blocker on a capability that exists. That is Core's *a limit is never the safety* (and the Capability Registry's rule 1) applied one domain over: the day a session gains the ability to write a setting, the gate must already be standing instead of newly missing. It is also **separation of duty** — the proposer of a change may never be its own approver, which the User Permissions Framework already requires; this step proposes, the human approves by doing it.
