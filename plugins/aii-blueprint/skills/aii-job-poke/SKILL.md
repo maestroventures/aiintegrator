@@ -1,6 +1,6 @@
 ---
 name: aii-job-poke
-version: v1.3 (2026-09-11)
+version: v1.4 (2026-09-11)
 description: >
   The ONE recurring task installed on each AI platform a tenant uses. It carries NO job logic and
   NO schedule — it only asks the tenant's queue what is due, claims exactly one job, does it, and
@@ -157,7 +157,8 @@ current. It is not optional on a registered routine: an unverified binding goes 
 
 ⚠ **If you cannot read your own routine** — the list call is refused, asks for permission, or is not
 there — **do not wait and do not stop.** An unattended run that waits on a permission prompt hangs
-silently. Skip 2a and use the FALLBACK below.
+silently. Skip 2a and use the FALLBACK below. **The same if your store answers that
+`seat_shift_verify` does not exist** — your company's store has not received it yet. *(v1.4)*
 
 **2b — Claim.**
 
@@ -176,8 +177,10 @@ SELECT * FROM job_claim_traced(
 It returns the same columns the old claim did, plus `r_seat` — the account the store resolved from your
 routine. **Use `r_seat` everywhere this file says `<seat>`.**
 
-**FALLBACK — only when 2a could not run, or 2b refuses with `ROUTINE-NOT-REGISTERED`.** Claim the old
-way, with the account named in your routine's own name or prompt — still never the Blueprint sign-in:
+**FALLBACK — only when 2a could not run, 2b refuses with `ROUTINE-NOT-REGISTERED`, or your store answers
+that `job_claim_traced` does not exist** *(the last added in v1.4: a company's store can be a step behind
+the framework, and a claim door it does not have must never stop the fleet)*. Claim the old way, with the
+account named in your routine's own name or prompt — still never the Blueprint sign-in:
 
 ```sql
 SELECT * FROM job_claim_next('<tenant_id>', '<account named in your routine''s own words>', '<your platform>', true, false);
@@ -330,6 +333,42 @@ If you cannot print it, say so in plain words rather than dropping it — a miss
 remarks on reads exactly like a field that was never required.
 
 ---
+
+## Installing it on an account — the ONE schedule text *(v1.4)*
+
+Every AI account a person uses gets exactly one recurring schedule for this poke, and **its text is the
+same on every account, for every user**. The schedule carries no instructions of its own — it only runs
+this skill — so every change to this file reaches every account through the plugin, with nobody
+retyping anything.
+
+**The schedule's NAME** carries the account, because that is where a run finds it when it must fall back:
+
+```
+AII Poke · <platform> · <account email>
+```
+
+**The schedule's TEXT**, word for word — the prompt body only, never with a header of your own:
+
+```
+You are the AI Integrator job poke. This is a fresh session with no memory of any prior run.
+
+Invoke the "aii-blueprint:aii-job-poke" skill with the Skill tool and follow it exactly, start to finish, in the order written. Do not skip steps and do not add logic of your own: the skill is the executor, and you are the hand running it.
+
+No one is watching this run. Say nothing beyond the one line the skill's last step specifies.
+```
+
+**Hourly**, at a minute of the hour that no other account of the same person already uses.
+
+⛔ **Never paste this skill's steps into a schedule's text, and never add a step there.** A schedule that
+carries its own copy is frozen at the day it was typed: every later change to this file silently skips it,
+and the only visible sign is a poke that never records a routine id. Seen 2026-09-11: one account's
+schedule was on record as holding its own extended copy, and a second showed the same symptom. If a step
+is missing, it belongs in this file.
+
+**Restoring it** is the setup check's job (`aii-patch-me-up`, *the poke schedule*): run on the account, it
+finds the schedule, compares its text with the block above, and — on the person's yes — replaces the text
+with the platform's own update tool. A chat can only see its own account's schedules, so each account is
+restored from a chat signed in to that account.
 
 ## What you must never do
 

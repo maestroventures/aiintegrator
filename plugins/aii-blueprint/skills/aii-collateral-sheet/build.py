@@ -913,6 +913,13 @@ def main():
     print("built:")
     for n, _ in items:
         print("  ", (OUT / f"{n}.pdf").name)
+    # The layout proof prints HERE, before the exit-9 block below. Until 2026-09-11 these lines sat
+    # AFTER `raise SystemExit(9)` and never ran, so "no layout overflow on any page" (the collateral
+    # skill's Step 5 proof) never reached the person running the build.
+    if bad is None:
+        print("layout overflow/collision pages: UNVERIFIED (see the warning above)")
+    else:
+        print("layout overflow/collision pages:", bad)
 
     # ══════════════════════════════════════════════════════════════════════════════
     # ⛔ A BUILD IS NOT A DELIVERY. THIS PROGRAM NO LONGER EXITS 0 HERE.
@@ -973,10 +980,6 @@ def main():
     print("   ⚠ A rebuild that produces the SAME BYTES comes back `unchanged` and writes")
     print("     nothing. That is a pass, not a miss: the file name was never the question.")
     raise SystemExit(9)
-    if bad is None:
-        print("layout overflow/collision pages: UNVERIFIED (see the warning above)")
-    else:
-        print("layout overflow/collision pages:", bad)
 
 
 if __name__ == "__main__":

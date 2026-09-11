@@ -272,6 +272,29 @@ from is instance-specific and lives in the overlay. This body names the job, nev
 
 ---
 
+## Step 2f — And the POKE SCHEDULE on this account *(added 2026-09-11)*
+
+Every AI account a person uses runs the company's scheduled work through exactly one recurring schedule,
+the job poke, and **its text is the same on every account, for every user** — the block in `aii-job-poke`
+*Installing it on an account*. A schedule that holds anything else is frozen: every change to the poke
+skill silently skips it, and the only outside sign is a poke that never records which schedule fired it.
+Seen 2026-09-11 on an operator's own accounts, and it is the same drift every account can have. *(Ruled
+`dr_every_account_runs_the_one_poke_install_20260911_100645`.)*
+
+**Look** with the scheduling tool's own list call — the one this account's chat is handed. A chat sees
+only its own account's schedules, so this item is always about THIS account. Find the schedules whose name
+starts `AII Poke`. **Sort** into one bucket:
+
+- **Live** — exactly one, switched on, and its text matches the block word for word.
+- **Not the way you set it** — its text differs: an old poke, a pasted copy of the steps, or extra steps
+  added. Say what differs in one plain sentence, never the whole prompt.
+- **Missing** — none. The account runs none of the company's scheduled work.
+- **More than one** — two or more poke schedules on one account. Name each by its minute of the hour.
+
+If the list call is refused or not there, say so in one line and skip this item — never guess the answer.
+
+---
+
 ## Step 3 — Offer: one plain fix at a time, user says yes or skip
 
 For everything that isn't **Live**, hand over the fix **one item at a time**, in plain language, worst
@@ -298,6 +321,16 @@ is being asked. Nygard — a silent non-answer must never read as a decline.)*
   settings. So for an *installed-but-unused* connector, this skill **flags it and hands the removal
   step; it never removes anything itself**, and it always asks first. A connector the user says to
   keep stays exactly as it was.
+- **The poke schedule — the ONE thing this skill may change itself, and only on a yes** *(ruled
+  `dr_every_account_runs_the_one_poke_install_20260911_100645`)*. For *not the way you set it*, offer:
+  "replace this schedule's text with the standard poke text" — say which account and which minute. On
+  the person's explicit yes, replace ONLY the text, with the platform's own update tool, passing the
+  prompt body alone; keep the schedule's name, its minute and whether it is on. Then read the schedule
+  back and confirm the text now matches — the read-back is the proof. For *missing*, offer to create
+  it with the name `AII Poke · <platform> · <account email>` at a free minute, the same way, on a yes.
+  For *more than one*, never delete: say which one to keep and hand the removal step. Why this one is
+  allowed: a schedule's text can only be changed by retyping it, and retyping by hand is exactly how
+  these schedules drift.
 
 A user whose setup is already clean gets the honest, useful result: **"You're current — nothing to
 fix."** That's a valid, complete run. Pair it with the coverage note from Step 1: this checked the

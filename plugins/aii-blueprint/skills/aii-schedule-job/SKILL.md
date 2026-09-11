@@ -255,7 +255,10 @@ account.** Any executor that is awake may claim it:
    can tell whether their fix worked.
 5. **Install one dumb poke per platform, never the job itself.** Each platform gets a single
    recurring task carrying no schedule and no job logic: *ask the queue what is due, claim one, do
-   it, beat.* Identical text everywhere. **Adding a new job then never touches any AI account — you
+   it, beat.* Identical text everywhere — **that text has one home: `aii-job-poke`, *Installing it on
+   an account*** (added 2026-09-11); copy it from there, never from another account's schedule, and
+   never add a step to it. A drifted poke schedule is found and restored per account by
+   `aii-patch-me-up` Step 2f. **Adding a new job then never touches any AI account — you
    insert a row.** Three platforms signed in means three hands, not three duplicate runs.
 6. **Put a platform cron in the pool as the floor.** It claims only jobs that need no reasoning, and
    it raises the alarm when work goes unclaimed. It is not the engine — it is the guarantee that
