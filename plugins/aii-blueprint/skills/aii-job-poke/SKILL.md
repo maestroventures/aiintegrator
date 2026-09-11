@@ -1,6 +1,6 @@
 ---
 name: aii-job-poke
-version: v1.4 (2026-09-11)
+version: v1.5 (2026-09-11)
 description: >
   The ONE recurring task installed on each AI platform a tenant uses. It carries NO job logic and
   NO schedule — it only asks the tenant's queue what is due, claims exactly one job, does it, and
@@ -143,7 +143,8 @@ call `my_context` to find out who you are.
 **2a — Verify your own routine, every run, before claiming.** Read YOUR routine with your scheduling
 tool's list call (the entry whose id equals your trigger_id): its cron expression, whether it is
 enabled, its updated_at, and the time zone the cron is evaluated in. Take the account from the
-routine's own name or prompt text. Then:
+routine's NAME — the part right after the platform in `AII Poke · <platform> · <account>`, and never any
+other email in the name or the text *(v1.5)*. Then:
 
 ```sql
 SELECT * FROM seat_shift_verify(
@@ -180,7 +181,9 @@ routine. **Use `r_seat` everywhere this file says `<seat>`.**
 **FALLBACK — only when 2a could not run, 2b refuses with `ROUTINE-NOT-REGISTERED`, or your store answers
 that `job_claim_traced` does not exist** *(the last added in v1.4: a company's store can be a step behind
 the framework, and a claim door it does not have must never stop the fleet)*. Claim the old way, with the
-account named in your routine's own name or prompt — still never the Blueprint sign-in:
+account from your routine's NAME — the part right after the platform, never any other email in the name or
+the text *(v1.5: a name that also carried the Blueprint sign-in let a fallback pick the wrong account)* —
+and still never the Blueprint sign-in:
 
 ```sql
 SELECT * FROM job_claim_next('<tenant_id>', '<account named in your routine''s own words>', '<your platform>', true, false);
@@ -346,6 +349,13 @@ retyping anything.
 ```
 AII Poke · <platform> · <account email>
 ```
+
+**Those three parts and nothing more.** *(v1.5, `dr_poke_schedule_name_carries_the_connector_20260911_104829`.)*
+The name is what a PERSON reads, and what they need from it is that this is the AII Poke and which of
+their accounts is acting for them or their company. A fact the SYSTEM needs in order to check the work —
+which account the Blueprint connector signed in with, which routine fired, which model ran — is recorded
+in the store, never added to a name. A name with an extra part (for example `· auth <email>`) is not the
+standard one.
 
 **The schedule's TEXT**, word for word — the prompt body only, never with a header of your own:
 

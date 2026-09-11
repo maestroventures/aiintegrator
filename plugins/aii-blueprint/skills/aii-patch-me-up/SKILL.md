@@ -291,9 +291,11 @@ Seen 2026-09-11 on an operator's own accounts, and it is the same drift every ac
 only its own account's schedules, so this item is always about THIS account. Find the schedules whose name
 starts `AII Poke`. **Sort** into one bucket:
 
-- **Live** — exactly one, switched on, and its text matches the block word for word.
-- **Not the way you set it** — its text differs: an old poke, a pasted copy of the steps, or extra steps
-  added. Say what differs in one plain sentence, never the whole prompt.
+- **Live** — exactly one, switched on, its text matches the block word for word, and its name is the
+  standard `AII Poke · <platform> · <account email>` with nothing added.
+- **Not the way you set it** — its text differs (an old poke, a pasted copy of the steps, or extra steps
+  added), or its name carries more than those three parts (for example a trailing `· auth <email>`).
+  Say what differs in one plain sentence, never the whole prompt.
 - **Missing** — none. The account runs none of the company's scheduled work.
 - **More than one** — two or more poke schedules on one account. Name each by its minute of the hour.
 
@@ -331,8 +333,12 @@ is being asked. Nygard — a silent non-answer must never read as a decline.)*
   `dr_every_account_runs_the_one_poke_install_20260911_100645`)*. For *not the way you set it*, offer:
   "replace this schedule's text with the standard poke text" — say which account and which minute. On
   the person's explicit yes, replace ONLY the text, with the platform's own update tool, passing the
-  prompt body alone; keep the schedule's name, its minute and whether it is on. Then read the schedule
-  back and confirm the text now matches — the read-back is the proof. For *missing*, offer to create
+  prompt body alone; keep its minute and whether it is on. Then read the schedule
+  back and confirm the text now matches — the read-back is the proof. If the NAME carries extra parts,
+  offer — as its own yes — to rename it to the standard three parts: the name is what the person reads
+  (which of their accounts acts for them), and a system fact such as the Blueprint connector's sign-in
+  belongs in the store, never in a name *(`dr_poke_schedule_name_carries_the_connector_20260911_104829`)*.
+  Keep the name unchanged when they skip. For *missing*, offer to create
   it with the name `AII Poke · <platform> · <account email>` at a free minute, the same way, on a yes.
   For *more than one*, never delete: say which one to keep and hand the removal step. Why this one is
   allowed: a schedule's text can only be changed by retyping it, and retyping by hand is exactly how
