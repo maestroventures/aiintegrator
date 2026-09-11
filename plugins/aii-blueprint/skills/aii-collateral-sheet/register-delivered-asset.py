@@ -176,9 +176,13 @@ def scan(args):
             "dispatch_mode": args.dispatch_mode, "touchpoint_id": args.touchpoint or "",
             "inherited_from": args.inherited_from or "",
             "change_note": args.note or "", "files": []}
+    missing = []
     for f in files:
         p = os.path.join(d, f)
         stem, ext = os.path.splitext(f)
+        body, origin = words_for(p, args.body_from)
+        if not body:
+            missing.append(f)
         plan["files"].append({
             "file": f,
             "source_ref": "%s/%s" % (deliver_to, f),
@@ -186,7 +190,16 @@ def scan(args):
             "format": ext.lstrip(".").lower(),
             "content_sha": sha256_of(p),
             "content_bytes": os.path.getsize(p),
+            "body": body, "body_origin": origin,
         })
+    if missing:
+        # 2026-09-11 (S2): asset_put() refuses a new or changed piece without its words
+        # (dr_the_database_is_the_master_full_stop_md_files_are_retired_20260909). Refusing HERE
+        # names the file before anything is hashed into a plan the door would only refuse later.
+        print("EXIT 6 — no words found for %s. A delivered piece must carry its words: an .html or .md "
+              "file is read directly; for a .pdf/.docx/.pptx pass --body-from <dir> holding "
+              "<same name>.html or .md (the source it was built from)." % ", ".join(missing), file=sys.stderr)
+        raise SystemExit(6)
     out = os.path.join(d, "_delivery.json")
     with open(out, "w", encoding="utf-8") as fh:
         json.dump(plan, fh, indent=1, ensure_ascii=False)
@@ -207,14 +220,52 @@ def sql_for(plan):
         # A plan written before 2026-09-11 has no dispatch_mode key. It is emitted as NULL on
         # purpose, so asset_put() refuses a NEW row rather than this script supplying a mode.
         lines.append(
-            "SELECT * FROM asset_put(%s, %s, %s, %d, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);"
+            "SELECT * FROM asset_put(%s, %s, %s, %d, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);"
             % (q(plan["tenant"]), q(r["source_ref"]), q(r["content_sha"]), r["content_bytes"],
                q(plan["by"]), q(plan["company_id"]), q(plan["department"]), q(plan["asset_type"]),
                q(plan["program_id"]), q(r["format"]), q(r["canonical_name"]),
                q_or_null(plan.get("channel")), q_or_null(plan.get("template_id")),
                q_or_null(plan.get("dispatch_mode")), q(plan.get("change_note", "")),
-               q_or_null(plan.get("touchpoint_id")), q_or_null(plan.get("inherited_from"))))
+               q_or_null(plan.get("touchpoint_id")), q_or_null(plan.get("inherited_from")),
+               q_or_null(r.get("body")), q_or_null(r.get("body_origin"))))
     return "\n".join(lines)
+
+
+def words_for(path, body_from=None):
+    """The words of a delivered piece, read from its own source - never typed. An .html or .md
+    deliverable is its own source; a built binary (.pdf/.docx/.pptx) needs its source beside it in
+    --body-from. HTML is reduced to its visible text so the stored words are the words a reader sees."""
+    stem, ext = os.path.splitext(os.path.basename(path))
+    candidates = [path] if ext.lower() in (".html", ".md") else []
+    if body_from:
+        candidates += [os.path.join(body_from, stem + e) for e in (".html", ".md")]
+    for c in candidates:
+        if os.path.isfile(c):
+            with open(c, "r", encoding="utf-8", errors="replace") as fh:
+                raw = fh.read()
+            text = visible_text(raw) if c.lower().endswith(".html") else raw
+            if text.strip():
+                return text.strip(), c
+    return "", ""
+
+
+def visible_text(html):
+    from html.parser import HTMLParser
+
+    class _T(HTMLParser):
+        def __init__(self):
+            super().__init__(); self.out = []; self.skip = 0
+        def handle_starttag(self, tag, attrs):
+            if tag in ("script", "style"): self.skip += 1
+        def handle_endtag(self, tag):
+            if tag in ("script", "style") and self.skip: self.skip -= 1
+            elif tag in ("p", "div", "li", "h1", "h2", "h3", "h4", "tr", "br", "section"): self.out.append("\n")
+        def handle_data(self, data):
+            if not self.skip: self.out.append(data)
+
+    t = _T(); t.feed(html)
+    lines = [" ".join(l.split()) for l in "".join(t.out).splitlines()]
+    return "\n".join(l for l in lines if l)
 
 
 def q(s):
@@ -343,10 +394,24 @@ def selftest():
         ok = False; print("  FAIL  legacy plan did not emit NULLs for dispatch_mode/touchpoint/inherited_from")
     msg = dict(base, dispatch_mode="dispatched", touchpoint_id="tp_x_1", inherited_from="asset_parent")
     msg_sql = sql_for(msg)
-    if "'dispatched'" in msg_sql and msg_sql.rstrip(";").endswith("'tp_x_1', 'asset_parent')"):
-        print("  pass  dispatch mode, touchpoint and parent reach asset_put() as its last three arguments")
+    msg["files"] = [dict(base["files"][0], body="the words", body_origin="02 — Clients/x.html")]
+    msg_sql = sql_for(msg)
+    if "'dispatched'" in msg_sql and msg_sql.rstrip(";").endswith("'tp_x_1', 'asset_parent', 'the words', '02 — Clients/x.html')"):
+        print("  pass  dispatch mode, touchpoint, parent and the WORDS reach asset_put() as its last arguments")
     else:
         ok = False; print("  FAIL  touchpoint/inherited_from not emitted in position: %s" % msg_sql[-90:])
+    wd = tempfile.mkdtemp(); src = tempfile.mkdtemp()
+    open(os.path.join(wd, "sheet.pdf"), "wb").write(b"%PDF-1.4")
+    open(os.path.join(src, "sheet.html"), "w").write("<html><style>x{}</style><body><h1>Where AI fits</h1><p>Two lines.</p><script>no()</script></body></html>")
+    w, o = words_for(os.path.join(wd, "sheet.pdf"), src)
+    if w == "Where AI fits\nTwo lines." and o.endswith("sheet.html"):
+        print("  pass  a built PDF takes its words from its source HTML, visible text only")
+    else:
+        ok = False; print("  FAIL  words_for read %r from %r" % (w, o))
+    if words_for(os.path.join(wd, "sheet.pdf"), None) == ("", ""):
+        print("  pass  a PDF with no source beside it has NO words (the scan refuses it)")
+    else:
+        ok = False; print("  FAIL  a PDF with no source still produced words")
     cases = [(None, None, None, True, "no --dispatch-mode"),
              ("dispatched", None, "asset_parent", True, "a message with no --touchpoint"),
              ("governing", "tp_x_1", None, True, "a governing piece at a touchpoint"),
@@ -371,6 +436,7 @@ def main():
     ap.add_argument("--note")
     ap.add_argument("--dispatch-mode", dest="dispatch_mode")
     ap.add_argument("--touchpoint"); ap.add_argument("--inherited-from", dest="inherited_from")
+    ap.add_argument("--body-from", dest="body_from")
     ap.add_argument("--plan"); ap.add_argument("--sql", action="store_true")
     ap.add_argument("--settle"); ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args()

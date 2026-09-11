@@ -242,8 +242,10 @@ the job, never a connector, a tool or a table.)*
 
 ## Step 2e — And review the ASSETS this company already hands out
 
-The setup is not the only thing that drifts. **Every run treats every existing asset — a sheet, a
-deck, an email, a message, a page — as stale,** because the company has moved since it was made.
+The setup is not the only thing that drifts. **Every run treats every existing asset — brand values, a
+campaign's messages, a sheet or deck made for a prospect or customer, a knowledge document, a page,
+anything else the company made — as stale,** because the company has moved since it was made. Every
+one belongs in the company's own store; a file is where it came from, never where it lives.
 Stale is not a defect; it is the reason to look. What makes the review happen is someone running this
 skill, not a date passing (every three months is the recommended pace, and more often is fine).
 
@@ -254,13 +256,17 @@ skill, not a date passing (every three months is the recommended pace, and more 
 2. **Our recommendation** — update it, or leave it.
 3. **What is possibly out of date** — a very brief list of what we would change.
 
-Where an ideal state exists, **match each touchpoint it names to the user's own piece first** (for
-example, a five-day pre-appointment email: *"we have one — where is yours? Here it is."*). An ideal
-touchpoint with no match is a gap; say so.
+**Match each asset to what the ideal says should exist** — for a campaign message, its touchpoint (a
+five-day pre-appointment email: *"we have one — where is yours? Here it is."*); for anything else, the
+job, brand standard or through line it serves. Suggest the match; the user confirms. An asset nothing
+asked for is **extra**; something the ideal asks for with nothing of theirs is **missing** — say so.
+At onboarding the pass is the same, and everything the company brings is assumed out of line until the
+user decides.
 
-**The user decides, never this skill.** A stale asset is not an updated one. For a matched piece the
+**The user decides, never this skill.** A stale asset is not an updated one. For a matched asset the
 user has three choices: **use their own · use the one the advisors wrote · use theirs as the base and
-blend the two into one to work from.** Nothing changes until they pick. Until the card that shows this
+blend the two into one to work from.** An extra asset is kept or retired, never retired automatically;
+a missing one is written only when they ask. Nothing changes until they pick. Until the card that shows this
 exists, each verdict lands on the board as one plain item.
 
 **Honest limit, said with every result.** Brand can be checked against stored values. Framing and the
@@ -379,6 +385,8 @@ reconnect, remove, or install anything on its own, even when the right fix looks
 is the user's yes.
 
 ---
+
+*v1.8 — 2026-09-11 (later the same day). Step 2e widened from campaign touchpoints to EVERY asset the company has — brand values, campaign messages, prospect and customer documents, knowledge documents, anything else — each matched to what the ideal says should exist, extra kept or retired, missing written only on request, and onboarding named as the same pass. Bryce confirmed the process and widened it himself (`dr_is_this_the_whole_existing_documents_20260911_095606`); this is the corrective landing of that ruling in the skill that runs it, under the approval of the Step 2e wording (`dr_locked_03_edit_asset_review_and_entry_20260911_083405`). The one home for the full process is the reconciliation spec's asset pass. Additive wording only; Step 2f, added by another session the same day, untouched.*
 
 *v1.7 — 2026-09-11. New **Step 2e — review the assets this company already hands out**, and a pointer to the one entry point. Bryce approved the exact wording in his own prose 2026-09-11 (Campaign Assets & Cohort Profile S4); registers `dr_what_the_asset_pass_does_with_an_asset_20260911_074423` (every asset is stale on each run, the advisors give a verdict, **only the user updates**), `dr_what_merge_means_on_the_existing_20260911_080052` (match the touchpoint, then use theirs · use ours · blend with theirs as the base), `dr_locked_03_edit_asset_review_and_entry_20260911_083405` (the approval), refining clause 3 of `dr_an_asset_is_measured_against_company_state_every_time_the_function_is_called_20260909`, and item (b) of `dr_one_entry_point_onboard_or_realign_20260821_165142`. **Adjudicated ABSENT → Adopt-fresh for Step 2e** (no framework file named an asset review; this skill named "asset" zero times) and **ABSENT → one home plus pointers for the entry point** (the statement lives once, in `aii-onboard-client`). Additive: no step renumbered, no behavior removed; detect-and-offer is unchanged and now extends to assets — the review recommends, the user acts. Lens: Goldratt (an asset out of line ranks by what it blocks), Evans (three rooms, one door), Nygard (the honest limit prints with every result), Redman (the route is a lookup; this body never restates it).*
 

@@ -904,6 +904,11 @@ def main():
         name = file_name(s)
         p = WORK / f"{s['slug']}.html"
         p.write_text(h, encoding="utf-8")
+        # 2026-09-11 (Campaign Engine Assets S2): the same source, named like its PDF, in words/ - OUTSIDE out/ so
+        # it is never scanned as a deliverable. register-delivered-asset.py --body-from reads the sheet's WORDS from
+        # here, because asset_put() now refuses a delivered piece that does not carry its words.
+        (WORK / "words").mkdir(exist_ok=True)
+        (WORK / "words" / f"{name}.html").write_text(h, encoding="utf-8")
         items.append((name, p))
     try:
         import playwright  # noqa: F401
@@ -971,7 +976,8 @@ def main():
     print('       --deliver-to "02 — Clients/<where these will actually live>" \\')
     print("       --tenant <t> --company <c> --department sales --asset-type concept_sheet \\")
     print("       --program <program_id> --by session:<your session id> \\")
-    print("       --dispatch-mode dispatched --template <touchpoint template id, NOT the layout>")
+    print("       --dispatch-mode dispatched --template <touchpoint template id, NOT the layout> \\")
+    print('       --body-from "%s"' % (WORK / "words"))
     print()
     print("     # 2. the PERSONALISED sheet (for one person) - the same command, plus:")
     print("       --inherited-from <canonical asset_id> --touchpoint <touchpoint_id from the debrief>")
