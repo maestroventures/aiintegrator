@@ -152,7 +152,7 @@ const CAP_ACTION = 'record_call_doc';
  * THE CREDENTIAL DOOR IS GONE — 2026-08-06 (T1·S88). DO NOT PUT IT BACK.
  * ════════════════════════════════════════════════════════════════════════════
  * This module used to `require('pg')` and `require('./board-conn')`, and board-conn.js
- * reads a raw postgres:// URL off local disk (~/.aios/hub.env -> BOARD_DATABASE_URL).
+ * reads a raw postgres:// URL off local disk (~/aios-workshop/hub.env -> BOARD_DATABASE_URL).
  * That is exactly the door Bryce deleted on 2026-08-02 on purpose — "a dead credential
  * path is an invitation to go satisfy it" — and the same defect class as
  * neon_three_connector_stores_hold_client_credentials_in_the_house_db_20260804

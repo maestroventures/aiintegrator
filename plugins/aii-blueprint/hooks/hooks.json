@@ -1,0 +1,17 @@
+{
+  "description": "AI Integrator home-folder guard: refuses a session's search from the home folder (or above) and any folder made directly in it, before the command runs. The rule is the house tier's ('When you need to put a file somewhere, or find one'). On a machine with no python3 it allows the call silently rather than prompting to install developer tools.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Grep|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/run-guard.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
