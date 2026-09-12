@@ -272,6 +272,49 @@ def require_work():
     return WORK
 
 
+# ⛔ THE REGISTRATION INPUTS, REFUSED UP FRONT — added 2026-09-12.
+#    Until today this program ended by PRINTING a register-delivered-asset.py command with
+#    <angle-bracket> placeholders in it, and a person had to notice, fill them in and run it.
+#    Two acts, and the second one ran without the first — the exact shape the registrar's own
+#    header was written against, quoting Bryce: "I should never have to say register this...
+#    I should never have to ask. Ever. No user should."
+#    (dr_registration_is_a_precondition_of_existing_not_a_step_20260824_064500, and
+#     fw_registration_at_build_time_never_on_a_schedule_20260802: "the writer of the state is
+#     the ACT that changes it ... so the store cannot drift from reality without the act itself
+#     failing.")
+#
+#    So this builder now CALLS its registrar instead of naming it, and these are the values it
+#    has to be handed in order to do that. THEY ARE REFUSED HERE, BEFORE A BYTE IS RENDERED,
+#    for the same reason the gate and the frame are: a refusal that arrives after the file
+#    exists is a cleanup instruction, not a refusal.
+#
+#    ⚠ PRESENCE ONLY. Whether `dispatched` is a legal mode, and whether a piece carrying
+#    --inherited-from also names a --touchpoint, are register-delivered-asset.py's rules and
+#    they stay in its placement_problem(). Re-stating them here would be one fact in two files,
+#    and they would drift the first time the run chain changes.
+#    --asset-type is not a flag: this builder makes exactly one kind of thing, and
+#    `concept_sheet` is what framework_builder already records it as making.
+REGISTRATION_FLAGS = ("--deliver-to", "--tenant", "--company", "--department",
+                      "--program", "--by", "--dispatch-mode")
+
+
+def require_registration_inputs():
+    """The values this build must hand its registrar. No defaults, and no build without them."""
+    missing = [f for f in REGISTRATION_FLAGS if not _flag(f)]
+    if missing:
+        raise SystemExit(
+            "build.py: REFUSED \u2014 no sheet was written.\n"
+            "A built sheet that cannot be registered is a file the content library can never\n"
+            "see, which is indistinguishable from a sheet nobody built. These are missing:\n"
+            "  " + "  ".join(missing) + "\n"
+            "There are no defaults: every one is either NOT NULL on `assets` or a foreign key,\n"
+            "so a guess would be a false fact rather than a convenience.\n"
+            "  --deliver-to     the path under '02 \u2014 Clients/' the file will actually LIVE at\n"
+            "  --dispatch-mode  dispatched | stationed | governing\n"
+            "  --touchpoint / --inherited-from  a PERSONALISED sheet is a message and needs both")
+    return {f: _flag(f) for f in REGISTRATION_FLAGS}
+
+
 def b64(p):
     return base64.b64encode((WORK / p).read_bytes()).decode()
 
@@ -882,6 +925,8 @@ def main():
     #   the guard: load_frame() above any write_text() is what makes "REFUSES and
     #   writes no file" true rather than aspirational.
     require_work()
+    # BEFORE THE GATE, because it is the cheapest of the three and needs no store read.
+    REG = require_registration_inputs()
     # THE GATE RUNS BEFORE THE FRAME, AND BOTH RUN BEFORE ANY WRITE. Ordering is the
     # guard. The gate is first because it answers the bigger question - may this be
     # built at all - and a complete frame on a template nobody may build from is the
@@ -951,7 +996,6 @@ def main():
     # builder is registration half the estate does not have.
     print()
     print("⛔ BUILT, NOT DELIVERED — exit 9. The library cannot see these files yet.")
-    print("   Register them, then this build counts as done:")
     print()
     # ⛔ THE PATH IS DERIVED FROM THIS FILE, NEVER TYPED. The registrar ships BESIDE this
     #    program in the plugin (skills/aii-collateral-sheet/) and sits in 04/scripts in the
@@ -962,27 +1006,50 @@ def main():
     _reg = pathlib.Path(__file__).resolve().parent / "register-delivered-asset.py"
     if not _reg.exists():
         _reg = pathlib.Path("04 — Daily Operating System/scripts/register-delivered-asset.py")
-    # ⭐ 2026-09-11 — THE RUN CHAIN (Campaign-Engine-Touchpoint-Record-SPEC-DRAFT §4.6; ruling
-    #   dr_touchpoint_record_may_reach_client_stores_20260911_084747). The command below used to name
-    #   a program only, and the registrar stamped every file 'stationed' - so no sheet could ever be
-    #   placed in a campaign. The canonical sheet and the personalised one are now registered as what
-    #   they are: the canonical is the content of a TOUCHPOINT TEMPLATE (never the layout), the
-    #   personalised one is a MESSAGE and must name the touchpoint it was made for. The step is READ
-    #   from the debrief that asked for the sheet; if it does not exist yet, create it with
-    #   asset_campaign_put() / asset_touchpoint_put() first. asset_put() refuses a message with no step.
-    print('     # 1. the CANONICAL sheet (for the audience):')
-    print('     python3 "%s" \\' % _reg)
-    print('       --scan "%s" \\' % OUT)
-    print('       --deliver-to "02 — Clients/<where these will actually live>" \\')
-    print("       --tenant <t> --company <c> --department sales --asset-type concept_sheet \\")
-    print("       --program <program_id> --by session:<your session id> \\")
-    print("       --dispatch-mode dispatched --template <touchpoint template id, NOT the layout> \\")
-    print('       --body-from "%s"' % (WORK / "words"))
+    # ⭐ 2026-09-12 — THIS PROGRAM NOW RUNS THE REGISTRAR INSTEAD OF PRINTING IT.
+    #   What stood here was a command with <angle-bracket> placeholders for a person to fill in
+    #   and run. That is act two wearing act one's clothes, and standing check #256 named it:
+    #   of the three makers the framework ships, this was the only one whose framework_builder
+    #   row claimed a registrar its own source never called. The other two — build-call-guide.js
+    #   and build-call-debrief.js — have always called theirs in-process.
+    #
+    # ⚠ IT RUNS THE SCAN, WHICH IS THE HALF A BUILDER CAN DO. --sql and --settle need the board
+    #   connector, and no local script in this estate holds a credential. That is the same
+    #   two-step shape register-call-doc.js uses, where the builder calls planRegistration() and
+    #   the SESSION settles. So the exit 9 STAYS and means what it always meant: the files exist,
+    #   the plan exists, and the library cannot see them until the rows land.
+    #
+    # ⭐ THE RUN CHAIN (Campaign-Engine-Touchpoint-Record-SPEC-DRAFT §4.6; ruling
+    #   dr_touchpoint_record_may_reach_client_stores_20260911_084747). The canonical sheet is the
+    #   content of a TOUCHPOINT TEMPLATE (never the layout); a personalised sheet is a MESSAGE and
+    #   must name the touchpoint it was made for, which the caller READS from the debrief that
+    #   asked for it. Those rules are ENFORCED BY THE REGISTRAR and are deliberately not restated
+    #   here — one fact, one file.
+    import subprocess
+    cmd = [sys.executable, str(_reg), "--scan", str(OUT),
+           "--asset-type", "concept_sheet",
+           "--body-from", str(WORK / "words")]
+    for flag in REGISTRATION_FLAGS:
+        cmd += [flag, REG[flag]]
+    for flag in ("--template", "--touchpoint", "--inherited-from", "--channel", "--note"):
+        v = _flag(flag)
+        if v:
+            cmd += [flag, v]
+    print("   running the registrar: %s --scan" % _reg.name)
+    r = subprocess.run(cmd)
+    if r.returncode != 0:
+        # ⛔ THE REGISTRAR'S REFUSAL IS THIS BUILD'S REFUSAL, AND ITS EXIT CODE PASSES STRAIGHT
+        #   THROUGH rather than being flattened into 9: 2 means it could not read the folder and
+        #   6 means a required value or the sheet's words are missing. Collapsing those into
+        #   "not delivered yet" would tell the caller to go run a step that fails the same way.
+        print()
+        print("⛔ THE REGISTRAR REFUSED (exit %d). The sheets are written; the delivery is NOT "
+              "planned." % r.returncode)
+        raise SystemExit(r.returncode)
     print()
-    print("     # 2. the PERSONALISED sheet (for one person) - the same command, plus:")
-    print("       --inherited-from <canonical asset_id> --touchpoint <touchpoint_id from the debrief>")
-    print()
-    print("   then --sql, run it through the board, and hand the rows back with --settle.")
+    print("   PLANNED. Now run these two through the board — they need the connector:")
+    print('     python3 "%s" --plan "%s" --sql' % (_reg, OUT / "_delivery.json"))
+    print('     python3 "%s" --plan "%s" --settle <rows.json>' % (_reg, OUT / "_delivery.json"))
     print("   ⚠ A rebuild that produces the SAME BYTES comes back `unchanged` and writes")
     print("     nothing. That is a pass, not a miss: the file name was never the question.")
     raise SystemExit(9)

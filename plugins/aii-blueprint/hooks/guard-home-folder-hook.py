@@ -46,14 +46,38 @@ def main():
                   + ", ".join(sorted(set(strays)))[:200])
 
     elif tool in ("Grep", "Glob"):
-        root = inp.get("path") or call.get("cwd") or ""
+        # ⭐ 2026-09-12 — WHICH OF THE TWO CASES THIS IS, because they have different causes and
+        #    different remedies and until today they printed the same sentence.
+        #    ASKED   the tool NAMED a home-or-above path. The session did something wrong.
+        #    LANDED  the tool named NO path, so it searches the working folder — and the working
+        #            folder IS the home folder. The session did nothing wrong; it was STARTED in
+        #            the wrong place, and nothing it can do from inside will change that.
+        #    MEASURED: the LANDED case blocks every pathless Grep and Glob for the whole session,
+        #    Bash keeps working, and there was NO override of any kind — AIOS_ALLOWED_TOPS does
+        #    not reach this test, which is a flat set membership. A seat in that state cannot
+        #    search at all and the old message pointed it at rules it could not act on. Bryce hit
+        #    it on 2026-09-11 (stuck at v0.9.13) and had to hand-upload a plugin to get out.
+        asked_for = inp.get("path") or ""
+        root = asked_for or call.get("cwd") or ""
         pattern = inp.get("pattern") or ""
         if tool == "Glob" and pattern.startswith(("/", "~", "$HOME")):
             head = pattern.split("*", 1)[0].rstrip("/") or "/"
             if g.tool_path_is_home_or_above(head):
                 block(tool + " pattern is rooted at the home folder or above: " + pattern[:120])
         if g.tool_path_is_home_or_above(root):
-            block(tool + " search root is the home folder or above: " + root)
+            if asked_for:
+                block(tool + " search root is the home folder or above: " + root)
+            if g.home_search_opted_in():
+                sys.exit(0)     # deliberately allowed for this session, by the person
+            block(
+                "THIS SESSION'S WORKING FOLDER IS THE HOME FOLDER (" + root + "), so a "
+                + tool + " with no path searches all of it.\n"
+                "    You did not ask for that root — it is where the session was started, and it "
+                "blocks\n    every " + tool + " for as long as the session runs.\n"
+                "    TWO WAYS OUT, and the first is the real fix:\n"
+                "      1. Start Claude in your working folder instead of your home folder.\n"
+                "      2. If you truly mean to search the home folder, set "
+                + g.HOME_SEARCH_OPT_IN + "=1 for the session.")
 
     sys.exit(0)
 

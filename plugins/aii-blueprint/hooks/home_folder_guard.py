@@ -142,6 +142,23 @@ def tool_path_is_home_or_above(path):
     return p in {HOME, os.path.dirname(HOME), "/"}
 
 
+# ⭐ THE ONLY DELIBERATE WAY PAST THE HOME-ROOT TEST — added 2026-09-12, and it is added because
+#    there was NONE. AIOS_ALLOWED_TOPS widens allowed_tops(), which tool_path_is_home_or_above()
+#    never consults: that test is flat set membership, so a session whose working folder is the
+#    home folder could not search, could not override, and could not be told why. Measured on the
+#    shipped bytes of v0.9.13, v0.9.17 and v0.9.18 — all three block, with no escape.
+#    IT IS A SEPARATE NAME FROM AIOS_ALLOWED_TOPS ON PURPOSE. That one says "this top-level folder
+#    is legitimate"; this one says "I mean to search my whole home folder, pop-up and all." Folding
+#    the second into the first would let a routine folder allowance quietly re-open the wide walk
+#    this guard exists to stop.
+HOME_SEARCH_OPT_IN = "AIOS_ALLOW_HOME_SEARCH"
+
+
+def home_search_opted_in():
+    """True only when the person has said, for this session, that a home-wide search is intended."""
+    return os.environ.get(HOME_SEARCH_OPT_IN, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 REMEDY = (
     "    The rule (house tier, 'When you need to put a file somewhere, or find one'): a seat's machine\n"
     "    has THREE folders — the app's own folder (~/Claude), the person's working folder (their AIOS),\n"
