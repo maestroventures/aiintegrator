@@ -2,29 +2,31 @@
 name: aii-onboard-client
 description: >
   AI Integrator Blueprint: Onboard Client. The one skill that owns standing a new client up on the
-  Blueprint, end to end, so nobody re-derives the order. It knows where the setup walk ends and where
-  the session takes over: the walk owns every step that happens inside the AI platform's own Settings
-  screens — connect the workspace, install the plugin, install and authorize each connector, enable the
-  required account skills — because a session physically cannot click Settings. Everything after that
-  is a conversation and runs here: verify the equipment, run the interview, write every answer back to
-  the client's own store, then hand off to the audit. Fires on "onboard," "new client setup," "get them
+  Blueprint, end to end, so nobody re-derives the order. It knows where the email ends and where the
+  session takes over: the email does only what cannot wait for a session — add the plugin and connect
+  the Workspace connector — and hands the person into a task. Everything after that runs here, with
+  someone on the line: every remaining connector installed, authorized and given its permissions while
+  the person clicks, the required account skills, the equipment check, the interview with every answer
+  written back to the client's own store, then the hand-off to the audit. Fires on "onboard," "new client setup," "get them
   started," "stand up their Blueprint," "run the install," or the first working session on a fresh
   seat. It never reports a step done that it cannot see.
 ---
 
 # Onboard Client
 
-Standing a client up has always been four things in four rooms — a walk page, a plugin, a spec, and a
+Standing a client up used to be four things in four rooms — a walk page, a plugin, a spec, and a
 card library — and **no single thing owned the order.** So every session re-derived it, each one drew
 the boundary somewhere slightly different, and the honest answer to *"can this be done in session?"*
 came back different every time. That is not a documentation problem. **It is a missing procedure**, and
 this is the procedure.
 
-**The one sentence this skill exists to hold: a session cannot click Settings.** Everything that is a
-click inside the AI platform's own settings screens belongs to the walk, because a page that shows one
-screenshot at a time is the right instrument and a session physically cannot do it. Everything that is
-a *question* belongs here, because answering questions is a conversation and a web form is the weaker
-version of one. Every argument about "what onboarding means" has been this line, undrawn.
+**The one sentence this skill exists to hold: the email does as little as possible, and everything a
+session can carry, the session carries.** The line is not "is this a click in Settings" — a person can
+click while a session guides them. **The line is whether anyone is on the line with them.** Before the
+Workspace connector is connected, nobody is, so those steps have to be written down in an email. The
+moment it is connected, a session is there, and it can do what an email never can: see whether a step
+actually landed, notice when it did not, and keep track. Every argument about "what onboarding means"
+has been this line, undrawn.
 
 ---
 
@@ -55,79 +57,95 @@ the company you want to bring?"* — rather than guessing.
 
 ## Step 0 — Know which side of the line you are on
 
-Before anything else, establish **where this client is**: have they finished the setup walk, or not?
+Before anything else, establish **where this client is**: have they done the email's two things — the
+plugin added and the Workspace connector connected — or not?
 
-- **Not started / mid-walk** → your job is Step 1 and Step 2. Do **not** start the interview. A client
-  answering questions before their equipment is live produces answers with nowhere to land.
-- **Walk complete** → your job is Step 3 onward.
+- **Not yet** → your job is Step 1: get them the email, or back to it. There is no session to work in
+  until the Workspace connector is connected.
+- **Both done, and they are in a task with you** → your job is Step 2 onward. Do **not** start the
+  interview until Step 2 is finished: a client answering questions before their equipment is live
+  produces answers with nowhere to land.
 
-If you cannot tell, **say so and ask them one plain question** — *"have you finished the setup page
-yet?"* — rather than guessing. Guessing here is how a client gets asked to redo work they already did.
+If you cannot tell, **say so and ask them one plain question** — *"have you added the plugin and
+connected the Workspace connector yet?"* — rather than guessing, then read the live state to confirm it.
+Guessing here is how a client gets asked to redo work they already did.
 
 ---
 
-## Step 1 — The door-opener carries two things and nothing else
+## Step 1 — The email does two jobs, then hands them to a session
 
-Somebody has to reach the person before any of this can start, and the only job of that first message
-is to **get them to the door.** It carries exactly two things:
+Somebody has to reach the person before any of this can start, and nobody is on the line with them yet.
+So the first message is an **email**, and its whole job is the two things that cannot wait for a
+session:
 
-1. **A brief overview of what they are about to do** — plain, short, no jargon, no step list.
-2. **The link** that takes them to the setup walk.
+1. **Get the plugin added.**
+2. **Get the Workspace connector connected and authorized.**
 
-**It does NOT carry the connector how-to** (the walk teaches that, one card at a time, with a picture),
-and it does **NOT** carry what happens after they are connected (that is Step 3 onward, and it happens
-in a conversation, not in an email nobody re-reads).
+Around those two, it carries only what they need to do them: a short, plain description of what is
+about to happen and roughly how long it takes; what to have ready before they start; how to add the
+plugin and how to connect the Workspace connector, each with *how you will know it worked*; and the
+handoff — **open the desktop app, start a new task (not a chat), and say they are ready to onboard.**
+The words for the app and the kind of task come from the person's own setup, never typed as a vendor
+name into the copy.
 
-The reasoning, and it is the whole design principle: *you cannot follow instructions if you do not know
-where you are supposed to get the instructions from.* The message is a handoff to the surface that
-carries the instructions — never a second copy of them.
+**It does NOT carry anything a session can do instead** — no other connector, no permissions step, no
+link to a setup page, and nothing about what happens after they are connected. An email can instruct
+and can never check; a session can do both. Every step moved out of the email is a step that can be
+tracked.
+
+The reasoning, and it is the whole design principle: *as few things as possible happen in the email;
+anything that can be handed to a session is handed to a session,* because that is where somebody can
+see whether it actually happened.
 
 *(Lens: Krug — one obvious next action. Carnegie — say why they should care before you say what to do.)*
 
 ---
 
-## Step 2 — The walk owns every step that is a click in Settings
+## Step 2 — In the session, they click and you guide, one connector at a time
 
-These are the steps a session cannot perform, in the order they must happen. **Each one is a card on
-the walk, not a message in a chat.**
+The person is now in a task with you. **They do the clicking; you tell them the next click, one at a
+time, and you check each one landed before moving on.** Nothing here is a screen or a form.
 
-1. **Confirm the environment** — which machine, which platform, which browser. Everything downstream
-   branches on it, and getting it wrong sends the client a screenshot of a screen they do not have.
-2. **Connect the workspace** — so the system can reach their files.
-3. **Install the plugin** — this is what delivers the framework's own skills. **They arrive with the
-   plugin; there is no separate step for them, and telling a client to install them individually sends
-   them hunting for something that is already there.**
-4. **Install and authorize each connector the client actually uses** — installing and authorizing are
-   **two acts, in that order**, and a connector that is installed but not authorized is not connected.
-   Never report the second act as done because the first one succeeded.
-5. **Enable the required account-level skills.** These are **not** the framework's own skills and they
-   do **not** arrive with the plugin — they are enabled per account, in Settings, one at a time. Which
-   ones are required is a property of the JOBS the framework performs for this client, read from the
-   capability floor; it is never inferred from what happens to be installed. **This step is on the walk
-   precisely because it is a Settings click** — the same test that put steps 1–4 there.
+1. **Confirm their setup** — which machine and which app. Everything you tell them to click branches on
+   it, and getting it wrong describes a screen they do not have.
+2. **Confirm the plugin and the Workspace connector from the email actually landed.** Read the live
+   state; a person who followed the email is not proof that it worked. The framework's own skills
+   **arrive with the plugin** — there is no separate step for them, and telling a client to install
+   them individually sends them hunting for something that is already there.
+3. **Set the Workspace connector's permissions with them.** This moved out of the email on purpose: here
+   you can look at the settings with them instead of leaving them to find the page alone.
+4. **Then every other connector, in the instance's order, the same loop each time:** install it,
+   authorize it, set what it is allowed to do, verify it — then the next. Installing and authorizing are
+   **two acts, in that order**; a connector that is installed but not authorized is not connected. Never
+   report a later act as done because an earlier one succeeded.
+5. **Enable the required account-level skills.** These are **not** the framework's own skills and do
+   **not** arrive with the plugin — each is enabled per account, one at a time. Which ones are required
+   is a property of the JOBS the framework performs for this client, read from the capability floor;
+   never inferred from what happens to be installed.
 
-**The walk ends when the last of these is done.** Nothing that asks the client a question about their
-business belongs on the walk, no matter how convenient the form is.
+**This step ends when the last of these is done and verified.** Nothing that asks the client a question
+about their business belongs here — that is Step 4.
 
-⚠ **Verifying a step is part of the step.** A card that says *do this* and cannot say *here is how you
-know it worked* has taught the client to guess. If a step has no way to show its own result, say that
-out loud on the card rather than leaving a silent success.
+⚠ **Verifying a step is part of the step.** Say *here is how you will know it worked* before they click,
+then read the result yourself. **Some settings cannot be read from inside a session.** When a step's
+result is one of those, say so out loud and ask them to tell you what they see — never let a step you
+could not see read as a completed one.
 
-*(Lens: Norman — the instrument must match the action. Nygard — never let an unverified step read as
+*(Lens: Norman — one next action, and its result visible. Nygard — never let an unverified step read as
 a completed one.)*
 
 ---
 
 ## Step 3 — First thing in the session: check the equipment before you ask anything
 
-The client arrives in their session having done the walk. **Do not open with a question about their
-business.** Open by confirming that what they just set up is actually live — hand this to
+By now the client has done the email's two things and Step 2 with you. **Do not open with a question
+about their business.** Open by confirming that what they just set up is actually live — hand this to
 **`aii-patch-me-up`**, which owns it: it reads their connector inventory and the required-capability
 floor, sorts everything into plain buckets, and offers the one fix for anything that is not live.
 
 This is a hand-off, not a re-implementation. **One fact, one file.**
 
-Two things this skill insists on, because the walk cannot check either:
+Two things this skill insists on, because a checklist the client ticks cannot check either:
 
 - **A step the client ticked is a claim, not a proof.** Re-read the live state. A client who clicked
   "authorize" and landed on an error page will tick the box anyway, because the page told them to.
@@ -140,7 +158,7 @@ Two things this skill insists on, because the walk cannot check either:
 ## Step 3b — Give their workspace its shape BEFORE anything is filed into it
 
 Numbered 3b on purpose rather than renumbering the steps below it: this is a small step that has to
-happen at a specific moment, not a re-cut of the walk.
+happen at a specific moment, not a re-cut of the sequence.
 
 The client's folders get their declared shape and their drawer vocabulary **now**, before the
 interview writes the first thing into them. The house tier's *When you put working files away* block
@@ -175,9 +193,11 @@ one owner: the client's vocabulary lives in the client's store.)*
 ## Step 3c — Read what they already gave you, BEFORE you ask them anything
 
 Numbered 3c for the same reason 3b is 3b: a small step at a specific moment, not a re-cut of the
-walk. It is the **session reads** half of the operator's ruling on the intake step (option label
+sequence. It is the **session reads** half of the operator's ruling on the intake step (option label
 verbatim and complete: *"Both — walk collects, session reads, client confirms on screen
-(Recommended)"*). The walk's collect step is the first half; Step 4's opening bullet is the third.
+(Recommended)"*). **The walk that label names no longer exists**, so the collect half happens here, at
+the start of this step: ask them to put the documents they already have into the declared folder, then
+read. Step 4's opening bullet is the third half.
 
 **Why it is a step and not a courtesy, measured.** Against one real client's artifact set: of the
 five seeded onboarding cards, **3 were already fully answered** in documents we authored and
@@ -231,8 +251,7 @@ them; it **runs** them, in order, in the client's own words.
   different answers means the element is unsettled, not that somebody is wrong (option label
   verbatim: *"Don't tick it off — just ask them (Recommended)"*). Then ask only what is genuinely
   still open.
-- **Ask them here, one at a time, in plain language.** This is the half the walk was always doing
-  badly: a form cannot follow up, cannot notice an answer that contradicts an earlier one, and cannot
+- **Ask them here, one at a time, in plain language.** A form does this badly: it cannot follow up, cannot notice an answer that contradicts an earlier one, and cannot
   tell the difference between *"I do not know"* and *"that does not apply to us."* A conversation can.
 - **Write every answer back to the client's own record, as it is given** — not at the end, not in a
   summary. An answer held in the conversation and never written is lost the moment the chat closes.
@@ -275,7 +294,8 @@ it.
   completed steps.
 - **A capability floor that reads empty is a defect**, not an empty result.
 - **A client store that cannot be reached stops the run.** Say which store and say what you tried.
-- **"The walk says it is done" is not evidence.** The live read is the evidence.
+- **"They said it is done" is not evidence, and neither is "the email told them how."** The live read is
+  the evidence.
 
 ---
 
@@ -286,6 +306,8 @@ Not for a client who is already stood up and running — that is `aii-patch-me-u
 run, once, for a new client.
 
 ---
+
+*v1.2 — 2026-09-13. Bryce pop-up-approved 2026-09-13 (dr_locked_03_edit_aii_onboard_client_v1_2_20260913_063207, option label "Write it as drafted (Recommended)"). **Corrects the skill to the onboarding that actually runs.** The spine sentence "a session cannot click Settings" and Steps 0–2 described the retired setup walk; they now describe the email (plugin + Workspace connector, then a task) and the session that carries every other step while the person clicks. Every other step is unchanged except that "the walk" is no longer named as a thing that exists. Registers dr_the_web_walk_is_gone_the_email_hands_off_to_a_session_20260817 (clauses 1, 3, 4), dr_the_email_is_minimal_and_session_is_where_tracking_starts_20260825_130000 (the email's two requirements and the minimise-the-email principle, superseding the permissions clause of the 08-17 row), dr_the_old_onboarding_generation_is_retired_and_recoverable_20260907, and dr_command_center_install_wizard_and_the_20260913_053931. Step 3c's placement of the intake collect half is the session's reading, marked as such in the step. Lens: Evans (one boundary, named for its real reason), Nygard (an email cannot verify; a step you could not see is never done), Norman (one next action, its result visible), Ohno (fix the skill that taught sessions the walk, not only the page).*
 
 *v1.1 — 2026-09-11. New section **One entry point, three states** above Step 0 — the single home for Bryce's ruling that however a person asks to be brought right, it is one door, the system reads which of three states they are in (installed · new with files · new with nothing), and the skills are rooms behind it that call each other. `aii-patch-me-up` and `aii-tune-up` each carry a one-line pointer here and never restate it. Registers `dr_one_entry_point_onboard_or_realign_20260821_165142` (item (b) of its landing, amended to three states 2026-09-09) and `dr_locked_03_edit_asset_review_and_entry_20260911_083405` (his approval of the exact wording, 2026-09-11, Campaign Assets & Cohort Profile S4). Additive: Step 0 and every numbered step unchanged. Lens: Evans (three bounded contexts behind one door), Nygard (never infer the state from the words used; say so and ask when the record cannot tell), Krug (the person never picks a mode).*
 
