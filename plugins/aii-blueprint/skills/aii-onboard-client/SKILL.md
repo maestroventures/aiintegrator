@@ -177,6 +177,13 @@ is the rule; this is the only moment it can be applied for free.
 - **Then create the shape, and write the declaration down where they will find it.** A shape that
   exists only in this conversation is not declared. The folder that holds the declaration is part of
   the shape.
+- **Create it through the one door, so the shape is recorded all at once.** Read the shape from
+  `client_workspace_template()`. After their yes, create the root in the person's own Drive at the
+  account root, named "AIOS — <Company>", then each folder under it with `drive_create`, keeping every
+  id Drive returns. Then record the whole shape in ONE call to `client_workspace_shape_apply()`. It
+  refuses a partial shape or a folder that is not in the template, and records nothing when it refuses
+  — so if it refuses, say what Drive already made and stop. `lib/onb/workspace-shape.js` is this same
+  flow in code.
 - **Why this is a step and not a cleanup task later:** measured 2026-08-10 on a workspace with no
   declared shape, the folders that had none held 86, 35, 16 and 13 things and the one with a written
   taxonomy held 5 — and untangling one of them afterwards nearly broke the product, because by then a
@@ -306,6 +313,8 @@ Not for a client who is already stood up and running — that is `aii-patch-me-u
 run, once, for a new client.
 
 ---
+
+*v1.3 — 2026-09-13 (Boise). Bryce pop-up-approved (dr_locked_03_edit_aii_onboard_client_step_20260913_195432, option label "Write it as drafted (Recommended)"). Adds ONE bullet to Step 3b naming the door that records the client workspace shape: client_workspace_template() for the shape, drive_create in the person's own Drive after their yes, then one all-or-nothing client_workspace_shape_apply() call (the flow shipped as lib/onb/workspace-shape.js in PRs #234 and #237). Placement follows dr_where_a_clients_aios_root_lands_and_who_creates_it_20260905. Nothing else in the skill changed.*
 
 *v1.2 — 2026-09-13. Bryce pop-up-approved 2026-09-13 (dr_locked_03_edit_aii_onboard_client_v1_2_20260913_063207, option label "Write it as drafted (Recommended)"). **Corrects the skill to the onboarding that actually runs.** The spine sentence "a session cannot click Settings" and Steps 0–2 described the retired setup walk; they now describe the email (plugin + Workspace connector, then a task) and the session that carries every other step while the person clicks. Every other step is unchanged except that "the walk" is no longer named as a thing that exists. Registers dr_the_web_walk_is_gone_the_email_hands_off_to_a_session_20260817 (clauses 1, 3, 4), dr_the_email_is_minimal_and_session_is_where_tracking_starts_20260825_130000 (the email's two requirements and the minimise-the-email principle, superseding the permissions clause of the 08-17 row), dr_the_old_onboarding_generation_is_retired_and_recoverable_20260907, and dr_command_center_install_wizard_and_the_20260913_053931. Step 3c's placement of the intake collect half is the session's reading, marked as such in the step. Lens: Evans (one boundary, named for its real reason), Nygard (an email cannot verify; a step you could not see is never done), Norman (one next action, its result visible), Ohno (fix the skill that taught sessions the walk, not only the page).*
 
