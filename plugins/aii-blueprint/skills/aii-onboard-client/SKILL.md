@@ -193,6 +193,9 @@ is the rule; this is the only moment it can be applied for free.
   personal folder had become a load-bearing address for something else. People adopt what is already
   there. Born with the shape costs one step; retrofitting it costs a session and risks a regression.
 - **Do not report this step done if you cannot see the folders.** Same rule as every other step here.
+  Seeing them means reading them back: list "AIOS — <Company>" and its folders in their Drive, and
+  read the saved workspace root and one folder record per folder from their store. If any is missing,
+  say which and do not move on.
 
 *(Lens: Rogers — an innovation is adopted on its observability and its complexity, and a folder that
 already exists scores on both where a written rule scores on neither. Evans — one bounded context,
@@ -240,7 +243,8 @@ write down.
   standing in it.
 - **Do not report this step done if you did not open a file.** Same rule as every other step here. A
   client who handed over nothing gives an honest empty result — and that is indistinguishable from a
-  step that never ran unless you say which one happened.
+  step that never ran unless you say which one happened. Then read back the saved record for each
+  document you named, with what it answers. Your own summary of a file is not proof it was recorded.
 
 *(Lens: Christensen — the job they hired us for includes taking setup work off them, and asking for
 what they already sent is the opposite. Nygard — the preflight names the real cause instead of
@@ -287,6 +291,9 @@ Note the seam that already exists and do not re-litigate it: the Tune-Up's **bui
 connectors and can run early; its **reconcile half** waits until the connectors are live, because it
 reads the company's real stuff through them.
 
+The hand-off is done only when the board shows the ranked gap cards the Tune-Up wrote for this
+company, dated after it ran and naming the goal. Hand-off started is not hand-off done.
+
 ---
 
 ## Step 6 — Never leave an offer as a rendered affordance
@@ -316,6 +323,8 @@ Not for a client who is already stood up and running — that is `aii-patch-me-u
 run, once, for a new client.
 
 ---
+
+*v1.5 — 2026-09-14 (Boise). Bryce pop-up-approved (dr_locked_03_edit_aii_onboard_client_proof_20260914_080933, option label "Add all three (Recommended)"). Adds ONE read-back sentence each to Step 3b (read the Drive folders and the saved workspace records back), Step 3c (read back the saved record for each document named) and Step 5 (the Tune-Up hand-off is done only when its ranked gap cards are on the board). Matches first_run_step 9, 10 and 17, whose evidence was rewritten the same day. Nothing else changed.*
 
 *v1.4 — 2026-09-13 (Boise). Bryce pop-up-approved (dr_locked_03_edit_aii_onboard_client_step_20260913_203304, option label "Write it as drafted (Recommended)"). Adds ONE sentence to Step 3b in front of "After their yes, create the root": look first for a folder already named exactly "AIOS — <Company>" (and each ruled folder under it), reuse it and create only what is missing, and stop and show both if there are two. Matches PR #242 (workspace-shape.js re-run reuses the root). Nothing else changed.*
 
