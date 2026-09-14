@@ -265,7 +265,9 @@ def require_work():
             "  assets/      the SENDING company's fonts and logo (5 files, see BRAND_FILES)\n"
             "and out/ is created inside it. There is no default: the one copy of this program\n"
             "ships in the plugin and does not know whose delivery it is being run for.")
-    WORK = pathlib.Path(w).expanduser()
+    # ⛔ RESOLVED TO AN ABSOLUTE PATH — 2026-09-14, Bryce-approved safety fix. A relative --work reached Chrome as
+    #    file://relative/path, Chrome printed its own "This site can't be reached" page, and that PDF looked built.
+    WORK = pathlib.Path(w).expanduser().resolve()
     if not WORK.is_dir():
         raise SystemExit("build.py: REFUSED — --work %s is not a folder. No sheet written." % w)
     OUT = WORK / "out"
@@ -367,6 +369,8 @@ body {{ font-family:'Archivo', Helvetica, Arial, sans-serif; color:{BLACK}; }}
 .bar {{ background:{BLACK}; padding:.19in .55in; display:flex; align-items:center;
         justify-content:space-between; }}
 .bar img {{ height:20px; }}
+.bar .logos {{ display:flex; align-items:center; gap:14px; }}
+.bar .logos .sep {{ width:1px; height:18px; background:{MUTED}; }}
 .mono {{ font-family:'PlexMono', 'Courier New', monospace; font-weight:500;
          letter-spacing:.10em; text-transform:uppercase; }}
 .bar .mono {{ font-size:6.6pt; color:{MUTED}; text-align:right; line-height:1.5; }}
@@ -441,6 +445,11 @@ FRAME_REQUIRED_ANCHORS = [
     "frame-ninety-ten", "frame-throughline", "frame-cta-front", "frame-cta-back",
     "frame-signature", "frame-handle-label", "frame-bring-label", "frame-closer",
     "frame-steps",
+    # ⭐ 2026-09-14 (Bryce ruling dr_collateral_sheet_labels_from_stored_words_20260914): the two
+    #    column/answer labels were typed into this file ("The first 90% — the system" and
+    #    "What you are listening for."), so every recipient of every sheet read seller language
+    #    no template could remove. They are STORED WORDS now, with no fallback.
+    "frame-col-handle-label", "frame-q-why-label",
 ]
 
 # ⛔ THE TENANT AND THE TEMPLATE ARE ARGUMENTS, NOT LITERALS — GENERICIZED 2026-09-09.
@@ -577,6 +586,7 @@ def load_sheets():
     if not SHEETS:
         raise SystemExit(
             "build.py: REFUSED — content.py defines SHEETS but it is empty. No sheet written.")
+    validate_kinds(SHEETS)
     return SHEETS
 
 
@@ -616,8 +626,70 @@ def load_frame(path):
             "and both look fine on the way out. Re-run the SELECT from --print-sql."
             % (path, len(FRAME_REQUIRED_ANCHORS) - len(missing),
                len(FRAME_REQUIRED_ANCHORS), ", ".join(missing)))
+    F["_steps"] = _parse_steps(F["frame-steps"])
+    return F
+
+
+# ⭐ CO-BRAND VARIABLES — 2026-09-14, Bryce ruling dr_one_variable_cobrand_template_20260914:
+#   "There is just a cobranded template that is variable in nature. So Trackly and CardLogix would
+#    use the same template." Stored words may carry {{name}} tokens. Values come from the PARTNER's
+#   brand record (--partner-vars, read from the store) and from the sheet's own "vars" (recipient
+#   values such as the card's name). An unresolved token REFUSES the build: a sheet that ships
+#   "{{partner_name}}" to a recipient is the same class of defect as another company's footer.
+_TOKEN = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}")
+
+
+def load_partner_vars():
+    """--partner-brand names the co-branding partner; --partner-vars is the store read for it
+    (rows of {key, value}). Both or neither. Returns (brand_key or None, dict)."""
+    b, p = _flag("--partner-brand"), _flag("--partner-vars")
+    if bool(b) != bool(p):
+        raise SystemExit("build.py: REFUSED - --partner-brand and --partner-vars go together. "
+                         "No sheet was written.")
+    if not b:
+        return None, {}
+    try:
+        blob = json.load(open(p, encoding="utf-8"))
+    except Exception as e:
+        raise SystemExit("build.py: REFUSED - could not read --partner-vars %s: %s" % (p, e))
+    rows = blob.get("rows", blob) if isinstance(blob, dict) else blob
+    out = {}
+    for r in rows or []:
+        if isinstance(r, dict) and r.get("key") and r.get("value") is not None:
+            out[str(r["key"])] = str(r["value"])
+    if not out:
+        raise SystemExit("build.py: REFUSED - --partner-vars for %r carried no rows. An empty read and "
+                         "a read nobody ran are the same file. No sheet was written." % b)
+    return b, out
+
+
+def frame_for_sheet(F, s, pvars):
+    """Resolve {{tokens}} in every stored word for ONE sheet, then parse the steps."""
+    vals = dict(pvars)
+    vals.update({str(k): str(v) for k, v in (s.get("vars") or {}).items()})
+    R = {}
+    for k, v in F.items():
+        if k.startswith("_"):
+            continue
+        for _ in range(4):
+            nv = _TOKEN.sub(lambda m: vals.get(m.group(1), m.group(0)), v)
+            if nv == v:
+                break
+            v = nv
+        left = _TOKEN.findall(v)
+        if left:
+            raise SystemExit(
+                "build.py: REFUSED - stored word %s for sheet %s still carries {{%s}} after resolution. "
+                "NO SHEET WRITTEN. Supply it from the partner's brand record (--partner-vars) or the "
+                "sheet's own vars; there is no default." % (k, s.get("slug"), ", ".join(sorted(set(left)))))
+        R[k] = v
+    R["_steps"] = _parse_steps(R["frame-steps"])
+    return R
+
+
+def _parse_steps(raw):
     steps = []
-    for line in F["frame-steps"].splitlines():
+    for line in raw.splitlines():
         line = line.strip()
         if not line:
             continue
@@ -630,8 +702,7 @@ def load_frame(path):
     if not steps:
         raise SystemExit("build.py: REFUSED — frame-steps parsed to zero steps. "
                          "No sheet written.")
-    F["_steps"] = steps
-    return F
+    return steps
 
 
 def esc(s):
@@ -655,6 +726,18 @@ def _rep_note():
     return ('<div class="repnote">%s</div>' % esc(REPRESENTATIVE_NOTE))
 
 
+PARTNER_LOGO = None
+
+
+def _logos(F):
+    """Sender logo, and the co-branding partner's beside it when the sheet is co-branded."""
+    main = '<img src="data:image/png;base64,%s" alt="%s">' % (LOGO_DARK, F['frame-signature'].split('<br>')[0])
+    if not PARTNER_LOGO:
+        return main
+    return ('<div class="logos">%s<span class="sep"></span>'
+            '<img src="data:image/png;base64,%s" alt="%s"></div>' % (main, PARTNER_LOGO, F.get('partner_name', '')))
+
+
 def front(s, F):
     rep_note = _rep_note()
     def _leak(row):
@@ -672,7 +755,7 @@ def front(s, F):
               <h3>{t}</h3>
               <div class="what">{w}</div>
               <div class="orch">
-                <div><div class="k">The first 90% — the system</div><p>{ninety}</p></div>
+                <div><div class="k">{F['frame-col-handle-label']}</div><p>{ninety}</p></div>
                 <div><div class="k">{ten_label}</div><p>{ten}</p></div>
               </div>
             </div></div>"""
@@ -683,7 +766,7 @@ def front(s, F):
     return f"""
 <div class="page">
   <div class="bar">
-    <img src="data:image/png;base64,{LOGO_DARK}" alt="{F['frame-signature'].split('<br>')[0]}">
+    {_logos(F)}
     <div class="mono">{s['meta']}<br>Side 1 of 2</div>
   </div>
   <div class="hero">
@@ -712,7 +795,7 @@ def back(s, F):
     qs = "".join(
         f"""<div class="q"><div class="n">{i+1:02d}</div><div>
               <h3>{q}</h3>
-              <p><b>What you are listening for.</b> {l}</p>
+              <p><b>{F['frame-q-why-label']}</b> {l}</p>
             </div></div>"""
         for i, (q, l) in enumerate(s["questions"]))
     handle = "".join(f"<li>{x}</li>" for x in s["handle"])
@@ -720,7 +803,7 @@ def back(s, F):
     return f"""
 <div class="page">
   <div class="bar">
-    <img src="data:image/png;base64,{LOGO_DARK}" alt="{F['frame-signature'].split('<br>')[0]}">
+    {_logos(F)}
     <div class="mono">{s['meta']}<br>Side 2 of 2</div>
   </div>
   <div class="body" style="padding-top:.44in">
@@ -760,6 +843,184 @@ def html_for(s, F):
 # ---------------------------------------------------------------------------
 
 
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+# ⛔ GENERIC OR PERSONALIZED — NEVER A MIX. 2026-09-14, ruling
+#    dr_collateral_sheet_generic_or_personalized_never_mixed_20260914. Bryce, on a sheet named
+#    "CardLogix + VisitorResolve & Tribal Casino Marketing" that carried "M Sphere", Randi's name and
+#    miccosukee.com: "A generic piece needs to be completely generic, so that someone at Caesars isn't
+#    reading it and saying 'what the hell is this M Sphere thing?' Otherwise it should have been named
+#    CardLogix + VisitorResolve and M Sphere, or the company name."
+#    So every sheet DECLARES its kind (no default). A personalized sheet names its recipient company and
+#    every instance-specific noun it uses, and its FILENAME carries the recipient company. A generic sheet
+#    may carry none of: "Prepared for", any recipient noun of a sibling personalized sheet in the same
+#    content.py, its own forbid_terms, or any recipient noun of a personalized asset that inherits from it
+#    in the STORE (--inheritors, the read --print-sql emits). A lookup that was not done is a refusal.
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+KINDS = ("generic", "personalized")
+# A personalized filename may carry ONE short parenthetical after the recipient, to tell two sheets for the
+# same company apart (e.g. "(GM)"). Ruled 2026-09-14 (coordinator relay of Bryce): Brad Rhines' sheet and
+# Randi Duncan's are both for Miccosukee Casino & Resort. Anything longer is a second name, not a suffix.
+SUFFIX_OK = re.compile(r"\A\([A-Za-z0-9][A-Za-z0-9 .&'-]{0,23}\)\Z")
+PAGE_MARK = '<div class="page">'
+ERROR_PAGE_NEEDLES = ("This site can\u2019t be reached", "This site can't be reached", "ERR_")
+
+
+def validate_kinds(sheets):
+    for s in sheets:
+        slug = s.get("slug", "?")
+        k = s.get("kind")
+        if k not in KINDS:
+            raise SystemExit(
+                "build.py: REFUSED — sheet %r declares no kind (got %r). Every sheet is kind \"generic\" or "
+                "\"personalized\"; there is no default, because a sheet nobody classified is how a generic "
+                "filename ended up carrying one prospect's nouns. No sheet written." % (slug, k))
+        rc, rt = s.get("recipient_company"), s.get("recipient_terms")
+        if k == "personalized":
+            if not (isinstance(rc, str) and rc.strip()):
+                raise SystemExit("build.py: REFUSED — personalized sheet %r has no recipient_company. It goes in the "
+                                 "filename; without it the sheet reads as generic. No sheet written." % slug)
+            sfx = s.get("filename_suffix")
+            if sfx is not None and not SUFFIX_OK.match(str(sfx)):
+                raise SystemExit("build.py: REFUSED — personalized sheet %r has filename_suffix %r. It must be one short "
+                                 "parenthetical, e.g. \"(GM)\" (max 24 characters inside). No sheet written." % (slug, sfx))
+            if not (isinstance(rt, (list, tuple)) and [t for t in rt if str(t).strip()]):
+                raise SystemExit("build.py: REFUSED — personalized sheet %r has no recipient_terms. List every "
+                                 "instance-specific noun it uses (program names, person names, their domain), so "
+                                 "the generic it inherits from can be checked against them. No sheet written." % slug)
+        else:
+            if s.get("filename_suffix"):
+                raise SystemExit("build.py: REFUSED — generic sheet %r carries a filename_suffix; only a personalized "
+                                 "sheet may. No sheet written." % slug)
+            if rc or rt:
+                raise SystemExit("build.py: REFUSED — generic sheet %r names a recipient (%r). A generic sheet names "
+                                 "nobody; if it is for one prospect it is personalized and its filename must say "
+                                 "who. No sheet written." % (slug, rc or rt))
+
+
+def check_filename(s, name):
+    if s.get("kind") == "personalized" and s["recipient_company"].lower() not in name.lower():
+        raise SystemExit("build.py: REFUSED — personalized sheet %r would be named %r, which does not carry its "
+                         "recipient %r. No sheet written." % (s.get("slug"), name, s["recipient_company"]))
+
+
+def sibling_terms(sheets):
+    out = []
+    for s in sheets:
+        if s.get("kind") == "personalized":
+            out.append(s["recipient_company"])
+            out.extend(str(t) for t in s["recipient_terms"])
+    return [t for t in out if t.strip()]
+
+
+def visible_text_of(h):
+    import html as _html
+    t = re.sub(r"<style.*?</style>", " ", h, flags=re.S)
+    t = re.sub(r"<[^>]+>", " ", t)
+    return re.sub(r"\s+", " ", _html.unescape(t))
+
+
+def refuse_mixed(s, text, siblings, inheritors):
+    low = text.lower()
+    hits = []
+    for term in ["Prepared for"] + [str(x) for x in (s.get("forbid_terms") or [])] + list(siblings) + list(inheritors):
+        if term.strip() and term.lower() in low and term not in hits:
+            hits.append(term)
+    if hits:
+        raise SystemExit("build.py: REFUSED — MIXED SHEET. %r is declared GENERIC but its page carries: %s. A generic "
+                         "sheet must read the same to every prospect; move those words to the personalized sheet. "
+                         "No sheet written." % (s.get("slug"), ", ".join(hits)))
+
+
+def inheritors_sql(tenant, deliver_to):
+    return ("-- 4 of 4 - THE INHERITORS. Every personalized piece that inherits from a generic sheet delivered to\n"
+            "--   --deliver-to, with its recipient nouns. Save the rows for --inheritors. An EMPTY result is a valid\n"
+            "--   answer (no children yet); a file that was never produced is a refusal.\n"
+            "SELECT c.asset_id, c.source_ref, c.recipient_company, c.recipient_terms\n"
+            "  FROM assets g JOIN assets c ON c.tenant_id = g.tenant_id AND c.inherited_from = g.asset_id\n"
+            " WHERE g.tenant_id = %s AND g.source_ref LIKE %s AND c.status <> 'retired';"
+            % (_q(tenant), _q((deliver_to or "<deliver-to>").rstrip("/") + "/%")))
+
+
+def load_inheritors(sheets):
+    if not any(s.get("kind") == "generic" for s in sheets):
+        return []
+    p = _flag("--inheritors")
+    if not p:
+        raise SystemExit(
+            "build.py: REFUSED — this content.py holds a GENERIC sheet and no --inheritors was given, so the STORE "
+            "lookup of personalized sheets that inherit from it was NOT DONE. That is not a pass: it is the exact "
+            "check that catches a generic carrying a prospect's nouns. Run --print-sql (statement 4), save the rows "
+            "(an empty list is fine) and pass --inheritors. No sheet written.")
+    try:
+        blob = json.load(open(p, encoding="utf-8"))
+    except Exception as e:
+        raise SystemExit("build.py: REFUSED — could not read --inheritors %s: %s. No sheet written." % (p, e))
+    rows = blob.get("rows", blob) if isinstance(blob, dict) else blob
+    if not isinstance(rows, list):
+        raise SystemExit("build.py: REFUSED — --inheritors %s is not a list of rows. No sheet written." % p)
+    terms = []
+    for r in rows:
+        if not isinstance(r, dict) or not r.get("recipient_company") or not r.get("recipient_terms"):
+            raise SystemExit(
+                "build.py: REFUSED — inheritor %r has no recipient declared in the store, so the lookup is "
+                "INCOMPLETE. Declare its audience (asset_audience_put) first. No sheet written."
+                % (r.get("asset_id") if isinstance(r, dict) else r))
+        terms.append(str(r["recipient_company"]))
+        terms.extend(str(t) for t in r["recipient_terms"])
+    print("inheritors read from the store: %d personalized piece(s), %d recipient noun(s)" % (len(rows), len(terms)),
+          file=sys.stderr)
+    return terms
+
+
+def count_pdf_pages(path):
+    return len(re.findall(rb"/Type\s*/Page(?!s)", pathlib.Path(path).read_bytes()))
+
+
+def pdf_text(path):
+    """The PDF's text through macOS PDFKit (osascript JXA). None when that cannot be done — the caller says so."""
+    import subprocess
+    js = ('ObjC.import("PDFKit"); function run(a){var d=$.PDFDocument.alloc.initWithURL('
+          '$.NSURL.fileURLWithPath(a[0])); return d.isNil() ? "" : (d.string.isNil() ? "" : d.string.js)}')
+    try:
+        r = subprocess.run(["osascript", "-l", "JavaScript", "-e", js, str(path)], capture_output=True, text=True,
+                           timeout=60)
+    except Exception:
+        return None
+    return r.stdout if r.returncode == 0 else None
+
+
+def judge_pdf_text(name, text):
+    for needle in ERROR_PAGE_NEEDLES:
+        if needle in (text or ""):
+            raise SystemExit("build.py: REFUSED — %s carries %r: the renderer printed a browser ERROR PAGE, not the "
+                             "sheet." % (name, needle))
+
+
+def verify_pdfs(items, expect):
+    """After EITHER render path. The page count must equal the template's page count, and the text may not be a
+    browser error page. A bad PDF is DELETED and the build exits non-zero — it must never sit in out/ looking built."""
+    for name, _p in items:
+        pdf = OUT / ("%s.pdf" % name)
+        want = expect[name]
+        got = count_pdf_pages(pdf) if pdf.exists() else 0
+        if got != want:
+            if pdf.exists():
+                pdf.unlink()
+            raise SystemExit("build.py: REFUSED — %s.pdf has %d page(s); this template renders %d. The PDF was "
+                             "DELETED. No sheet delivered." % (name, got, want))
+        txt = pdf_text(pdf)
+        if txt is None:
+            print("  ⚠ %s.pdf: PDF TEXT COULD NOT BE READ on this machine (no PDFKit) — the error-page check is "
+                  "UNVERIFIED. The page-count check passed (%d)." % (name, got), file=sys.stderr)
+        else:
+            try:
+                judge_pdf_text(name + ".pdf", txt)
+            except SystemExit:
+                pdf.unlink()
+                raise
+        print("  %s.pdf: %d page(s) = template, no error page" % (name, got), file=sys.stderr)
+
+
 def file_name(s):
     """Content-Library-Asset-Schema §2 v1.6 (Bryce, 2026-08-20 — the SECOND
     ruling that day, superseding the four-slot form quoted below):
@@ -772,6 +1033,16 @@ def file_name(s):
     lost: canonical_name() computes it and assets.canonical_name stores it.
     Moved 2026-08-20 by slog_jason_weamer_followup_sheets_20260820 — the spec
     was amended the same day it landed and this builder never moved with it."""
+    if s.get("kind") == "personalized":
+        # A PERSONALIZED filename names the recipient company. The vertical never goes here; it stays in
+        # canonical_name only (ruling dr_collateral_sheet_generic_or_personalized_never_mixed_20260914).
+        out = s.get("company", "AI Integrator")
+        if s.get("partner"):
+            out += " + %s" % s["partner"]
+        out += " & %s" % s["recipient_company"]
+        if s.get("filename_suffix"):
+            out += " %s" % s["filename_suffix"]
+        return out
     out = s.get("company", "AI Integrator")
     if s.get("partner"):
         out += " + %s" % s["partner"]
@@ -888,8 +1159,107 @@ def selftest_frame_refusal():
             ok = False; print("  FAIL  complete frame parsed wrong: %r" % (F["_steps"],))
     except SystemExit as e:
         ok = False; print("  FAIL  complete frame was refused: %s" % e)
+    tok = dict(full); tok["frame-closer"] = "Ask {{partner_name}} first."
+    tp = os.path.join(d, "tok.json"); open(tp, "w").write(json.dumps(tok))
+    FT = load_frame(tp)
+    try:
+        frame_for_sheet(FT, {"slug": "t"}, {}); ok = False; print("  FAIL  unresolved token did not refuse")
+    except SystemExit as e:
+        print("  pass  unresolved {{partner_name}} REFUSED" if "partner_name" in str(e) else "  FAIL  refusal did not name the token")
+        ok = ok and "partner_name" in str(e)
+    R = frame_for_sheet(FT, {"slug": "t"}, {"partner_name": "CardLogix"})
+    if R["frame-closer"] == "Ask CardLogix first.":
+        print("  pass  token RESOLVED from partner vars (the other direction)")
+    else:
+        ok = False; print("  FAIL  token resolved wrong: %r" % R["frame-closer"])
+    ok = selftest_root_fix() and ok
     print("SELF-TEST %s" % ("PASS" if ok else "FAIL"))
     return 0 if ok else 1
+
+
+def selftest_root_fix():
+    """INVERSE CONTROLS for the 2026-09-14 root fix. Every refusal is watched firing, and a clean case is watched
+    passing, so none of these guards is a wall that refuses everything."""
+    global OUT, WORK
+    import tempfile, os
+    ok = True
+
+    def expect_refuse(label, fn, needle):
+        nonlocal ok
+        try:
+            fn()
+            ok = False
+            print("  FAIL  %s did not refuse" % label)
+        except SystemExit as e:
+            if needle.lower() in str(e).lower():
+                print("  pass  %s REFUSED" % label)
+            else:
+                ok = False
+                print("  FAIL  %s refused without naming %r: %s" % (label, needle, str(e)[:120]))
+
+    gen = {"slug": "g", "kind": "generic", "company": "CardLogix", "partner": "VisitorResolve", "vertical": "Casino Marketing"}
+    per = {"slug": "p", "kind": "personalized", "company": "CardLogix", "partner": "VisitorResolve",
+           "vertical": "Tribal Casino Marketing", "recipient_company": "Miccosukee Casino & Resort",
+           "recipient_terms": ["M Sphere", "Randi Duncan", "miccosukee.com"]}
+    expect_refuse("a sheet with no kind", lambda: validate_kinds([{"slug": "x"}]), "no kind")
+    expect_refuse("a personalized sheet with no recipient_company", lambda: validate_kinds([dict(per, recipient_company="")]), "recipient_company")
+    expect_refuse("a personalized sheet with no recipient_terms", lambda: validate_kinds([dict(per, recipient_terms=[])]), "recipient_terms")
+    expect_refuse("a generic sheet that names a recipient", lambda: validate_kinds([dict(gen, recipient_company="Miccosukee")]), "generic sheet")
+    validate_kinds([gen, per]); print("  pass  a clean generic + personalized pair is ACCEPTED")
+    expect_refuse("a MIXED sheet (generic page carrying a sibling's 'M Sphere')",
+                  lambda: refuse_mixed(gen, "Join M Sphere today", sibling_terms([gen, per]), []), "M Sphere")
+    expect_refuse("a generic page carrying 'Prepared for'", lambda: refuse_mixed(gen, "Prepared for Randi", [], []), "Prepared for")
+    expect_refuse("a generic page carrying its own forbid_terms", lambda: refuse_mixed(dict(gen, forbid_terms=["Caesars"]), "Caesars Rewards", [], []), "Caesars")
+    expect_refuse("a generic page carrying a STORE inheritor's noun", lambda: refuse_mixed(gen, "visit miccosukee.com", [], ["miccosukee.com"]), "miccosukee.com")
+    refuse_mixed(gen, "Your players club", sibling_terms([gen, per]), ["M Sphere"]); print("  pass  a truly generic page is ACCEPTED")
+    expect_refuse("a personalized filename with no recipient in it",
+                  lambda: check_filename(per, "CardLogix + VisitorResolve & Tribal Casino Marketing"), "does not carry")
+    n = file_name(per)
+    if n == "CardLogix + VisitorResolve & Miccosukee Casino & Resort" and "Tribal Casino" not in n:
+        check_filename(per, n); print("  pass  a personalized filename is <Company> + <Partner> & <recipient>: %r" % n)
+    else:
+        ok = False; print("  FAIL  personalized filename came out %r" % n)
+    gm = dict(per, filename_suffix="(GM)")
+    validate_kinds([gm])
+    ngm = file_name(gm)
+    if ngm == "CardLogix + VisitorResolve & Miccosukee Casino & Resort (GM)":
+        check_filename(gm, ngm); print("  pass  a short parenthetical suffix is ACCEPTED after the recipient: %r" % ngm)
+    else:
+        ok = False; print("  FAIL  suffixed filename came out %r" % ngm)
+    expect_refuse("a suffix that is not a short parenthetical",
+                  lambda: validate_kinds([dict(per, filename_suffix="for the General Manager and his team")]), "short parenthetical")
+    expect_refuse("a generic sheet carrying a suffix",
+                  lambda: validate_kinds([dict(gen, filename_suffix="(GM)")]), "only a personalized")
+    if file_name(gen) != "CardLogix + VisitorResolve & Casino Marketing":
+        ok = False; print("  FAIL  generic filename changed: %r" % file_name(gen))
+    saved_argv = list(sys.argv)
+    try:
+        sys.argv = [sys.argv[0]]
+        expect_refuse("a generic build with no --inheritors (store lookup not done)", lambda: load_inheritors([gen]), "NOT DONE")
+    finally:
+        sys.argv = saved_argv
+    cwd, saved_work, saved_out = os.getcwd(), WORK, OUT
+    d = tempfile.mkdtemp()
+    try:
+        os.chdir(d); os.mkdir("w")
+        sys.argv = [saved_argv[0], "--work", "w"]
+        require_work()
+        if WORK.is_absolute() and WORK == pathlib.Path(d, "w").resolve():
+            print("  pass  a relative --work is RESOLVED to an absolute path (%s)" % WORK)
+        else:
+            ok = False; print("  FAIL  relative --work stayed %r" % str(WORK))
+        OUT = pathlib.Path(d, "out"); OUT.mkdir()
+        one = OUT / "bad.pdf"; one.write_bytes(b"%PDF-1.4\n1 0 obj << /Type /Pages /Kids [2 0 R] >>\n2 0 obj << /Type /Page >>\n%%EOF")
+        expect_refuse("a PDF with the wrong page count (1, template renders 2)", lambda: verify_pdfs([("bad", None)], {"bad": 2}), "page(s)")
+        if one.exists():
+            ok = False; print("  FAIL  the wrong-page-count PDF was not deleted")
+        else:
+            print("  pass  the wrong-page-count PDF was DELETED")
+        expect_refuse("a Chrome error page", lambda: judge_pdf_text("x.pdf", "This site can\u2019t be reached ERR_FILE_NOT_FOUND"), "ERROR PAGE")
+        judge_pdf_text("x.pdf", "Your website is full of future members."); print("  pass  ordinary sheet text is ACCEPTED")
+    finally:
+        os.chdir(cwd); sys.argv = saved_argv; WORK, OUT = saved_work, saved_out
+    return ok
 
 
 def _flag(name):
@@ -917,6 +1287,8 @@ def main():
         #    same reason the gate is printed with the frame: a step that has to be remembered
         #    is a step that runs without the one before it, forever.
         print(palette_sql(_flag("--tenant"), _flag("--brand")))
+        print()
+        print(inheritors_sql(_flag("--tenant"), _flag("--deliver-to")))
         return
     if "--selftest-frame" in sys.argv:
         raise SystemExit(selftest_frame_refusal())
@@ -935,11 +1307,29 @@ def main():
     F = load_frame(_flag("--frame"))
     load_palette()
     load_brand()
+    PBRAND, PVARS = load_partner_vars()
+    if PBRAND:
+        global PARTNER_LOGO
+        lp = WORK / "assets" / "partner-logo.png"
+        if not lp.exists():
+            raise SystemExit("build.py: REFUSED - --partner-brand %s given but assets/partner-logo.png is "
+                             "missing. A co-branded header with one logo is not co-branded. No sheet "
+                             "written." % PBRAND)
+        PARTNER_LOGO = b64("assets/partner-logo.png")
     OUT.mkdir(exist_ok=True)
 
     items = []
-    for s in load_sheets():
-        h = html_for(s, F)
+    SHEETS_ALL = load_sheets()
+    INHERITORS = load_inheritors(SHEETS_ALL)
+    SIBLINGS = sibling_terms(SHEETS_ALL)
+    EXPECT, AUD = {}, {}
+    for s in SHEETS_ALL:
+        SF = frame_for_sheet(F, s, PVARS)
+        SF["partner_name"] = PVARS.get("partner_name", "")
+        h = html_for(s, SF)
+        check_filename(s, file_name(s))
+        if s["kind"] == "generic":
+            refuse_mixed(s, visible_text_of(h), SIBLINGS, INHERITORS)
         # ---- teal-once-per-view check, countable in the source
         for i, page in enumerate(h.split('<div class="page">')[1:]):
             n = len(re.findall(re.escape(ACCENT), page))
@@ -955,11 +1345,18 @@ def main():
         (WORK / "words").mkdir(exist_ok=True)
         (WORK / "words" / f"{name}.html").write_text(h, encoding="utf-8")
         items.append((name, p))
+        EXPECT[name] = h.count(PAGE_MARK)
+        AUD[name + ".pdf"] = {"audience_kind": s["kind"],
+                              "recipient_company": s.get("recipient_company") if s["kind"] == "personalized" else None,
+                              "recipient_terms": list(s.get("recipient_terms") or []) if s["kind"] == "personalized" else None,
+                              "audience_label": s.get("audience_label") or s.get("audience") or ""}
     try:
         import playwright  # noqa: F401
         bad = asyncio.run(render(items))
     except ModuleNotFoundError:
         bad = render_via_chrome(items)
+    verify_pdfs(items, EXPECT)
+    (OUT / "_audience.json").write_text(json.dumps(AUD, ensure_ascii=False, indent=1), encoding="utf-8")
     print("built:")
     for n, _ in items:
         print("  ", (OUT / f"{n}.pdf").name)
@@ -1004,6 +1401,10 @@ def main():
     #    builder that was not on the machine. Caught 2026-09-10 by unzipping the built
     #    plugin and reading it, not by any gate.
     _reg = pathlib.Path(__file__).resolve().parent / "register-delivered-asset.py"
+    if not _reg.exists():   # the workspace master sits three folders above 00 — User Preferences/personal-skills/collateral-sheet
+        _cand = pathlib.Path(__file__).resolve().parents[3] / "04 — Daily Operating System" / "scripts" / "register-delivered-asset.py"
+        if _cand.exists():
+            _reg = _cand
     if not _reg.exists():
         _reg = pathlib.Path("04 — Daily Operating System/scripts/register-delivered-asset.py")
     # ⭐ 2026-09-12 — THIS PROGRAM NOW RUNS THE REGISTRAR INSTEAD OF PRINTING IT.

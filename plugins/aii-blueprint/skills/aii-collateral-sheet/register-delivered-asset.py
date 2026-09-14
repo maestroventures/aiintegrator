@@ -176,6 +176,18 @@ def scan(args):
             "dispatch_mode": args.dispatch_mode, "touchpoint_id": args.touchpoint or "",
             "inherited_from": args.inherited_from or "",
             "change_note": args.note or "", "files": []}
+    # ⭐ AUDIENCE — 2026-09-14, ruling dr_collateral_sheet_generic_or_personalized_never_mixed_20260914. The builder
+    #   writes _audience.json beside the files; every concept_sheet must declare generic|personalized, and --sql
+    #   emits asset_audience_put() after each asset_put(), which refuses a mixed piece in the store itself.
+    aud_path = os.path.join(d, "_audience.json")
+    audience = json.load(open(aud_path, encoding="utf-8")) if os.path.isfile(aud_path) else {}
+    if args.asset_type == "concept_sheet":
+        undeclared = [f for f in files if f.lower().endswith(".pdf") and f not in audience]
+        if undeclared:
+            print("EXIT 6 — no audience declared for %s. A collateral sheet is generic or personalized; the builder "
+                  "writes _audience.json. A sheet with no declared kind is how a generic filename carried one "
+                  "prospect's nouns." % ", ".join(undeclared), file=sys.stderr)
+            raise SystemExit(6)
     missing = []
     for f in files:
         p = os.path.join(d, f)
@@ -191,6 +203,7 @@ def scan(args):
             "content_sha": sha256_of(p),
             "content_bytes": os.path.getsize(p),
             "body": body, "body_origin": origin,
+            "audience": audience.get(f),
         })
     if missing:
         # 2026-09-11 (S2): asset_put() refuses a new or changed piece without its words
@@ -228,6 +241,14 @@ def sql_for(plan):
                q_or_null(plan.get("dispatch_mode")), q(plan.get("change_note", "")),
                q_or_null(plan.get("touchpoint_id")), q_or_null(plan.get("inherited_from")),
                q_or_null(r.get("body")), q_or_null(r.get("body_origin"))))
+        a = r.get("audience")
+        if a:
+            terms = a.get("recipient_terms")
+            arr = ("ARRAY[%s]::text[]" % ", ".join(q(t) for t in terms)) if terms else "NULL"
+            lines.append("SELECT * FROM asset_audience_put(%s, %s, %s, %s, %s, %s, %s);"
+                         % (q(plan["tenant"]), q(r["source_ref"]), q(a["audience_kind"]),
+                            q_or_null(a.get("recipient_company")), arr, q_or_null(a.get("audience_label")),
+                            q(plan["by"])))
     return "\n".join(lines)
 
 
@@ -322,7 +343,13 @@ def settle(plan, rows_path):
         # matched positionally against the plan ONLY when the counts agree — and when they
         # do not, that is reported rather than guessed at.
         by_path[r.get("out_asset_id") or r.get("asset_id") or len(by_path)] = r
-    verdicts = [r.get("verdict") for r in rows if isinstance(r, dict)]
+    verdicts = [r.get("verdict") for r in rows if isinstance(r, dict) and "verdict" in r]
+    aud_rows = [r for r in rows if isinstance(r, dict) and "audience_verdict" in r]
+    aud_want = sum(1 for f in plan["files"] if f.get("audience"))
+    if len(aud_rows) != aud_want:
+        print("EXIT 1 — RED. %d file(s) declared an audience and %d asset_audience_put row(s) came back. A sheet whose "
+              "generic/personalized kind is not in the store is not delivered." % (aud_want, len(aud_rows)), file=sys.stderr)
+        raise SystemExit(1)
     unknown = [v for v in verdicts if v not in KNOWN_VERDICTS]
     if unknown:
         print("EXIT 3 — asset_put returned verdict(s) this reader does not know: %s. It knows "
@@ -394,6 +421,14 @@ def selftest():
         ok = False; print("  FAIL  legacy plan did not emit NULLs for dispatch_mode/touchpoint/inherited_from")
     msg = dict(base, dispatch_mode="dispatched", touchpoint_id="tp_x_1", inherited_from="asset_parent")
     msg_sql = sql_for(msg)
+    aud = dict(msg, files=[dict(base["files"][0], body="w", body_origin="x.html",
+               audience={"audience_kind": "personalized", "recipient_company": "Miccosukee Casino & Resort",
+                         "recipient_terms": ["M Sphere", "Randi's"], "audience_label": ""})])
+    aud_sql = sql_for(aud)
+    if "asset_audience_put('t', '02 — Clients/x.pdf', 'personalized', 'Miccosukee Casino & Resort', ARRAY['M Sphere', 'Randi''s']::text[], NULL, 'b')" in aud_sql:
+        print("  pass  a declared audience emits asset_audience_put() after asset_put(), terms as an escaped ARRAY")
+    else:
+        ok = False; print("  FAIL  audience SQL not emitted as expected: %s" % aud_sql[-220:])
     msg["files"] = [dict(base["files"][0], body="the words", body_origin="02 — Clients/x.html")]
     msg_sql = sql_for(msg)
     if "'dispatched'" in msg_sql and msg_sql.rstrip(";").endswith("'tp_x_1', 'asset_parent', 'the words', '02 — Clients/x.html')"):

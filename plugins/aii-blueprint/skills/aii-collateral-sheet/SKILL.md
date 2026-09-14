@@ -253,6 +253,29 @@ Where each FILE lives is ruled in the spec resolved at 0.2. Read it there.
 zero.** That is not hypothetical — the inheritance half of this model is the part most often left
 empty, and an empty inheritance field is machinery that exists and is unused.
 
+### Every sheet is GENERIC or PERSONALIZED — never a mix
+
+Ruled by the operator, 2026-09-14 (`dr_collateral_sheet_generic_or_personalized_never_mixed_20260914`),
+after a sheet named for a whole industry reached one prospect carrying that prospect's program name, a
+person's name and their website: *"A generic piece needs to be completely generic, so that someone at
+Caesars isn't reading it and saying 'what the hell is this M Sphere thing?' Otherwise it should have been
+named … the company name."*
+
+Say which one each sheet is, out loud, before you write it:
+
+- **Generic** — written for a category of reader. It names nobody: no person, no company, no program or
+  brand that belongs to one prospect, no prospect's website, no "Prepared for". Its filename names the
+  category. Anyone in that category could be handed it and nothing on it would be about someone else.
+- **Personalized** — written for one company. Its filename names that company, not the industry. List the
+  company and every noun on the page that belongs to them (people, programs, their website) — those are
+  its recipient terms, and they are what keeps them off every generic sheet.
+
+**REFUSES:** a sheet whose kind is not declared; a personalized sheet whose filename does not carry its
+recipient company; a generic sheet that carries "Prepared for", any recipient term of a personalized
+sheet written beside it, or any recipient term of a personalized sheet that inherits from it. The builder
+refuses these before a file is written, and the store refuses them again at registration. If the check
+against the inheriting sheets could not be run, that is a refusal, never a pass.
+
 ## Step 3 — Say who owns the human decision, per item
 
 **This is the step that makes the rest believable, and it is a framework tenet, not a flourish.** The
