@@ -178,7 +178,10 @@ is the rule; this is the only moment it can be applied for free.
   exists only in this conversation is not declared. The folder that holds the declaration is part of
   the shape.
 - **Create it through the one door, so the shape is recorded all at once.** Read the shape from
-  `client_workspace_template()`. After their yes, create the root in the person's own Drive at the
+  `client_workspace_template()`. First look for a folder already named exactly "AIOS — <Company>" at
+  the top of their Drive (and for each ruled folder under it): if there is one, reuse it and create
+  only what is missing; if there are two, stop and show them both — never pick one. After their yes,
+  create the root in the person's own Drive at the
   account root, named "AIOS — <Company>", then each folder under it with `drive_create`, keeping every
   id Drive returns. Then record the whole shape in ONE call to `client_workspace_shape_apply()`. It
   refuses a partial shape or a folder that is not in the template, and records nothing when it refuses
@@ -313,6 +316,8 @@ Not for a client who is already stood up and running — that is `aii-patch-me-u
 run, once, for a new client.
 
 ---
+
+*v1.4 — 2026-09-13 (Boise). Bryce pop-up-approved (dr_locked_03_edit_aii_onboard_client_step_20260913_203304, option label "Write it as drafted (Recommended)"). Adds ONE sentence to Step 3b in front of "After their yes, create the root": look first for a folder already named exactly "AIOS — <Company>" (and each ruled folder under it), reuse it and create only what is missing, and stop and show both if there are two. Matches PR #242 (workspace-shape.js re-run reuses the root). Nothing else changed.*
 
 *v1.3 — 2026-09-13 (Boise). Bryce pop-up-approved (dr_locked_03_edit_aii_onboard_client_step_20260913_195432, option label "Write it as drafted (Recommended)"). Adds ONE bullet to Step 3b naming the door that records the client workspace shape: client_workspace_template() for the shape, drive_create in the person's own Drive after their yes, then one all-or-nothing client_workspace_shape_apply() call (the flow shipped as lib/onb/workspace-shape.js in PRs #234 and #237). Placement follows dr_where_a_clients_aios_root_lands_and_who_creates_it_20260905. Nothing else in the skill changed.*
 
