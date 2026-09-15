@@ -325,8 +325,15 @@ WITH in_f AS (
          $20::text AS lead_id, $21::text AS no_lead_reason
 ),
 terms AS (
-  SELECT term, allowed FROM term_registry
-   WHERE tenant_id = (SELECT tenant_id FROM in_f)
+  /* TIER WALK, TENANT WINS — changed 2026-09-15 (session slog_solo_20260914_170944_d6a27d, card
+     neon_call_doc_registration_refuses_every_tenant_row_after_terms_promoted_to_house_20260915).
+     This read used to be tenant_id = the tenant ONLY. At 04:25:13Z and 06:45:48Z that day the
+     three words were promoted to __house__ and the tenant copies superseded, so it returned
+     0 of 3 and refused every call document on every seat. Now: __house__ and the tenant, and
+     per term the tenant row wins when it has one — the same walk as term_list_for_tenant.
+     The 3-of-3 rule below is unchanged: a word at NEITHER tier is still refused. */
+  SELECT DISTINCT ON (term) term, allowed FROM term_registry
+   WHERE tenant_id IN ((SELECT tenant_id FROM in_f), '__house__')
      AND domain = '${TERM_DOMAIN}' AND status = 'canonical'
      /* A TERM NAME IS A BARE WORD, scoped by its domain — ruled 2026-08-12,
         dr_OPEN_term_name_spelling_20260812_160306. These three were renamed out of a
@@ -336,6 +343,9 @@ terms AS (
         NO BACKTICKS IN THIS COMMENT ON PURPOSE: it lives inside a JS template
         literal, and the first draft of this very line closed the string. */
      AND term IN ('kind','built_by','event_id_source')
+   /* THE ORDER BY IS WHAT MAKES "TENANT WINS" TRUE. DISTINCT ON keeps the FIRST row per term,
+      and with no ORDER BY that is whichever row Postgres happens to return. */
+   ORDER BY term, (tenant_id = (SELECT tenant_id FROM in_f)) DESC
 ),
 asked AS (
   SELECT 'kind' AS field, 'kind' AS term, kind AS val FROM in_f
