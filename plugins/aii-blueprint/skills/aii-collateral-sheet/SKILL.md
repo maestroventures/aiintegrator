@@ -253,6 +253,11 @@ Where each FILE lives is ruled in the spec resolved at 0.2. Read it there.
 zero.** That is not hypothetical — the inheritance half of this model is the part most often left
 empty, and an empty inheritance field is machinery that exists and is unused.
 
+**Can't see a vertical? Don't invent one, and don't skip the step.** If the sheet generalizes to a
+vertical, build the canonical and link it — no question to anyone. Only when no vertical is visible
+does it go to a person: a question card asking whether it is a one-off or which vertical it belongs
+to. Until one of those happens, branch D of the check below is red. *(Ruled by Bryce 2026-09-14.)*
+
 ### Every sheet is GENERIC or PERSONALIZED — never a mix
 
 Ruled by the operator, 2026-09-14 (`dr_collateral_sheet_generic_or_personalized_never_mixed_20260914`),
@@ -375,8 +380,8 @@ its branches are:
 | **A** | an asset row of this family is missing its brand reference, template or success metric | Step 6 skipped |
 | **B** | an asset row carries no owner advisor, or no advisor rows at all | Gate 0.3 skipped: nobody recorded that a lens was ever run |
 | **C** | a recorded advisor sits in no live sequence **and** no job bench | an invented or retired name |
-| **D** | *(spoken, cannot red)* how much of the canonical→personalized model is actually in use | Step 2 never being reached |
-| **E** | *(control)* the detector misses a planted defect — **or keeps firing after that same row is repaired** | the check itself going blind |
+| **D** | a sheet that names one recipient has no reusable (canonical) parent **and** no one-off ruling. Clears by building the parent and linking it (`asset_inherit_put`), or by a person ruling it a one-off on the question card. Sheets with no recipient recorded are counted, never red. | Step 2 never being reached |
+| **E** | *(control)* the detector misses a planted defect — **or keeps firing after that same row is repaired** (A, B and D) | the check itself going blind |
 
 **Run it before you build and again before you call it done. Read E first** — if the detector has gone
 blind, nothing above it means anything.

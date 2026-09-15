@@ -5,8 +5,8 @@ description: >
   new one. Use whenever the user says "wrap up", "close out this chat", "new chat", "continue in a
   new chat", "session handoff", or anything signaling the conversation is ending and work needs to
   continue elsewhere. The skill reviews what was learned and accomplished, applies memory and
-  workspace updates automatically (no approval gate), recommends advisors likely useful next
-  session, and generates a ready-to-paste continuation prompt. Always trigger at session end — even
+  workspace updates automatically (no approval gate), names the department and moment the next
+  session resolves its advisors from, and generates a ready-to-paste continuation prompt. Always trigger at session end — even
   short sessions, even if unsure anything changed; better to run it and find nothing than to miss
   something. It also fires ITSELF — but only when a live session has no next unit of work it could
   do in this context (never merely because a milestone landed or the chat feels long), printing one
@@ -311,9 +311,9 @@ Some folders are designated as locked (live delivery assets the user does not wa
 
 ## Step 3 — Advisor-aware handoff
 
-Think about what the next session will likely involve, and recommend the advisor lenses that would help. An "advisor" is a named expert perspective the framework leans on (e.g. a sales advisor, a legal advisor, a customer-experience advisor).
+Think about what the next session will likely involve, and name where its advisors come from — the department and moment — so it looks them up live. An "advisor" is a named expert perspective the framework leans on (e.g. a sales advisor, a legal advisor, a customer-experience advisor).
 
-- **Recommend** the 1–3 advisors most likely to be useful in the next session, and say in one line why each.
+- **Name the key, not the lenses:** the department key(s) and moment the next session's work falls under, one line why - the bench is resolved live (aii-advisors Step 1.5), never typed forward.
 - **Flag a gap:** if a useful advisor for the upcoming work doesn't exist yet, name it and note that it should go to the adjudication gate (the user's approval process for adding a new framework default) — don't create it here.
 
 Keep this to a few lines. It's a heads-up for the next session, not a deep analysis.
@@ -486,7 +486,7 @@ SQL: SELECT session_pickup('<tenant>', '<track name, character-for-character>');
 (Carry only what this leg actually forbids. A generic list is ignored; a specific one is obeyed. If nothing is forbidden, write "nothing specific" rather than deleting the heading — a missing section reads as a section that did not apply, and the next session cannot tell that apart from a section nobody filled in.)
 
 ### Model + advisors
-[Which model AND effort, in the form `Opus / High` — the SAME value as the launch card's `Suggested Model Next Session` line. One line why. 1–3 advisor lenses, one line each, or omit.]
+[Which model AND effort, in the form `Opus / High` — the SAME value as the launch card's `Suggested Model Next Session` line. One line why. Advisors: never a list - name the next leg's department key(s) and moment (two subjects = both keys); the next session resolves its bench live per aii-advisors Step 1.5.]
 
 ### Files / paths
 [Only paths the new chat will actually need — omit if none]

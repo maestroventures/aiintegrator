@@ -106,8 +106,10 @@ see whether it actually happened.
 The person is now in a task with you. **They do the clicking; you tell them the next click, one at a
 time, and you check each one landed before moving on.** Nothing here is a screen or a form.
 
-1. **Confirm their setup** — which machine and which app. Everything you tell them to click branches on
-   it, and getting it wrong describes a screen they do not have.
+1. **Confirm their setup — never ask it cold.** Call `my_seat_env`, show them its `confirm_question`
+   word for word, and ask only "is this right?". If they correct a field, call `correct_my_seat_env`
+   with just that field. Everything you tell them to click branches on it, and getting it wrong
+   describes a screen they do not have.
 2. **Confirm the plugin and the Workspace connector from the email actually landed.** Read the live
    state; a person who followed the email is not proof that it worked. The framework's own skills
    **arrive with the plugin** — there is no separate step for them, and telling a client to install
@@ -270,7 +272,9 @@ them; it **runs** them, in order, in the client's own words.
 - **Write every answer back to the client's own record, as it is given** — not at the end, not in a
   summary. An answer held in the conversation and never written is lost the moment the chat closes.
 - **A question that belongs to somebody else gets handed to them**, with enough context to answer it,
-  and the answer lands beside the client's rather than replacing it.
+  and the answer lands beside the client's rather than replacing it. When they say *"I do not know"*,
+  never offer a likely answer. Ask who does know, hand the question to that person with
+  `hand_off_question`, and read back the delegation row it wrote before moving on.
 - **Whose store the answers land in is not a detail.** A client's answers about their own company
   belong in the client's own record. If the write target cannot be resolved, **stop and say so** —
   never fall through to a default store and report success. A wrong write here succeeds silently, and
@@ -323,6 +327,8 @@ Not for a client who is already stood up and running — that is `aii-patch-me-u
 run, once, for a new client.
 
 ---
+
+*v1.6 — 2026-09-15 (Boise). Bryce pop-up-approved two edits (dr_onboard_client_confirm_setup_never_cold_20260914_224841, option label "Approve edit 1 (Recommended)"; dr_onboard_client_i_dont_know_hands_off_20260914_224841, option label "Approve edit 2 (Recommended)"). Step 2 item 1 no longer asks which machine and which app cold: it reads the seat with `my_seat_env` and asks only "is this right?", correcting a field with `correct_my_seat_env`. The interview's hand-off bullet adds: on *"I do not know"*, never offer a likely answer; hand the question to the person who knows with `hand_off_question` and read back the row it wrote. The GENERIC MASTER banner now allows naming a Blueprint tool only where a step must call it (dr_onboard_client_banner_never_names_a_tool_20260915_004858, "Approve fix 2 (Recommended)"). Nothing else changed.*
 
 *v1.5 — 2026-09-14 (Boise). Bryce pop-up-approved (dr_locked_03_edit_aii_onboard_client_proof_20260914_080933, option label "Add all three (Recommended)"). Adds ONE read-back sentence each to Step 3b (read the Drive folders and the saved workspace records back), Step 3c (read back the saved record for each document named) and Step 5 (the Tune-Up hand-off is done only when its ranked gap cards are on the board). Matches first_run_step 9, 10 and 17, whose evidence was rewritten the same day. Nothing else changed.*
 

@@ -67,6 +67,8 @@ Compare the three sources pairwise (notes vs transcript, pre-call vs live, etc.)
 
 ## Step 4 — Auto-done / Needs-you / Needs-info (the next-steps split)
 
+**Take the user's own send-promises from the TRANSCRIPT, never the transcriber's summary.** A summary lists what each side owes and drops what the user said in passing they would send ("I'll send an invite for..."); every such line becomes a `followups` item or a staged invite.
+
 Sort every follow-up into three buckets:
 - **autoDone** — internal things you (the system) already did or can do now: logged the outcome, **created the follow-up email as a real draft in the user's email (say it's in their drafts)**, set a build to-do. State where it landed.
 - **needsYou** — anything that leaves the user's name on it (an external send) or is their judgment call (pricing, packaging). These are theirs to approve.

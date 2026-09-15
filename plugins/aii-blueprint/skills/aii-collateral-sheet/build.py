@@ -587,6 +587,7 @@ def load_sheets():
         raise SystemExit(
             "build.py: REFUSED — content.py defines SHEETS but it is empty. No sheet written.")
     validate_kinds(SHEETS)
+    refuse_sender_fields(SHEETS)   # 2026-09-15: no sender-facing field on a recipient page (see SENDER_FACING_KEYS)
     return SHEETS
 
 
@@ -895,6 +896,51 @@ def validate_kinds(sheets):
                 raise SystemExit("build.py: REFUSED — generic sheet %r names a recipient (%r). A generic sheet names "
                                  "nobody; if it is for one prospect it is personalized and its filename must say "
                                  "who. No sheet written." % (slug, rc or rt))
+
+
+# ⛔ 2026-09-15 — A PAGE THE RECIPIENT READS CARRIES NO NOTES TO THE SENDER (Bryce's standing rule;
+#    card neon_the_plugin_collateral_builder_prints_seller_coaching_on_the_recipients_page_20260915,
+#    session:slog_solo_20260914_170944_d6a27d). The plugin copy rendered "What you are listening for"
+#    under every question, so each recipient read the seller's coaching. Two walls, both BEFORE a byte
+#    is written: (1) content.py may not carry a sender-facing FIELD on a sheet or a question - the
+#    render prints only (question, why) pairs; (2) the ASSEMBLED page's visible text may not carry a
+#    sender-facing PHRASE, whoever typed it (content, stored words, or a future edit to this file).
+#    Coaching belongs in the covering note, never on the sheet. There is no override flag on purpose.
+SENDER_FACING_KEYS = ("listen_for", "listening_for", "what_you_are_listening_for", "listen", "coaching",
+                      "coach", "seller_notes", "seller_note", "rep_notes", "rep_note", "sender_notes",
+                      "sender_note", "notes_to_sender", "stop_talking", "talk_track", "internal_notes")
+SENDER_FACING_PHRASES = ("what you are listening for", "what you're listening for", "listening for",
+                         "listen for", "stop talking", "talk track", "seller note", "note to the seller",
+                         "notes to the sender")
+
+
+def refuse_sender_fields(sheets):
+    for s in sheets:
+        slug = s.get("slug", "?")
+        hits = [k for k in s if str(k).lower() in SENDER_FACING_KEYS]
+        for i, q in enumerate(s.get("questions") or []):
+            if isinstance(q, dict):
+                hits += ["questions[%d].%s" % (i, k) for k in q if str(k).lower() in SENDER_FACING_KEYS]
+                hits.append("questions[%d] is a dict (must be a (question, why) pair)" % i)
+            elif not (isinstance(q, (list, tuple)) and len(q) == 2):
+                hits.append("questions[%d] has %s parts (must be exactly (question, why); a third part is "
+                            "where coaching hides)" % (i, len(q) if isinstance(q, (list, tuple)) else "?"))
+        if hits:
+            raise SystemExit(
+                "build.py: REFUSED - SENDER-FACING FIELD ON A RECIPIENT PAGE. Sheet %r carries: %s.\n"
+                "A document the recipient reads carries no notes to the sender. Move the coaching into the\n"
+                "covering note and remove the field from content.py. No sheet written." % (slug, "; ".join(hits)))
+
+
+def refuse_sender_text(s, text):
+    low = text.lower()
+    hits = [p for p in SENDER_FACING_PHRASES if p in low]
+    if hits:
+        raise SystemExit(
+            "build.py: REFUSED - SENDER-FACING WORDS ON A RECIPIENT PAGE. Sheet %r would print: %s.\n"
+            "A document the recipient reads carries no notes to the sender; that text belongs in the\n"
+            "covering note. Fix content.py or the stored words it came from. No sheet written."
+            % (s.get("slug"), ", ".join(repr(h) for h in hits)))
 
 
 def check_filename(s, name):
@@ -1327,6 +1373,7 @@ def main():
         SF = frame_for_sheet(F, s, PVARS)
         SF["partner_name"] = PVARS.get("partner_name", "")
         h = html_for(s, SF)
+        refuse_sender_text(s, visible_text_of(h))   # 2026-09-15: every sheet, generic AND personalized, before any write
         check_filename(s, file_name(s))
         if s["kind"] == "generic":
             refuse_mixed(s, visible_text_of(h), SIBLINGS, INHERITORS)
@@ -1432,7 +1479,12 @@ def main():
            "--body-from", str(WORK / "words")]
     for flag in REGISTRATION_FLAGS:
         cmd += [flag, REG[flag]]
-    for flag in ("--template", "--touchpoint", "--inherited-from", "--channel", "--note"):
+    # ⭐ 2026-09-15 (card neon_the_collateral_builder_never_passes_brand_to_its_registrar_so_registration_
+    #   always_fails_20260914, session:slog_solo_20260914_170944_d6a27d): --brand and --partner-brand were
+    #   REQUIRED by this build (load_palette / load_partner_vars) but never handed on, so the registrar exited 6
+    #   ("no --brand given") on every build. --brand is always present by here; --partner-brand only when given.
+    cmd += ["--brand", _flag("--brand")]
+    for flag in ("--partner-brand", "--template", "--touchpoint", "--inherited-from", "--channel", "--note"):
         v = _flag(flag)
         if v:
             cmd += [flag, v]

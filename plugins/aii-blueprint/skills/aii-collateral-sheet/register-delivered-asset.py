@@ -175,7 +175,17 @@ def scan(args):
             "template_id": args.template or "", "channel": args.channel or "",
             "dispatch_mode": args.dispatch_mode, "touchpoint_id": args.touchpoint or "",
             "inherited_from": args.inherited_from or "",
-            "change_note": args.note or "", "files": []}
+            "change_note": args.note or "",
+            # ⭐ BRAND — 2026-09-14, ruling fwc_ruling_a_sheets_brand_points_at_the_brand_registry_and_its_success_measure_is_its_programs_20260914
+            #   (Bryce yes). asset_put cannot write a brand, so --sql emits asset_brand_put() after it. brand and partner are
+            #   brand_keys from the brand table; outcome_metric only when the piece's aim differs from its program's.
+            "brand": args.brand or "", "partner_brand": args.partner_brand or "",
+            "outcome_metric": args.outcome_metric or "", "files": []}
+    if not plan["brand"]:
+        print("EXIT 6 — no --brand given. Every delivered piece names the registered brand it obeys (a brand_key from "
+              "the brand table, e.g. ai-integrator or visitorresolve; add --partner-brand <key> when it is co-created). "
+              "asset_put cannot record it, so without it the piece lands incomplete and check #71 reds.", file=sys.stderr)
+        raise SystemExit(6)
     # ⭐ AUDIENCE — 2026-09-14, ruling dr_collateral_sheet_generic_or_personalized_never_mixed_20260914. The builder
     #   writes _audience.json beside the files; every concept_sheet must declare generic|personalized, and --sql
     #   emits asset_audience_put() after each asset_put(), which refuses a mixed piece in the store itself.
@@ -241,6 +251,11 @@ def sql_for(plan):
                q_or_null(plan.get("dispatch_mode")), q(plan.get("change_note", "")),
                q_or_null(plan.get("touchpoint_id")), q_or_null(plan.get("inherited_from")),
                q_or_null(r.get("body")), q_or_null(r.get("body_origin"))))
+        if plan.get("brand"):
+            lines.append(
+                "SELECT * FROM asset_brand_put(%s, (SELECT asset_id FROM assets WHERE tenant_id = %s AND source_ref = %s), %s, %s, %s, %s);"
+                % (q(plan["tenant"]), q(plan["tenant"]), q(r["source_ref"]), q(plan["by"]), q(plan["brand"]),
+                   q_or_null(plan.get("partner_brand")), q_or_null(plan.get("outcome_metric"))))
         a = r.get("audience")
         if a:
             terms = a.get("recipient_terms")
@@ -435,6 +450,21 @@ def selftest():
         print("  pass  dispatch mode, touchpoint, parent and the WORDS reach asset_put() as its last arguments")
     else:
         ok = False; print("  FAIL  touchpoint/inherited_from not emitted in position: %s" % msg_sql[-90:])
+    # ⭐ BRAND (2026-09-14): asset_put cannot write a brand, so a plan with --brand emits asset_brand_put() right
+    #   after its asset_put(), looked up by the same source_ref; a plan without one emits no brand line at all.
+    br = dict(msg, brand="visitorresolve", partner_brand="cardlogix", outcome_metric="")
+    br_sql = sql_for(br)
+    want = ("SELECT * FROM asset_brand_put('t', (SELECT asset_id FROM assets WHERE tenant_id = 't' AND source_ref = '02 — Clients/x.pdf'), "
+            "'b', 'visitorresolve', 'cardlogix', NULL);")
+    put_at = br_sql.find("asset_put("); brand_at = br_sql.find(want)
+    if put_at != -1 and brand_at > put_at:
+        print("  pass  a plan with --brand emits asset_brand_put() after asset_put(), partner as a key and no metric as NULL")
+    else:
+        ok = False; print("  FAIL  brand SQL not emitted after asset_put: %s" % br_sql[-260:])
+    if "asset_brand_put(" not in sql_for(msg):
+        print("  pass  a plan with no brand emits no asset_brand_put() (the scan refuses it before a plan exists)")
+    else:
+        ok = False; print("  FAIL  a plan with no brand still emitted asset_brand_put()")
     wd = tempfile.mkdtemp(); src = tempfile.mkdtemp()
     open(os.path.join(wd, "sheet.pdf"), "wb").write(b"%PDF-1.4")
     open(os.path.join(src, "sheet.html"), "w").write("<html><style>x{}</style><body><h1>Where AI fits</h1><p>Two lines.</p><script>no()</script></body></html>")
@@ -469,6 +499,8 @@ def main():
     ap.add_argument("--asset-type", dest="asset_type"); ap.add_argument("--program")
     ap.add_argument("--by"); ap.add_argument("--template"); ap.add_argument("--channel")
     ap.add_argument("--note")
+    ap.add_argument("--brand"); ap.add_argument("--partner-brand", dest="partner_brand")
+    ap.add_argument("--outcome-metric", dest="outcome_metric")
     ap.add_argument("--dispatch-mode", dest="dispatch_mode")
     ap.add_argument("--touchpoint"); ap.add_argument("--inherited-from", dest="inherited_from")
     ap.add_argument("--body-from", dest="body_from")
