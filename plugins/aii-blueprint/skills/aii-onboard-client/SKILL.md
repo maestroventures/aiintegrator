@@ -116,11 +116,20 @@ time, and you check each one landed before moving on.** Nothing here is a screen
    them individually sends them hunting for something that is already there.
 3. **Set the Workspace connector's permissions with them.** This moved out of the email on purpose: here
    you can look at the settings with them instead of leaving them to find the page alone.
-4. **Then every other connector, in the instance's order, the same loop each time:** install it,
+4. **Capture their sender addresses, then let them confirm each one.** Once Workspace is authorized,
+   call the Workspace connector's `email_sendas_list` on their own account and pass its `aliases`
+   unchanged to `capture_my_sender_addresses` with source "connector". If that read fails, ask them to
+   list the addresses they send email from, and pass their words with source "person_said". Then call
+   `list_my_unconfirmed_sender_addresses` and ask each `question` word for word, one address at a time:
+   business, personal, or no longer used, and may I send email from it. Record each answer with
+   `confirm_my_sender_address` before asking the next. Never answer for them; `suggested` is a hint,
+   not their answer. No new Google permission is asked for (ruling
+   dr_a_clients_sender_addresses_are_captured_in_their_first_onboarding_session_20260915).
+5. **Then every other connector, in the instance's order, the same loop each time:** install it,
    authorize it, set what it is allowed to do, verify it — then the next. Installing and authorizing are
    **two acts, in that order**; a connector that is installed but not authorized is not connected. Never
    report a later act as done because an earlier one succeeded.
-5. **Enable the required account-level skills.** These are **not** the framework's own skills and do
+6. **Enable the required account-level skills.** These are **not** the framework's own skills and do
    **not** arrive with the plugin — each is enabled per account, one at a time. Which ones are required
    is a property of the JOBS the framework performs for this client, read from the capability floor;
    never inferred from what happens to be installed.
@@ -327,6 +336,8 @@ Not for a client who is already stood up and running — that is `aii-patch-me-u
 run, once, for a new client.
 
 ---
+
+*v1.7 — 2026-09-15 (Boise). Bryce pop-up-approved (dr_onboard_client_captures_and_confirms_sender_addresses_20260915, option label "Approve the edit (Recommended)"), carrying his prose ruling dr_a_clients_sender_addresses_are_captured_in_their_first_onboarding_session_20260915 ("b"). Adds Step 2 item 4: after Workspace is authorized, capture the client's sender addresses from `email_sendas_list` (or their own words) with `capture_my_sender_addresses`, then have them confirm each one with `list_my_unconfirmed_sender_addresses` and `confirm_my_sender_address`; no new Google permission. The tools ship in aii-site PR #364 (merged 2026-09-15). Former items 4 and 5 renumbered to 5 and 6. Nothing else changed.*
 
 *v1.6 — 2026-09-15 (Boise). Bryce pop-up-approved two edits (dr_onboard_client_confirm_setup_never_cold_20260914_224841, option label "Approve edit 1 (Recommended)"; dr_onboard_client_i_dont_know_hands_off_20260914_224841, option label "Approve edit 2 (Recommended)"). Step 2 item 1 no longer asks which machine and which app cold: it reads the seat with `my_seat_env` and asks only "is this right?", correcting a field with `correct_my_seat_env`. The interview's hand-off bullet adds: on *"I do not know"*, never offer a likely answer; hand the question to the person who knows with `hand_off_question` and read back the row it wrote. The GENERIC MASTER banner now allows naming a Blueprint tool only where a step must call it (dr_onboard_client_banner_never_names_a_tool_20260915_004858, "Approve fix 2 (Recommended)"). Nothing else changed.*
 
