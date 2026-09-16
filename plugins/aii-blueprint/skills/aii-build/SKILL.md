@@ -44,7 +44,10 @@ step; it is not the flow.
    kind (for example: building something a person will use; work that runs unattended; writing to a
    store; reaching a person) and the DEPARTMENT that owns the outcome. Print them. Never a hand-typed
    roster.
-5. **Read the rulings** already made for it.
+5. **Read the rulings too — they are a source of jobs, not background.** Every ruling about the thing
+   is a source of jobs. A ruling that names something it must do, with no job pointing back at that
+   ruling, is a **missing job**: add the job before answering any test. Jobs read only from existing
+   code are incomplete by default — a check over an incomplete job list reads GREEN and proves nothing.
 
 Skipping Gate 0 is the failure this skill exists to stop: rounds of building while the jobs and steps
 that answered the question already sat in the store unread.
