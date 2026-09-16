@@ -26,8 +26,9 @@ into a state, rank the gaps by what most blocks the goal, and hand a human a dec
 > should exist. The advisors apply them. The company is what gets measured.
 
 **Two hard rules that never bend:**
-- **You never invent the ideal.** It is the **Blueprint Model Library** (`model-library.md` —
-  15 Experience Models + 6 Building Blocks). You select, instantiate, and tailor; you do not free-build.
+- **You never invent the ideal.** It is the **Blueprint Model Library**, held in the house store:
+  every `experience_model` and every `building_block` whose `status` is `live`. Read the list from
+  the store each run and never from a count or a file. You select, instantiate, and tailor; you do not free-build.
 - **You never create a deliverable until a human asks.** The engine stops at the decided punch-list
   (keep / fix / build / retire). Drafting, writing, building = a separate, owner-triggered action.
 
@@ -73,7 +74,7 @@ are in, and so which room runs first, is read from their record and never picked
 4. **Pick the run mode — keyed on willingness/style, not bottleneck-status.** Being the bottleneck
    doesn't mean they won't do the work. **Self-serve** = the exec runs the tune-up themselves
    (delegating, systems-minded). **Done-with-you** = you run the cascade for them in a working
-   session (default for bottleneck-founders who won't self-run). Ties to the 3-tier delivery model.
+   session (default for bottleneck-founders who won't self-run). Ties to the onboarding paths (dr_onboarding_levels_two_plus_vertical_20260916).
 
 ---
 
@@ -92,7 +93,8 @@ pick; the client never sees a model name.**
    once or on a recurring plan?" "Do you send people to a customer's location?" "Do you quote a job
    before you win it?" "After the sale, is there a project with stages, or is it one-and-done?"* The
    system maps answers to Experience Models invisibly. (These live on the existing intake instrument.)
-3. **Select the Experience Models + Building Blocks** that fit, from `model-library.md`. Pick the
+3. **Select the Experience Models + Building Blocks** that fit, from the live store rows (the hard rule
+   above). Rule out every live model you do not pick, in one line, so none is silently skipped. Pick the
    advisors that fit the model on top of the default marketing/sales/ops set.
 4. **Instantiate each model for the company** — supply its **Term Map** (Core §5.6) so the generic
    model speaks the company's language, and point it at the goal. **Tune intensity** — the goal
@@ -103,17 +105,17 @@ pick; the client never sees a model name.**
    they're fields on the model. For every job: its name, what it is, the model + field it comes from,
    and why the goal needs it.
 6. **Empty-slot rule — never force-fit.** A model only counts if its fill has cleared the framework's
-   §8 Adjudication Gate. If a real part of the business has **no validated model** (e.g. construction
-   = Model #9, on permanent hold pending a validated client in that category), **name the gap and
+   §8 Adjudication Gate. If a real part of the business has **no validated model** (no live
+   `experience_model` row fits it; read the status, never remember it), **name the gap and
    route it to adjudication** — never fake the closest model. Same for a missing advisor lens.
 7. **ED confirms — four moves:** confirm / remove a wrong pick / add a missed one / re-weight primary
    vs supporting. Log each correction back to the classification step so the next company is better.
 
 > **Hard lock:** the confirmed model set is a prerequisite. **The Executive Summary and the 90-Day
 > Plan cannot be generated until the set is locked** — both are built against the selected models.
-> Store the confirmed set as the ED-owned `<Company> - Experience Models.md`; it seeds into the
-> client CRM at onboarding (the self-onboarding system runs on the client's machine and can't read
-> the delivery team's drive).
+> Store the confirmed set in the company's own store: one `model_enrolment_put` per company ×
+> department × model × audience, with its state (`runs` / `awaiting-first-instance` / `not-run`) and
+> its why. That is the one home; no `.md` copy of the set is kept.
 
 > **Client echo-back (safety net):** the kickoff/onboarding call guide reads the selection back in
 > the client's own words ("recurring paydays, techs sent to job sites, quotes before you win work —
@@ -250,6 +252,13 @@ that **gates everything upstream** at #1, even if a human would have listed some
    job, its state, its rank, and its keep/fix/build/retire decision is a Board record in the CRM.
    Named gaps (unbuilt models, missing advisor lenses) land as openly-flagged items routed to
    adjudication — not buried.
+   **Write the map, in the company's own store and only through its doors, never hand SQL.** Open
+   this session's record in that store first, because the doors refuse an actor they cannot find there.
+   (a) Each difference from the model is one line through `model_ref_put(tenant, 'model_enrolment_line', …)`,
+   and its `source_path` names the company's own answer or tool read. (b) Every live model gets one
+   square through `map_assessment_put(tenant, company, model_no, …)`, including the ones you ruled
+   out, so the map shows each was looked at. A founder-level collapse (Step 1.3) folds the interviews,
+   never the squares. (c) Read the Step 4 states back from `reconcile_line_propose(tenant)`.
 2. **Hold the line: nothing is built until the owner asks.** The engine's job ends at the decided
    punch-list. The construction/build leg is out of scope.
 3. **Set the re-run cadence.** This is a recurring tune-up, not change-detection — the cadence *is*
@@ -261,7 +270,9 @@ that **gates everything upstream** at #1, even if a human would have listed some
 4. **Prove it before you say done** (`aii-prove-it`). On a first run at a company that has a hand-built
    audit, the bar is reproduction: a blind run must surface the same top constraints. Otherwise,
    confirm every job got sorted, the ranking leads with the real constraint, every named gap is
-   flagged (not dropped), and the Board records actually wrote. A claim is not proof — the check is
+   flagged (not dropped), and the Board records actually wrote. Then read the store: `reconcile_line_propose`
+   returns this company's lines, and `check_map_coverage` shows no live-model square left
+   unassessed for it. A claim is not proof — the check is
    the proof. Report the result in a line; don't narrate the steps.
 
 ---
@@ -329,3 +340,14 @@ still correct — a downstream asset gap never outranks a broken gate. Bryce app
 `dr_what_the_asset_pass_does_with_an_asset_20260911_074423`,
 `dr_locked_03_edit_asset_review_and_entry_20260911_083405`. Lens: Goldratt (rank by what it blocks,
 never by what kind of thing it is), Evans (Patch Me Up measures, Tune-Up ranks).*
+*v1.5 — 2026-09-15 (Boise). Bryce pop-up-approved (dr_tune_up_skill_reads_the_live_models_and_writes_the_map_20260915,
+option label "Approve all 6 edits (Recommended)"). Brought the skill in line with the live store (card job_4_6_20260810).
+The library is read from the live `experience_model` and `building_block` rows, never a count or
+`model-library.md`, so the stale "6 Building Blocks" is gone with no number put in its place. Step 2.6
+no longer names Model #9 as on hold, because it is live. The confirmed set is stored through
+`model_enrolment_put`, not a `.md` copy. Step 6 writes the map through `model_ref_put`
+(`model_enrolment_line`) and `map_assessment_put`, reads states from `reconcile_line_propose`, and proves
+through `check_map_coverage`. The Step 1.3 founder collapse is unchanged and still correct
+(`dr_the_tune_up_founder_collapse_is_correct_decided_as_execution_20260813`), but it now folds interviews,
+never map squares. Registers `dr_model_tables_are_the_ideal_and_unconfirmed_parts_are_the_questions_20260911`
+and `dr_bryce_map_coverage_gets_its_own_store_20260818`. Nothing else changed. Lens: Evans (one home for the ideal state).*
