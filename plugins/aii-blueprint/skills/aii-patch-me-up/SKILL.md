@@ -301,6 +301,53 @@ starts `AII Poke`. **Sort** into one bucket:
 
 If the list call is refused or not there, say so in one line and skip this item — never guess the answer.
 
+## Steps 2g–2i — And the PLUGIN, the INSTRUCTIONS BOX, and WHO CAN SEE WHAT *(added 2026-09-16)*
+
+Three more inventories, same job as Step 2: **look, sort into one plain bucket, hand the fix to Step 3.**
+*(Ruled `dr_setup_check_reads_plugin_box_privileges_20260916`.)* Each has the same three rules:
+
+- **Ask when a person is there; say "unknown" when not.** If a reading needs something only the person
+  can see, ask them for it. In an unattended run, report **unknown** and move on — never guess, and never
+  report unknown as fine.
+- **Never change a setting.** This skill reports; the person makes the change (see Step 2d's standing rule).
+- **Nothing to compare against is not a pass.** If the store holds no reference to compare with, report
+  **unreadable** in one line, never **Live**.
+
+### Step 2g — The PLUGIN version
+
+**Look:** the version this seat is running is stamped at the end of the `aii-job-poke` skill description
+("Installed AI Integrator Blueprint plugin version: …"). The newest published version comes from the
+plugin door (`/api/onb/plugin?meta=1`). **Sort:**
+
+- **Live** — the two match.
+- **Not the way you set it** — the seat is behind. Fix = update the plugin (in Cowork: ⋮ → Check for
+  updates, then Update). Say which version they have and which is current.
+- **Unknown** — no stamp is visible in this session, or the door did not answer.
+
+### Step 2h — The INSTRUCTIONS BOX
+
+The box is the one set of instructions Claude is handed on this account (Settings → Account → Profile →
+"Instructions for Claude"). Its saved copy carries a version token (`AIOS-GI-FP:`). **Look:** compare the
+token in the box this session was handed with the token in the saved copy. **Sort:**
+
+- **Live** — same token.
+- **Not the way you set it — older copy** — the box carries an earlier token. Usually the saved copy was
+  edited and not yet re-pasted. Name both versions in one line.
+- **Not the way you set it — reverted** — the box has no token at all. Fix = re-paste the saved copy.
+- **Unknown** — this surface hands the session no box (some apps do not). That is not a fault.
+
+### Step 2i — WHO CAN SEE WHAT
+
+The company answered a small set of "who can see what" questions at onboarding, and the framework
+recommends a setting for each. **Look:** read the company's own answers and the recommended setting for
+each question from the store. **Sort:**
+
+- **Live** — answered, and matches the recommendation.
+- **Your choice** — answered, and differs from the recommendation. **This is not a problem.** Say it once
+  as the owner's call and move on; never offer to "fix" it.
+- **Missing** — not answered. Fix = ask the owner that one question (Step 3), never answer it for them.
+- **Unreadable** — the store holds no questions or no recommendations to compare with.
+
 ---
 
 ## Step 3 — Offer: one plain fix at a time, user says yes or skip
@@ -391,6 +438,8 @@ reconnect, remove, or install anything on its own, even when the right fix looks
 is the user's yes.
 
 ---
+
+*v1.9 — 2026-09-16. New **Steps 2g–2i**: the plugin version, the instructions box, and who can see what — three more inventories with one bucket each, the same ask-if-present / unknown-if-not / never-change-a-setting rules, and "nothing to compare against is not a pass". Approved by pop-up (`dr_setup_check_reads_plugin_box_privileges_20260916`). Additive wording only; Steps 2–2f untouched.*
 
 *v1.8 — 2026-09-11 (later the same day). Step 2e widened from campaign touchpoints to EVERY asset the company has — brand values, campaign messages, prospect and customer documents, knowledge documents, anything else — each matched to what the ideal says should exist, extra kept or retired, missing written only on request, and onboarding named as the same pass. Bryce confirmed the process and widened it himself (`dr_is_this_the_whole_existing_documents_20260911_095606`); this is the corrective landing of that ruling in the skill that runs it, under the approval of the Step 2e wording (`dr_locked_03_edit_asset_review_and_entry_20260911_083405`). The one home for the full process is the reconciliation spec's asset pass. Additive wording only; Step 2f, added by another session the same day, untouched.*
 
