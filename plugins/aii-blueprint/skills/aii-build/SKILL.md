@@ -6,8 +6,8 @@ description: >
   to know it is complete. Reads the jobs and steps already on record before building, breaks the
   work into its smallest jobs and each job into steps, answers every advisor test on every step IN
   THE STORE (the fixed core tests plus the tests of the advisor sequence for what is being built),
-  groups repeating steps into flows, walks the whole journey, rolls each job up level by level
-  (person, day, department, company, partner), and only then builds — then proves it with a check
+  groups repeating steps into flows, walks the whole journey, builds to the end recipient and walks back
+  up each link of the chain, and only then builds — then proves it with a check
   that goes red. Fires on "build," "design," "model," "redraw," "mock up," "stand up," "automate,"
   or any request to make or rebuild something a person or a system will use.
 ---
@@ -52,13 +52,24 @@ step; it is not the flow.
 Skipping Gate 0 is the failure this skill exists to stop: rounds of building while the jobs and steps
 that answered the question already sat in the store unread.
 
-## Step 1 — The smallest unit: one actor, one moment, one job
+## Step 1 — Name the chain, then open every job at the end of it
 
-For a business the smallest unit is a location. For anything built it is one actor — a person, or the
-system itself — doing one job.
-- **Sinek:** what is it for, in their words.
-- **Christensen:** what job is it being hired for.
-- **Klaff:** what is anyone being asked to believe or decide.
+**Name this build's chain** from us to the END RECIPIENT — the person who will finally use, read, buy
+or act on what is built — with as many links as it takes (a partner, a partner's partner, a client
+company, a department, the user…). The chain has no fixed depth; a design that hard-codes a count of
+parties is wrong by construction.
+
+**Open every job at the end of the chain, in the store, before any step:**
+- **Observe:** what the system already sees.
+- **Orient:** what that means for the end recipient now.
+- **Why (Sinek):** the end recipient's own reason, in their words. A why the system wrote itself is not
+  a why: say how it reaches the system (they told it, set it, or the job asks), and the page shows it
+  back or asks — it never pretends.
+- **Frame (Klaff):** what is in it for them, and what it is and is not about, from their side.
+- **Christensen:** the job they are hiring it for.
+
+Build to that end recipient, in their world. Everyone above them understands it for free, because each
+link already serves the one below.
 
 Break an activity into its smallest jobs first, and keep breaking until each part can be finished by
 one person or one run.
@@ -103,12 +114,13 @@ Build each flow once and reuse it everywhere it repeats. Name it with the regist
 - **Carlzon:** which steps decide the relationship (the *think* steps).
 - **Goldratt:** which steps still sit on a person that the system should do.
 
-## Step 5 — Roll up, the way a location rolls up
+## Step 5 — Walk back up the chain, one link at a time
 
-One row per job per level, the levels read from the registered `rollup_level` vocabulary: **person →
-day → department → company → partner**. At each level answer three things: what is different here,
-whose interests compete, and how they are aligned. "Nothing differs at this level, because …" is an
-answer; a blank is not.
+One row per job per link of this build's chain, from the end recipient back up to us. At each link
+the lenses ask: what it means to that party and their why; how this layer supports the end recipient
+in the easiest way possible (so the layer above needs less support); whose interests compete; and what
+is still open to align everyone's incentives. "Nothing is open, because …" is an answer; a blank is
+not. Time (their day) is a lens on the end recipient, not a link. A job missing any link is RED.
 
 ## Step 6 — Only now build it
 
