@@ -1,0 +1,123 @@
+{
+  "header": {
+    "title": "Call Debrief \u2014 Tim Wilson",
+    "subtitle": "GM, Larson Auto Group \u00b7 Called Fri Jun 12 \u00b7 Outcome: agreed to a 30-day test, terms TBD"
+  },
+  "contextBar": [
+    {
+      "label": "Call",
+      "value": "Fri Jun 12, 2:00pm"
+    },
+    {
+      "label": "Length",
+      "value": "34 min"
+    },
+    {
+      "label": "Outcome",
+      "value": "Soft yes to a 30-day test"
+    },
+    {
+      "label": "Sources",
+      "value": "Transcript + your notes"
+    }
+  ],
+  "captureQuestions": [
+    {
+      "beachhead": "landing_example",
+      "questionCode": "reception",
+      "text": "When you said his salespeople were \"like a soccer coach with no roster,\" what did Tim's face do?",
+      "why": "The recording catches your words but not his reaction — and his reaction is the whole point.",
+      "anchorMs": 762000,
+      "anchorQuote": "...it's like a soccer coach showing up with no roster, right?",
+      "transcriptUrl": "https://fireflies.ai/view/demo-tim-20260612#12:42",
+      "askAttribution": true
+    },
+    {
+      "beachhead": "open_two_unit",
+      "questionCode": "trigger",
+      "text": "You answered the price question a third time, and that's where it got long. What set that off?",
+      "why": "You told me over-explaining past the yes is the habit you want to catch. This is where it started.",
+      "anchorMs": 1584000,
+      "anchorQuote": "...so on price, again, the way it works is...",
+      "transcriptUrl": "https://fireflies.ai/view/demo-tim-20260612#26:24"
+    }
+  ],
+  "planVsReality": {
+    "planned": "Book a 30-day dealer test on one rooftop. Hold the frame \u2014 not another lead vendor \u2014 and get a small, measurable yes.",
+    "happened": "He's interested and said yes in principle to a test, but didn't lock a rooftop or a start date. He kept circling back to price and to his existing lead spend.",
+    "verdict": "partial"
+  },
+  "conflicts": [
+    {
+      "topic": "How committed Tim actually is",
+      "operatorSaid": "Your note says \"Tim's in, just need to send terms.\"",
+      "transcriptSaid": "On the call he said \"let me run it by my GM partner first\" and never gave a start date.",
+      "resolve": "Treat this as a soft yes, not a closed test. Before you log it as won, confirm the partner conversation happened. Send terms AND ask for a specific start date in the same email."
+    }
+  ],
+  "wentWell": [
+    {
+      "point": "You opened on <strong>his</strong> close rate, not your product.",
+      "why": "Carnegie: he gave you the number (18% on bought leads) because the first question was about his world. That number became the whole hook."
+    },
+    {
+      "point": "You held the frame when he called you 'another vendor.'",
+      "why": "Klaff: you didn't get defensive or discount \u2014 you re-anchored on 'your own traffic, not shared leads.' That's the line that kept you out of supplicant mode."
+    }
+  ],
+  "toImprove": [
+    {
+      "point": "You let the close stay vague \u2014 no rooftop, no date.",
+      "fix": "Freese: ask for the small, specific yes. 'Which rooftop, and can we start Monday the 22nd?' A test with no date isn't a test, it's a maybe."
+    },
+    {
+      "point": "You answered the price question three times.",
+      "fix": "Klaff: answering it twice was fine; the third time you started justifying. Park it once: 'Price is easy and I'll put it in writing \u2014 the real question is whether seeing your own in-market shoppers is worth a 30-day look.'"
+    }
+  ],
+  "prospectRead": "Tim believes the problem is real \u2014 he knows he's wasting spend on shared leads. He's not blocked on belief, he's blocked on risk and on not being the only decision-maker. The partner mention is real, not a brush-off. Lower his risk (short, cancel-anytime, one rooftop) and arm him to sell it internally and he moves.",
+  "nextCallGoal": "Lock a specific rooftop and a start date for the 30-day test \u2014 and confirm the GM partner is a yes, not a veto.",
+  "nextSteps": {
+    "autoDone": [
+      "Logged the call outcome on Tim's Close lead.",
+      "Drafted the follow-up email (below) \u2014 sitting in your drafts, not sent."
+    ],
+    "needsYou": [
+      {
+        "action": "Send the terms + start-date email to Tim",
+        "why": "External send \u2014 leaves your inbox, so it's your call to send."
+      },
+      {
+        "action": "Decide whether to offer a second rooftop as a sweetener",
+        "why": "Pricing/packaging judgment \u2014 your decision, not the system's."
+      }
+    ],
+    "needsInfo": [
+      {
+        "waitingOn": "Tim",
+        "for": "Confirmation his GM partner is on board + a start date"
+      }
+    ]
+  },
+  "followups": [
+    {
+      "channel": "Email",
+      "to": "Tim Wilson",
+      "subject": "Your 30-day test \u2014 terms + a start date",
+      "draft": "Tim \u2014 great talking today, and thanks for the straight answer on your close rate.\n\nHere's the simple version of the 30-day test: one rooftop, we show you the in-market shoppers already on your own site, no long-term commitment, cancel anytime. I'll put the price in writing so there's no mystery.\n\nTwo quick things so we can start clean: which rooftop do you want to run it on, and can we kick off Monday the 22nd? Happy to hop on a 10-minute call with your GM partner if it helps him get comfortable."
+    }
+  ],
+  "nextGuideSeed": "Next call goal: lock the rooftop + start date and clear the GM-partner question. He's a soft yes blocked on risk and on not being sole decision-maker. Lead with risk-reduction (short, cancel-anytime, one rooftop) and arm him to sell it internally. Park price after answering once.",
+  "crmLog": "Outcome: Soft yes to a 30-day test, no rooftop/date locked. Held the frame well (own-traffic vs shared leads), close left vague. Blocker: GM partner not yet bought in + risk. Next: send terms + ask for rooftop & start date (Mon 6/22), offer 10-min call with partner. Watch: don't log as won until partner confirmed.",
+  "links": {
+    "person": {
+      "name": "Tim Wilson",
+      "title": "GM",
+      "linkedin": "linkedin.com/in/timwilson-demo"
+    },
+    "company": {
+      "name": "Larson Auto Group",
+      "website": "larsonauto.com"
+    }
+  }
+}

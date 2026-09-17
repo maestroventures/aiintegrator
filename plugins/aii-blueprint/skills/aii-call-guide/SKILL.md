@@ -118,6 +118,54 @@ SELECT string_agg(b.body, E'\n\n---\n\n'
 
 Put the result in `guide.json` as **`aspectsMarkdown`**. That is the whole step.
 
+### 3.5a — Mint this recipient's OWN picture link, and put it in this guide (added 2026-09-17)
+
+The words library carries a default link for the company picture. **A link that every guide shares
+is the wrong shape:** opens cannot be told apart, and switching one off breaks every guide at once.
+Ruled by the operator 2026-09-17 (`dr_every_recipient_gets_its_own_picture_20260917_095443`):
+*every recipient gets their own link*, and the picture follows their own chain and their role.
+
+So, for THIS guide, mint one — through the board connector, resolved BY CATEGORY:
+
+```sql
+SELECT * FROM platform_picture_link_mint_for_title(
+  '<tenant>', '<org>', '<brand>', '<their job title, or empty>',
+  'call guide for <Name> (<Company>) <YYYY-MM-DD>', 'session:<your session id>');
+```
+
+`<org>` is `self` — **the sending company's own picture** (operator ruling, same day: *"always ours
+for now"*), until he rules otherwise; pass the recipient's organization id only when he has said
+to show theirs. The title picks the reader view, and the result says which view and why, so the
+guide can say what the recipient will see. **The url is returned ONCE** — only its hash is stored —
+so write it into `aspectsMarkdown` immediately, replacing the library's default link in this guide
+only. Never write a minted link back into the library.
+
+⛔ **IF THE MINT FAILS, SAY SO AND KEEP THE LIBRARY LINK.** A guide with the shared link still
+works; a guide with a dead link does not, and one that quietly drops the picture looks exactly like
+a guide that never had one.
+
+### 3.5b — WHAT A GUIDE MAY LINK, AND WHAT IT MUST NEVER (added 2026-09-17)
+
+Operator, 2026-09-17, on seeing a CRM chip on a live guide: *"We never want to link a person to
+their original tool."* It had shipped that morning, inside the fix that filled the Links row.
+
+**THE PRINCIPLE, in his words (2026-09-17): "we keep them within their AIOS environment at all
+times whenever possible. And only under extreme circumstances would we send them to their tool."**
+
+- **PUT THE REACHABLE FACTS ON THE GUIDE ITSELF** — the person's email address, the company's
+  domain, and whatever links already exist for them. *"Here are their links so that we don't have
+  to go into the command center if we don't have to."* A fact on the page beats any link: the
+  operator is mid-call and should not be opening anything to find an address.
+- **IF a link to the person's record is needed, it is WHERE THEY EXIST IN THE COMMAND CENTER**,
+  never the tool the record happens to live in. (The Command Center address shape is being settled
+  with the brand-store/tokens work; until it exists, carry the facts and no record link — an
+  invented URL is worse than an absent one.)
+- **NEVER link a record we keep about them in a tool** — a CRM lead, a pipeline row, a ticket, any
+  system-of-record page. Opening the tool is an extreme-case move the operator makes themselves; it
+  is never a chip on a guide, and `links.person.crm` is ignored by the builder on purpose.
+- The builder proves this: `prove-call-guide-links.js` check 1a goes red if any tool or CRM record
+  link appears in the Links row.
+
 **⚠ THE `ORDER BY` IS LOAD-BEARING, NOT TIDINESS.** `t.sort_order` carries the deliberate order —
 Background, AI Integrator, VisitorResolve, Differentiation. Drop it and the store returns them
 ALPHABETICALLY, which silently reshuffles the pitch into a different argument. That order used to

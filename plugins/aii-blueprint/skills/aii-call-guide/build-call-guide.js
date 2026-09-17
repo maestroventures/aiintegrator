@@ -44,12 +44,12 @@
    api/cc/prove-cc-call-refresh-door.js 56/56). The live board now carries "Update this guide",
    which sends this page's notes to that door over a RELATIVE cookie-authed POST and prints the
    door's OWN sentence back — see cgRefresh() in the runtime below. Nothing is copied to a
-   clipboard and nothing asks Bryce to paste anything anywhere. Ruling D4 is satisfied.
+   clipboard and nothing asks the operator to paste anything anywhere. Ruling D4 is satisfied.
 
    TWO THINGS THAT ARE STILL TRUE AND MUST NOT BE READ AS FIXED:
      1. The door RECORDS the ask; it does not re-render. The re-render is §8.6's regeneration
         path, which needs a real filesystem. WHAT CLAIMS A PENDING REQUEST IS NOT BUILT — see
-        card neon_call_refresh_requests_have_no_claimer_20260807.
+        an internal card.
      2. This edit reaches NO guide already on disk. A builder change only affects guides built
         after it. Do not report this as "the button is fixed everywhere."
 
@@ -59,7 +59,7 @@
    ⚠ (RETIRED) THE REGENERATE BUTTON IS HONEST NOW, AND IT IS STILL A PATCH (2026-08-07).
    The Pre-call -> Live overlay used to offer a button reading "Use to regenerate ↗" whose
    helper text promised it would "rebuild a sharper guide." It copied text to the clipboard.
-   Bryce clicked it 15 minutes before a live call on 2026-08-06 and found it did nothing of
+   the operator clicked it 15 minutes before a live call on 2026-08-06 and found it did nothing of
    the kind. The old strings are quoted here rather than deleted, because a session that
    remembers them would put them back:
 
@@ -73,19 +73,19 @@
    wearing a Save label because the capability crm/create_note had never been REGISTERED, so
    every surface invented its own answer. That fix gave Save a real door (POST /api/cc/leads)
    and was scoped to the Save button — the INSTANCE — so its sibling three lines away kept the
-   clipboard. Card neon_fwc_an_invented_config_key_is_an_unregistered_capability_20260805 had
+   clipboard. An internal card had
    already predicted exactly this: "every other surface will invent its own too."
 
-   THE ROOT FIX IS RULED AND NOT BUILT. Bryce ruled it 2026-08-05 (card
-   neon_call_guide_segments_are_jobs_and_refresh_is_per_segment_20260805, ruling D4): a served
+   THE ROOT FIX IS RULED AND NOT BUILT. the operator ruled it 2026-08-05 (card
+   an internal card, ruling D4): a served
    page reaches the server by a RELATIVE cookie-authed POST, and refresh is PER SEGMENT against
    kept guide JSON. Canon: Call-Guide-Content-SPEC v1.1 §8. The stores were built 2026-08-07
    (call_guide_state, call_refresh_request; gate_call_guide_state() 16/16). THIS BUILDER NOW
    WRITES KEPT STATE — 2026-08-07 (S5), see the guideJson field in main()'s planRegistration
    call; §8.5 of the spec is its canon. POST /api/cc/call-refresh WAS the missing half and it
    landed 2026-08-07 (S7) — see the block at the top of this file. What is still missing is the
-   PER-SEGMENT merge (card neon_call_guide_segments_are_jobs_and_refresh_is_per_segment_20260805)
-   and a claimer for the queued asks (card neon_call_refresh_requests_have_no_claimer_20260807).
+   PER-SEGMENT merge (an internal card)
+   and a claimer for the queued asks (an internal card).
 
    ⚠ AND THIS EDIT DOES NOT REACH A SINGLE GUIDE ALREADY ON DISK. A builder change only
    affects guides built AFTER it, exactly as §9 recorded for the 96 already-built files. The
@@ -112,7 +112,7 @@ const fs = require('fs');
 
 /* ── WHERE THE REGISTRAR LIVES — probed, never hardcoded (2026-08-06, T1·S88) ───────
    This builder now ships INSIDE the Blueprint plugin, so the module sits beside it in
-   the packed skill folder. On Bryce's disk it still lives in 04/scripts. Probe both and
+   the packed skill folder. On the operator's disk it still lives in 04/scripts. Probe both and
    say which one answered — a literal path here is the exact defect that hid a face
    ruling for eight sessions when a tree moved (see CLAUDE.md, onb-site-dir.js).
    The old single hardcoded require is quoted in the retraction block below, not deleted,
@@ -122,7 +122,7 @@ function loadRegistrar() {
     path.join(__dirname, 'register-call-doc'),                    // packed: skill folder root
     path.join(__dirname, 'scripts', 'register-call-doc'),         // packed: skill folder /scripts
     path.join(__dirname, '..', '..', '..', '04 — Daily Operating System',
-              'scripts', 'register-call-doc'),                    // Bryce's workspace
+              'scripts', 'register-call-doc'),                    // the operator's workspace
   ];
   const failed = [];
   for (const t of tries) {
@@ -155,7 +155,7 @@ var LINKEDIN_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="tr
 var GLOBE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9s1.3-6.3 3.8-9z"/></svg>';
 function normUrl(u){u=String(u==null?'':u).trim();if(!u)return '';if(/^https?:\/\//i.test(u))return u;return 'https://'+u.replace(/^\/+/,'');}
 function domainOf(u){return String(u==null?'':u).replace(/^https?:\/\//i,'').replace(/^www\./i,'').replace(/[\/?#].*$/,'');}
-function linkChip(url,svg,label,sub){var href=normUrl(url);if(!href)return '';return '<a class="lk" href="'+esc(href)+'" target="_blank" rel="noopener">'+svg+'<span>'+esc(label)+(sub?' <span class="lk-sub">'+esc(sub)+'</span>':'')+'</span></a>';}
+function linkChip(url,svg,label,sub){var href=/^mailto:/i.test(String(url||''))?String(url):normUrl(url);if(!href)return '';return '<a class="lk" href="'+esc(href)+'" target="_blank" rel="noopener">'+svg+'<span>'+esc(label)+(sub?' <span class="lk-sub">'+esc(sub)+'</span>':'')+'</span></a>';}
 /* ── LINKS + DOCUMENTS (2026-09-17) ─────────────────────────────────────────────────────
    The Links drawer was EMPTY on every guide since the skill moved into the plugin: the plugin
    SKILL.md schema dropped `links`, and this function only read authored `links`. It now also
@@ -166,18 +166,28 @@ function linkChip(url,svg,label,sub){var href=normUrl(url);if(!href)return '';re
                                                top of that card AND gathered into the Links drawer
    A doc with no url renders as a visible red "no link" chip — a missing link must look missing. */
 var DOC_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>';
+var MAIL_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>';
 var FREE_MAIL = /^(gmail|googlemail|yahoo|hotmail|outlook|live|icloud|me|aol|proton|protonmail)\./i;
 function docChip(x){if(!x)return '';var href=normUrl(x.url);if(!href)return '<span class="lk lk-missing" title="No link was captured for this document">'+DOC_SVG+'<span>'+esc(x.label||'Document')+' <span class="lk-sub">no link</span></span></span>';return '<a class="lk lk-doc" href="'+esc(href)+'" target="_blank" rel="noopener"'+(x.note?' title="'+esc(x.note)+'"':'')+'>'+DOC_SVG+'<span>'+esc(x.label||domainOf(href))+(x.note?' <span class="lk-sub">'+esc(x.note)+'</span>':'')+'</span></a>';}
 function docsOf(d){return (d&&Array.isArray(d.docs))?d.docs.filter(Boolean):[];}
 function buildLinksHtml(g,config){var L=(g&&g.links)||{};var C=config||{};var p=L.person||{},c=L.company||{};var chips=[];
   if(p.linkedin)chips.push(linkChip(p.linkedin,LINKEDIN_SVG,p.name||'LinkedIn',p.title||''));
-  var crm=p.crm||'';if(!crm&&C.leadId&&/close/i.test(String(C.crmName||'')))crm='https://app.close.com/lead/'+encodeURIComponent(C.leadId)+'/';
-  if(crm)chips.push(linkChip(crm,GLOBE_SVG,(p.name||C.prospect||'Contact'),'in '+(C.crmName||'CRM')));
+  /* ⛔ NEVER LINK A PERSON INTO A TOOL — the operator, 2026-09-17: "We never want to link a person
+     to their original tool." A CRM-record chip shipped here for one day (added the same day
+     with the Links row fix) and the operator caught it on a live guide. What a guide links is
+     what the PERSON can be reached and read at — their own email, their website, their public
+     profile — never the record we keep about them. `links.person.crm` is ignored on purpose:
+     an authored field that quietly reopens this would be the same defect wearing the author's
+     name. Opening the tool is a last resort the operator does themselves, not a link we hand
+     them mid-call. */
+  var mail=p.email||C.email||'';
+  if(mail)chips.push(linkChip('mailto:'+mail,MAIL_SVG,mail,''));
   var site=c.website||((C.domain&&!FREE_MAIL.test(C.domain))?C.domain:'');
   if(site)chips.push(linkChip(site,GLOBE_SVG,c.name||C.company||domainOf(site),domainOf(site)));
   (L.extra||[]).forEach(function(x){if(x&&x.url)chips.push(linkChip(x.url,GLOBE_SVG,x.label||domainOf(x.url),''));});
   if(!g||!g.sections&&!g.links)return chips.join('');
   var groups=[];var top=docsOf(L);if(top.length)groups.push({label:'Before the call',docs:top});
+  var AS=(g&&g.aspects)||((g&&typeof g.aspectsMarkdown==='string'&&g.aspectsMarkdown.trim())?parseAspectsMarkdown(g.aspectsMarkdown):null);((AS&&AS.items)||[]).forEach(function(a){var ds=docsOf(a);if(ds.length)groups.push({label:a.label||'',docs:ds});});
   cgOrderedItems(g).forEach(function(item){var ds=docsOf(item.d);if(ds.length)groups.push({label:item.d.label||item.d.title||item.d.concern||'',docs:ds});});
   var html=chips.length?'<div class="glance-links">'+chips.join('')+'</div>':'';
   groups.forEach(function(gr){html+='<div class="cgb-kv"><i>'+esc(gr.label)+'</i><div class="linkbar">'+gr.docs.map(docChip).join('')+'</div></div>';});
@@ -274,7 +284,7 @@ function captureFor(item, id) {
       ['Strong yes / next step set','Interested, no commit','Needs follow-up','Not a fit'].map(o =>
         '<div class="outcome-chip" data-outcome="' + esc(o) + '" onclick="pickOutcome(this)">' + esc(o) + '</div>').join('') +
       '</div><div class="capture-grid">' +
-      '<div><div class="capture-label">Key name / account captured</div><input class="note" data-note="account" placeholder="e.g. Larson Auto Group"></div>' +
+      '<div><div class="capture-label">Key name / account captured</div><input class="note" data-note="account" placeholder="e.g. the account they named"></div>' +
       '<div><div class="capture-label">Next step + when</div><input class="note" data-note="nextstep" placeholder="e.g. 3-way intro call next Tue"></div>' +
       '</div><div class="capture-label">Close notes — anything else worth logging</div>' +
       '<textarea class="note closenote" data-note="' + esc(id) + '" placeholder="Key quotes, concerns, who else is involved..."></textarea></div>';
@@ -290,7 +300,7 @@ function controlsFor(item, id) {
 }
 
 /* ── CSS (verbatim from artifact) ── */
-const STANDALONE_CSS = "*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F5F5FA;color:#33334d;min-height:100vh;padding-bottom:96px}.header{background:#0D0D24;border-bottom:2px solid #4f46e5;padding:18px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}.header-left h1{font-size:1.1rem;font-weight:700;color:#fff}.header-left p{font-size:.78rem;color:#a5a5c0;margin-top:2px}.header-right{display:flex;gap:8px;align-items:center}.status-dot{width:8px;height:8px;border-radius:50%;background:#00d4aa;animation:pulse 2s infinite}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}.call-live{font-size:.72rem;color:#00d4aa;font-weight:600;letter-spacing:.05em}.mode-toggle{display:flex;gap:4px;background:#1c1c3a;border:1px solid #2f2f52;border-radius:8px;padding:3px}.mode-btn{padding:5px 12px;border-radius:6px;font-size:.7rem;font-weight:600;border:none;cursor:pointer;background:transparent;color:#a5a5c0;transition:all .15s}.mode-btn.active{background:#4f46e5;color:#fff}.context-bar{background:#fff;border-bottom:1px solid #e5e5ef;padding:10px 28px;display:flex;gap:20px;flex-wrap:wrap}.ctx-item{display:flex;gap:6px;align-items:center;font-size:.75rem;color:#6b6b85}.ctx-label{color:#9a9ab0}.ctx-val{color:#33334d;font-weight:500}.sections{padding:16px 24px;max-width:820px;margin:0 auto;display:flex;flex-direction:column;gap:8px}.section{background:#fff;border:1px solid #e5e5ef;border-radius:10px;overflow:hidden;transition:all .2s}.section.active{border-color:#4f46e5;box-shadow:0 0 0 1px #4f46e540}.section.done{opacity:.55}.section-header{padding:14px 18px;cursor:pointer;display:flex;align-items:center;gap:12px;user-select:none}.section-header:hover{background:#f5f5fa}.step-num{width:26px;height:26px;border-radius:50%;background:#eef0f7;border:1.5px solid #d5d5e5;font-size:.72rem;font-weight:700;color:#6b6b85;display:flex;align-items:center;justify-content:center;flex-shrink:0}.section.active .step-num{background:#4f46e5;border-color:#4f46e5;color:#fff}.section.done .step-num{background:#d1fae5;border-color:#10b981;color:#047857}.section-title{flex:1;font-size:.88rem;font-weight:600;color:#33334d}.section.active .section-title{color:#0d0d24}.section-meta{font-size:.7rem;color:#9a9ab0;white-space:nowrap}.chevron{color:#b5b5c8;font-size:.7rem;transition:transform .2s}.section.open .chevron{transform:rotate(180deg)}.section-body{display:none;padding:0 18px 18px;border-top:1px solid #eef0f7}.section.open .section-body{display:block}.coach-note{background:#ecfdf5;border-left:3px solid #10b981;border-radius:6px;padding:10px 14px;margin:12px 0;font-size:.78rem;color:#065f46;line-height:1.55}.coach-note strong{color:#059669;display:block;margin-bottom:3px;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase}.say-this{background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;padding:12px 16px;margin:12px 0;font-size:.84rem;line-height:1.65;color:#312e81}.say-this::before{content:'💬';font-size:.75rem;display:block;margin-bottom:6px;opacity:.7}.objection-block{background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;padding:14px 16px;margin:12px 0}.objection-label{font-size:.7rem;font-weight:700;color:#7c3aed;letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px}.objection-q{font-size:.82rem;color:#6d28d9;margin-bottom:10px;font-style:italic}.objection-a{font-size:.82rem;color:#4c1d95;line-height:1.6}.objection-a strong{color:#7c3aed}.branch{display:flex;gap:8px;margin:12px 0;flex-wrap:wrap}.branch-card{flex:1;min-width:180px;background:#fff;border:1px solid #e5e5ef;border-radius:8px;padding:12px 14px;font-size:.78rem}.branch-card .if{font-size:.68rem;color:#9a9ab0;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}.branch-card .then{color:#33334d;line-height:1.5}.pill{display:inline-block;background:#e0e7ff;color:#4338ca;font-size:.68rem;font-weight:600;padding:2px 8px;border-radius:99px;margin:2px}.pill.red{background:#fee2e2;color:#b91c1c}.pill.green{background:#d1fae5;color:#047857}.pill.yellow{background:#fef3c7;color:#b45309}.info-row{display:flex;gap:6px;align-items:flex-start;margin:6px 0;font-size:.8rem;color:#6b6b85}.info-row .icon{color:#b5b5c8;flex-shrink:0}.section-control{display:flex;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid #eef0f7}.btn{padding:6px 14px;border-radius:6px;font-size:.75rem;font-weight:600;border:none;cursor:pointer;transition:all .15s}.btn-primary{background:#4f46e5;color:#fff}.btn-primary:hover{background:#4338ca}.btn-done{background:#059669;color:#fff}.btn-done:hover{background:#047857}.btn-ghost{background:transparent;color:#6b6b85;border:1px solid #d5d5e5}.btn-ghost:hover{color:#33334d;border-color:#a5a5b8}.progress-bar{height:3px;background:#e5e5ef;position:fixed;top:0;left:0;right:0;z-index:200}.progress-fill{height:100%;background:#4f46e5;transition:width .3s}.tim-card{background:#fff;border:1px solid #e5e5ef;border-radius:10px;padding:16px 18px;max-width:820px;margin:0 auto 8px}.tim-card h3{font-size:.8rem;color:#6b6b85;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}.tim-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.tim-item{font-size:.78rem}.tim-item .lbl{color:#9a9ab0;margin-bottom:2px}.tim-item .val{color:#33334d;line-height:1.5}hr.divider{border:none;border-top:1px solid #eef0f7;margin:10px 0}.tag-row{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}.glance-links{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid #eef0f7}.lk{display:inline-flex;align-items:center;gap:6px;background:#f5f5fa;border:1px solid #e5e5ef;border-radius:8px;padding:6px 11px;font-size:.78rem;font-weight:600;color:#4338ca;text-decoration:none;transition:all .15s}.lk:hover{background:#eef2ff;border-color:#c7d2fe}.lk svg{width:14px;height:14px;flex-shrink:0}.lk .lk-sub{color:#9a9ab0;font-weight:400}.lk-missing{color:#b91c1c;border-color:#fecaca;background:#fef2f2}.cgb-docs{margin:0 0 10px}.linkbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 4px}.close-big{background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:16px;margin:12px 0}.close-big .close-label{font-size:.7rem;color:#059669;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px}.close-big .close-q{font-size:.95rem;color:#065f46;line-height:1.55;font-weight:500}.capture{margin:12px 0 4px}.capture-label{font-size:.66rem;font-weight:700;color:#d97706;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;display:flex;align-items:center;gap:5px}textarea.note,input.note{width:100%;background:#fff;border:1px solid #e5e5ef;border-radius:7px;padding:9px 12px;font-family:inherit;font-size:.82rem;color:#0d0d24;outline:none;resize:vertical;line-height:1.5;transition:border-color .15s}textarea.note{min-height:54px}textarea.note:focus,input.note:focus{border-color:#f59e0b}textarea.note::placeholder,input.note::placeholder{color:#9a9ab0}.capture-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}@media(max-width:600px){.capture-grid{grid-template-columns:1fr}.tim-grid{grid-template-columns:1fr}.branch{flex-direction:column}}.outcome-row{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.outcome-chip{padding:6px 13px;border-radius:99px;font-size:.74rem;font-weight:600;border:1px solid #d5d5e5;background:#fff;color:#6b6b85;cursor:pointer;transition:all .15s}.outcome-chip.sel{background:#4f46e5;border-color:#4f46e5;color:#fff}.outcome-chip.sel.win{background:#059669;border-color:#059669}.outcome-chip.sel.lose{background:#b91c1c;border-color:#b91c1c}.log-bar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e5e5ef;padding:12px 24px;display:flex;align-items:center;gap:16px;z-index:300;box-shadow:0 -8px 24px rgba(13,13,36,.08)}.log-bar .log-info{flex:1;font-size:.74rem;color:#6b6b85}.log-bar .log-info b{color:#33334d}.btn-log{background:#4f46e5;color:#fff;padding:11px 22px;border-radius:9px;font-size:.85rem;font-weight:700;border:none;cursor:pointer;transition:all .15s;display:flex;flex-direction:column;align-items:center;line-height:1.25}.btn-log:hover{background:#4338ca}.btn-log small{font-size:.62rem;font-weight:500;opacity:.85}.btn-log.ok{background:#059669}.log-status{font-size:.72rem;color:#059669}.log-status.warn{color:#dc2626}.ov{position:fixed;inset:0;background:rgba(13,13,36,.5);z-index:500;display:none;align-items:center;justify-content:center;padding:24px}.ov.show{display:flex}.ov-card{background:#fff;border:1px solid #e5e5ef;border-radius:14px;max-width:440px;width:100%;padding:22px 24px;box-shadow:0 20px 60px rgba(13,13,36,.25)}.ov-card h2{font-size:1rem;color:#0d0d24;margin-bottom:8px}.ov-card p{font-size:.82rem;color:#6b6b85;line-height:1.55;margin-bottom:8px}.ov-card ul{margin:8px 0 14px 18px;font-size:.82rem;color:#b91c1c;line-height:1.6}.ov-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.ov-btns .btn{padding:9px 16px;font-size:.8rem}.btn-p{background:#4f46e5;color:#fff}.btn-p:hover{background:#4338ca}.btn-d{background:#059669;color:#fff}.btn-d:hover{background:#047857}.btn-g{background:transparent;color:#6b6b85;border:1px solid #d5d5e5}.btn-g:hover{color:#33334d;border-color:#a5a5b8}.note.miss,input.note.miss{border-color:#dc2626;box-shadow:0 0 0 1px #dc262640}.lcn-l{display:block;font-size:.7rem;font-weight:700;color:#33334d;margin:11px 0 4px;text-transform:uppercase;letter-spacing:.04em}.lcn-opt{font-weight:400;text-transform:none;color:#9a9ab0}.lcn-sub{font-size:.8rem;color:#6b6b85;margin:2px 0 4px}.lcn-ta{width:100%;box-sizing:border-box;background:#fff;border:1px solid #d5d5e5;border-radius:8px;color:#0d0d24;padding:9px;font:inherit;font-size:.85rem;line-height:1.4;resize:vertical;min-height:130px}.lcn-ta.lcn-sm{min-height:54px}.lcn-tx{display:flex;align-items:center;justify-content:space-between;margin-top:13px;font-size:.82rem;color:#33334d}.lcn-seg{display:inline-flex;border:1px solid #d5d5e5;border-radius:8px;overflow:hidden}.lcn-segbtn{background:#fff;color:#6b6b85;border:0;padding:6px 18px;font:inherit;font-size:.8rem;cursor:pointer}.lcn-segbtn.lcn-on{background:#4f46e5;color:#fff}.lcn-hint{font-size:.72rem;color:#4f46e5;margin:8px 0 0}.lcn-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:15px}.lcn-status{margin-top:10px;font-size:.78rem;min-height:1em}.lcn-status.ok{color:#059669}.lcn-status.warn{color:#d97706}.foot-stamp{text-align:center;font-size:.62rem;color:#b5b5c8;padding:14px 0 80px;letter-spacing:.04em}";
+const STANDALONE_CSS = "*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F5F5FA;color:#33334d;min-height:100vh;padding-bottom:96px}.header{background:#0D0D24;border-bottom:2px solid #4f46e5;padding:18px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}.header-left h1{font-size:1.1rem;font-weight:700;color:#fff}.header-left p{font-size:.78rem;color:#a5a5c0;margin-top:2px}.header-right{display:flex;gap:8px;align-items:center}.status-dot{width:8px;height:8px;border-radius:50%;background:#00d4aa;animation:pulse 2s infinite}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}.call-live{font-size:.72rem;color:#00d4aa;font-weight:600;letter-spacing:.05em}.mode-toggle{display:flex;gap:4px;background:#1c1c3a;border:1px solid #2f2f52;border-radius:8px;padding:3px}.mode-btn{padding:5px 12px;border-radius:6px;font-size:.7rem;font-weight:600;border:none;cursor:pointer;background:transparent;color:#a5a5c0;transition:all .15s}.mode-btn.active{background:#4f46e5;color:#fff}.context-bar{background:#fff;border-bottom:1px solid #e5e5ef;padding:10px 28px;display:flex;gap:20px;flex-wrap:wrap}.ctx-item{display:flex;gap:6px;align-items:center;font-size:.75rem;color:#6b6b85}.ctx-label{color:#9a9ab0}.ctx-val{color:#33334d;font-weight:500}.sections{padding:16px 24px;max-width:820px;margin:0 auto;display:flex;flex-direction:column;gap:8px}.section{background:#fff;border:1px solid #e5e5ef;border-radius:10px;overflow:hidden;transition:all .2s}.section.active{border-color:#4f46e5;box-shadow:0 0 0 1px #4f46e540}.section.done{opacity:.55}.section-header{padding:14px 18px;cursor:pointer;display:flex;align-items:center;gap:12px;user-select:none}.section-header:hover{background:#f5f5fa}.step-num{width:26px;height:26px;border-radius:50%;background:#eef0f7;border:1.5px solid #d5d5e5;font-size:.72rem;font-weight:700;color:#6b6b85;display:flex;align-items:center;justify-content:center;flex-shrink:0}.section.active .step-num{background:#4f46e5;border-color:#4f46e5;color:#fff}.section.done .step-num{background:#d1fae5;border-color:#10b981;color:#047857}.section-title{flex:1;font-size:.88rem;font-weight:600;color:#33334d}.section.active .section-title{color:#0d0d24}.section-meta{font-size:.7rem;color:#9a9ab0;white-space:nowrap}.chevron{color:#b5b5c8;font-size:.7rem;transition:transform .2s}.section.open .chevron{transform:rotate(180deg)}.section-body{display:none;padding:0 18px 18px;border-top:1px solid #eef0f7}.section.open .section-body{display:block}.coach-note{background:#ecfdf5;border-left:3px solid #10b981;border-radius:6px;padding:10px 14px;margin:12px 0;font-size:.78rem;color:#065f46;line-height:1.55}.coach-note strong{color:#059669;display:block;margin-bottom:3px;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase}.say-this{background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;padding:12px 16px;margin:12px 0;font-size:.84rem;line-height:1.65;color:#312e81}.say-this::before{content:'💬';font-size:.75rem;display:block;margin-bottom:6px;opacity:.7}.objection-block{background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;padding:14px 16px;margin:12px 0}.objection-label{font-size:.7rem;font-weight:700;color:#7c3aed;letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px}.objection-q{font-size:.82rem;color:#6d28d9;margin-bottom:10px;font-style:italic}.objection-a{font-size:.82rem;color:#4c1d95;line-height:1.6}.objection-a strong{color:#7c3aed}.branch{display:flex;gap:8px;margin:12px 0;flex-wrap:wrap}.branch-card{flex:1;min-width:180px;background:#fff;border:1px solid #e5e5ef;border-radius:8px;padding:12px 14px;font-size:.78rem}.branch-card .if{font-size:.68rem;color:#9a9ab0;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}.branch-card .then{color:#33334d;line-height:1.5}.pill{display:inline-block;background:#e0e7ff;color:#4338ca;font-size:.68rem;font-weight:600;padding:2px 8px;border-radius:99px;margin:2px}.pill.red{background:#fee2e2;color:#b91c1c}.pill.green{background:#d1fae5;color:#047857}.pill.yellow{background:#fef3c7;color:#b45309}.info-row{display:flex;gap:6px;align-items:flex-start;margin:6px 0;font-size:.8rem;color:#6b6b85}.info-row .icon{color:#b5b5c8;flex-shrink:0}.section-control{display:flex;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid #eef0f7}.btn{padding:6px 14px;border-radius:6px;font-size:.75rem;font-weight:600;border:none;cursor:pointer;transition:all .15s}.btn-primary{background:#4f46e5;color:#fff}.btn-primary:hover{background:#4338ca}.btn-done{background:#059669;color:#fff}.btn-done:hover{background:#047857}.btn-ghost{background:transparent;color:#6b6b85;border:1px solid #d5d5e5}.btn-ghost:hover{color:#33334d;border-color:#a5a5b8}.progress-bar{height:3px;background:#e5e5ef;position:fixed;top:0;left:0;right:0;z-index:200}.progress-fill{height:100%;background:#4f46e5;transition:width .3s}.tim-card{background:#fff;border:1px solid #e5e5ef;border-radius:10px;padding:16px 18px;max-width:820px;margin:0 auto 8px}.tim-card h3{font-size:.8rem;color:#6b6b85;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}.tim-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.tim-item{font-size:.78rem}.tim-item .lbl{color:#9a9ab0;margin-bottom:2px}.tim-item .val{color:#33334d;line-height:1.5}hr.divider{border:none;border-top:1px solid #eef0f7;margin:10px 0}.tag-row{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}.glance-links{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid #eef0f7}.lk{display:inline-flex;align-items:center;gap:6px;background:#f5f5fa;border:1px solid #e5e5ef;border-radius:8px;padding:6px 11px;font-size:.78rem;font-weight:600;color:#4338ca;text-decoration:none;transition:all .15s}.lk:hover{background:#eef2ff;border-color:#c7d2fe}.lk svg{width:14px;height:14px;flex-shrink:0}.lk .lk-sub{color:#9a9ab0;font-weight:400}.lk-missing{color:#b91c1c;border-color:#fecaca;background:#fef2f2}.cgb-docs{margin:0 0 10px}.linkbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 4px}.close-big{background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:16px;margin:12px 0}.close-big .close-label{font-size:.7rem;color:#059669;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px}.close-big .close-q{font-size:.95rem;color:#065f46;line-height:1.55;font-weight:500}.capture{margin:12px 0 4px}.capture-label{font-size:.66rem;font-weight:700;color:#d97706;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;display:flex;align-items:center;gap:5px}textarea.note,input.note{width:100%;background:#fff;border:1px solid #e5e5ef;border-radius:7px;padding:9px 12px;font-family:inherit;font-size:.82rem;color:#0d0d24;outline:none;resize:vertical;line-height:1.5;transition:border-color .15s}textarea.note{min-height:54px}textarea.note:focus,input.note:focus{border-color:#f59e0b}textarea.note::placeholder,input.note::placeholder{color:#9a9ab0}.capture-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}@media(max-width:600px){.capture-grid{grid-template-columns:1fr}.tim-grid{grid-template-columns:1fr}.branch{flex-direction:column}}.outcome-row{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.outcome-chip{padding:6px 13px;border-radius:99px;font-size:.74rem;font-weight:600;border:1px solid #d5d5e5;background:#fff;color:#6b6b85;cursor:pointer;transition:all .15s}.outcome-chip.sel{background:#4f46e5;border-color:#4f46e5;color:#fff}.outcome-chip.sel.win{background:#059669;border-color:#059669}.outcome-chip.sel.lose{background:#b91c1c;border-color:#b91c1c}.log-bar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e5e5ef;padding:12px 24px;display:flex;align-items:center;gap:16px;z-index:300;box-shadow:0 -8px 24px rgba(13,13,36,.08)}.log-bar .log-info{flex:1;font-size:.74rem;color:#6b6b85}.log-bar .log-info b{color:#33334d}.btn-log{background:#4f46e5;color:#fff;padding:11px 22px;border-radius:9px;font-size:.85rem;font-weight:700;border:none;cursor:pointer;transition:all .15s;display:flex;flex-direction:column;align-items:center;line-height:1.25}.btn-log:hover{background:#4338ca}.btn-log small{font-size:.62rem;font-weight:500;opacity:.85}.btn-log.ok{background:#059669}.log-status{font-size:.72rem;color:#059669}.log-status.warn{color:#dc2626}.ov{position:fixed;inset:0;background:rgba(13,13,36,.5);z-index:500;display:none;align-items:center;justify-content:center;padding:24px}.ov.show{display:flex}.ov-card{background:#fff;border:1px solid #e5e5ef;border-radius:14px;max-width:440px;width:100%;padding:22px 24px;box-shadow:0 20px 60px rgba(13,13,36,.25)}.ov-card h2{font-size:1rem;color:#0d0d24;margin-bottom:8px}.ov-card p{font-size:.82rem;color:#6b6b85;line-height:1.55;margin-bottom:8px}.ov-card ul{margin:8px 0 14px 18px;font-size:.82rem;color:#b91c1c;line-height:1.6}.ov-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.ov-btns .btn{padding:9px 16px;font-size:.8rem}.btn-p{background:#4f46e5;color:#fff}.btn-p:hover{background:#4338ca}.btn-d{background:#059669;color:#fff}.btn-d:hover{background:#047857}.btn-g{background:transparent;color:#6b6b85;border:1px solid #d5d5e5}.btn-g:hover{color:#33334d;border-color:#a5a5b8}.note.miss,input.note.miss{border-color:#dc2626;box-shadow:0 0 0 1px #dc262640}.lcn-l{display:block;font-size:.7rem;font-weight:700;color:#33334d;margin:11px 0 4px;text-transform:uppercase;letter-spacing:.04em}.lcn-opt{font-weight:400;text-transform:none;color:#9a9ab0}.lcn-sub{font-size:.8rem;color:#6b6b85;margin:2px 0 4px}.lcn-tawrap{position:relative}.lcn-tawrap .cgb-mic{position:absolute;top:8px;right:8px;border:1px solid #d5d5e5;background:#fff;border-radius:7px;width:28px;height:28px;cursor:pointer;font-size:14px;line-height:1;padding:0}.lcn-tawrap .cgb-mic.on{border-color:#dc2626;color:#dc2626}.lcn-ta{width:100%;box-sizing:border-box;background:#fff;border:1px solid #d5d5e5;border-radius:8px;color:#0d0d24;padding:9px;font:inherit;font-size:.85rem;line-height:1.4;resize:vertical;min-height:130px}.lcn-ta.lcn-sm{min-height:54px}.lcn-tx{display:flex;align-items:center;justify-content:space-between;margin-top:13px;font-size:.82rem;color:#33334d}.lcn-seg{display:inline-flex;border:1px solid #d5d5e5;border-radius:8px;overflow:hidden}.lcn-segbtn{background:#fff;color:#6b6b85;border:0;padding:6px 18px;font:inherit;font-size:.8rem;cursor:pointer}.lcn-segbtn.lcn-on{background:#4f46e5;color:#fff}.lcn-hint{font-size:.72rem;color:#4f46e5;margin:8px 0 0}.lcn-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:15px}.lcn-status{margin-top:10px;font-size:.78rem;min-height:1em}.lcn-status.ok{color:#059669}.lcn-status.warn{color:#d97706}.foot-stamp{text-align:center;font-size:.62rem;color:#b5b5c8;padding:14px 0 80px;letter-spacing:.04em}";
 
 /* ── runtime (verbatim from artifact) ── */
 const STANDALONE_RUNTIME =
@@ -316,7 +326,7 @@ const STANDALONE_RUNTIME =
 
 /* ── REFRESH DOOR ── The button that used to say "Use to regenerate ↗" and copy text to the
    clipboard. It now POSTs to /api/cc/call-refresh, which RECORDS the ask against this guide's
-   kept state. Ruling D4, 2026-08-05, Bryce verbatim: "The user should never have to DO
+   kept state. Ruling D4, 2026-08-05, the operator verbatim: "The user should never have to DO
    something extra they AI should be able to do for them."
 
    THE SENTENCE ON SCREEN IS THE DOOR'S OWN `say`, PRINTED VERBATIM AND NEVER REWRITTEN HERE.
@@ -354,8 +364,8 @@ const STANDALONE_RUNTIME =
    ⛔ THE WORKSPACE-FILE FALLBACK WAS REMOVED 2026-09-09 AND ITS REMOVAL IS THE
    POINT. DO NOT RESTORE IT. Until that date this file carried:
 
-     const ASPECTS_REL = ['02 — Clients', 'AI Integrator', 'sales',
-                          'AI Integrator - Call Guide Aspects.md'];
+     const ASPECTS_REL = ['02 — Clients', '<a company>', 'sales',
+                          '<a company> - Call Guide Aspects.md'];
 
    — ONE TENANT'S FOLDER PATH, compiled into the plugin every client installs,
    plus a resolveAspectsPath() that walked up from __dirname to find it and an
@@ -409,6 +419,13 @@ function parseAspectsMarkdown(md) {
     else if (field === 'lead') cur.lead = body;
     else if (field === 'stop') cur.stop = body;
     else if (field === 'hooks') cur.hooks = body.split('\n').map(function (s) { return s.replace(/^-\s*/, '').trim(); }).filter(Boolean);
+    /* **LINK:** — added 2026-09-17. One line per document: `label | url | note`. The words
+       library can now carry the thing the words point at (e.g. a picture to click through),
+       so the link rides every guide from the store instead of being typed into one guide. */
+    else if (field === 'link') cur.docs = body.split('\n').map(function (s) { return s.replace(/^-\s*/, '').trim(); }).filter(Boolean).map(function (s) {
+      const parts = s.split('|').map(function (x) { return x.trim(); });
+      return { label: parts[0] || '', url: parts[1] || '', note: parts.slice(2).join(' | ') };
+    });
     else if (field && field.tier) cur.tiers.push({ label: field.tier, body: body });
     field = null; buf = [];
   }
@@ -423,6 +440,7 @@ function parseAspectsMarkdown(md) {
     if (/^\*\*LEAD:\*\*\s*$/.test(line))       { flush(); field = 'lead';     continue; }
     if (/^\*\*STOP:\*\*\s*$/.test(line))       { flush(); field = 'stop';     continue; }
     if (/^\*\*HOOKS:\*\*\s*$/.test(line))      { flush(); field = 'hooks';    continue; }
+    if (/^\*\*LINK:\*\*\s*$/.test(line))       { flush(); field = 'link';     continue; }
     const tier = line.match(/^\*\*TIER — (.+?)\*\*\s*$/);
     if (tier) { flush(); field = { tier: tier[1] }; continue; }
     if (field) buf.push(line);
@@ -461,7 +479,7 @@ function loadDefaultAspects(g) {
 /* ────────────────────────────────────────────────────────────────────────────
    THE BUILD GATE — may these words be built from AT ALL?
    Added 2026-09-09. PORTED from skills/aii-collateral-sheet/build.py, which got it the
-   same day from session slog_solo_20260909_130027_c4e9a1. Deliberately the same shape
+   same day from session a session that day. Deliberately the same shape
    and the same refusal wording: one mechanism, two builders, so a reader who has met it
    once recognises it here.
 
@@ -594,7 +612,7 @@ function buildAspectsHtml(g) {
    Added 2026-08-07.
 
    ── WHAT THIS IS, AND THE TWO RULINGS IT OBEYS ────────────────────────────────
-   SHAPE, from `dr_calls_call_guide_layout_live_mode_20260807` — Bryce ruled it from a
+   SHAPE, from `dr_calls_call_guide_layout_live_mode_20260807` — the operator ruled it from a
    prototype he CLICKED (`board-v6.html`, 2026-08-07 22:13 Boise), not from an option list:
      1. NUMBERING IS REMOVED. His calls never run 1..N; a step number asserts an order the
         call never follows. Nothing in this module emits an index.
@@ -607,25 +625,25 @@ function buildAspectsHtml(g) {
         rail that collapses to a 30px vertical NOTES strip you click to bring back — it does
         NOT vanish, because an affordance you cannot find is a removed one.
      5. ADVISOR NAMES ARE STRIPPED from the live view. `lens` is carried and never rendered.
-        ⚠ Whether advisor names may appear in CLIENT-FACING deliverables is UNRULED — Bryce
+        ⚠ Whether advisor names may appear in CLIENT-FACING deliverables is UNRULED — the operator
         raised it 2026-08-07 as possible IP exposure. Do not "fix" this by putting the name
         back; that question has not been answered.
      6. THE PRE-CALL LAYER STAYS, reachable WITHOUT SCROLLING — brief, at-a-glance,
         watch-outs and links.
-        ⚠ RE-CUT BY BRYCE 2026-08-07, AFTER seeing this built: they are NOT drawers above
+        ⚠ RE-CUT BY THE OPERATOR 2026-08-07, AFTER seeing this built: they are NOT drawers above
         the board. They are ROWS IN THE RAIL, and they open in the SAME main frame as
         everything else — *"all of those can collapse on the left and content in the
         middle... everything expands into the same main."* Quick-access went with them,
         and its four aspects became FOUR ROWS rather than one (his option (a)), so mid-call
-        he is one click from VisitorResolve instead of two. The original wording is kept
+        the operator is one click from the second product instead of two. The original wording is kept
         above because a session that only read the ruling would rebuild the drawers.
 
    CONTENT, from `dr_OPEN_does_a_call_guide_section_author_five_fields_or_two_prose_blobs_20260807`
-   — ruled by Bryce 2026-08-07 with one word, "go", taking option (b): a section AUTHORS
+   — ruled by the operator 2026-08-07 with one word, "go", taking option (b): a section AUTHORS
    when · why · do · dont · words as FIVE SEPARATE FIELDS. `do` and `dont` are LISTS.
 
    ── ⚠ THE PROTOTYPE'S PAINT WAS INVENTED. MEASURED, NOT SUSPECTED. ────────────
-   Bryce's condition on the layout ruling was "as long as it uses command center canonical
+   the operator's condition on the layout ruling was "as long as it uses command center canonical
    registered components," and he restated it mid-build: *"It must remain canonical to the
    registered components. I hope they were registered. Of the command center as the command
    center exists now, do not invent anything."*
@@ -674,7 +692,7 @@ function buildAspectsHtml(g) {
 
    ── THE ONE THING DELIBERATELY DROPPED, AND WHY IT IS NOT AN OVERSIGHT ────────
    The prototype's dark top bar. `--brand-bar` is registered; **no token for text sitting on
-   it is.** board-v6 invented `#a5a5c0`. Inventing a replacement is the exact thing Bryce
+   it is.** board-v6 invented `#a5a5c0`. Inventing a replacement is the exact thing the operator
    just forbade, so the header is `.panel` + `.panel h2` + `.stackhead`, all registered.
    If the dark bar comes back, the on-dark ink gets REGISTERED first.
 
@@ -685,7 +703,7 @@ function buildAspectsHtml(g) {
 
 /* ── cc_component, transcribed once. ONE fact, ONE place in this file. ──────────
    Read 2026-08-07 from Neon: SELECT kind,name,css,role,status FROM cc_component
-   WHERE tenant_id='bryce' AND surface='command-center' AND status<>'retired'.
+   WHERE tenant_id='<tenant>' AND surface='command-center' AND status<>'retired'.
    `.tri` is deliberately absent: status='drifted', zero CSS rules, 22 uses, every one
    styled by a repeated inline string. It looks like a button class and it is not. */
 const CC = {
@@ -764,7 +782,7 @@ const BOARD_CSS = CC_TOKENS_CSS + CC_CLASSES_CSS +
 /* 3 — board and pane, two independent scroll regions */
 ".cgb-wrap{display:grid;grid-template-columns:288px minmax(0,1fr);gap:12px;padding:12px;max-width:1700px;margin:0 auto;align-items:start}" +
 /* ── THE BOARD MUST STOP ABOVE THE FIXED LOG BAR ─────────────────────────────────
-   Fixed 2026-08-11 from Bryce's screenshot: the last row of the left board sat
+   Fixed 2026-08-11 from the operator's screenshot: the last row of the left board sat
    UNDERNEATH the fixed "Capture as you go" bar and could not be scrolled into view —
    the only way to reach it was to scroll the whole page instead, which defeats the
    point of a sticky board.
@@ -809,7 +827,7 @@ const BOARD_CSS = CC_TOKENS_CSS + CC_CLASSES_CSS +
 ".cgb-split.norail .cgb-rail:hover{background:var(--chip);border-color:var(--accent)}" +
 ".cgb-split.norail .cgb-rail:after{content:'NOTES';writing-mode:vertical-rl;font-size:" + CC.type.eyebrow + ";font-weight:700;letter-spacing:.7px;color:var(--muted)}" +
 /* THE WORDS. `.scard` is the box; only the paragraph rhythm is written here.
-   13px is the largest NAMED size (type-scale `form`). ⚠ Bryce has NOT ruled whether that
+   13px is the largest NAMED size (type-scale `form`). ⚠ the operator has NOT ruled whether that
    is big enough to read mid-call with a video window in front of it. If it is not, the fix
    is to NAME a new size in cc_component and rebuild — never to type a bigger number here. */
 ".cgb-words p{font-size:" + CC.type.form + ";line-height:1.75;color:var(--ink);margin:0 0 10px}" +
@@ -990,7 +1008,7 @@ function buildBoardHtml(g, config) {
       const label = d.label || d.title || d.concern || 'Untitled';
 
       /* ── THE DURATION SLOT TAKES A DURATION, OR IT TAKES NOTHING ──────────────────
-         Fixed 2026-08-11 from a real broken row Bryce screenshotted (PE Innovation Team
+         Fixed 2026-08-11 from a real broken row the operator screenshotted (a real client's team
          guide, the "close" row). The markup below was already correct — hint to <em>,
          mins to <i class="cgb-mins"> — but the CONTENT arriving in `timing` was the
          sentence "This is the whole reason you're in the room". `.cgb-mins` is a short
@@ -1025,7 +1043,7 @@ function buildBoardHtml(g, config) {
 
   /* ruling 2 — the marker is PERMANENT and is rendered even when there is no close, because
      an absent marker reads as "nothing to reach." */
-  /* ── THE TOP PILL IS THE CRM GATE, NOT THE CLOSE TRACKER. Ruled by Bryce 2026-09-10,
+  /* ── THE TOP PILL IS THE CRM GATE, NOT THE CLOSE TRACKER. Ruled by the operator 2026-09-10,
      his words: *"One always says close, not yet. That should say CRM, and this should
      basically tell me whether or not this person's in the CRM. I shouldn't have a call
      with anyone that's not already in the CRM to begin with."*
@@ -1072,7 +1090,7 @@ function buildBoardHtml(g, config) {
       '<span class="cgb-lanehint">' + esc(hint) + '</span></h2>' +
       rows.map(refRow).join('') + '</div>';
   }
-  /* TWO groups, not one. Bryce, 2026-08-07: *"these 4 get their own accordion instead of
+  /* TWO groups, not one. the operator, 2026-08-07: *"these 4 get their own accordion instead of
      staying inside 'Before the call'."* They are a different KIND of thing — the pre-call
      four are read ONCE before the call; these are reached for DURING it, repeatedly, and
      burying a mid-call reach inside a pre-call group is a click he pays every time. */
@@ -1160,7 +1178,7 @@ function cgNoneCardHtml() {
     'The drawers above hold your pre-call reading.</p></div>';
 }
 
-/* ── THE REFERENCE ROWS (ruling 6, as Bryce re-cut it 2026-08-07) ─────────────────
+/* ── THE REFERENCE ROWS (ruling 6, as the operator re-cut it 2026-08-07) ─────────────────
    His words: *"quick access is a item on the left that collapses. Same with the brief, at
    a glance, watch outs, and links. All of those can collapse on the left and content in the
    middle... everything expands into the same main."*
@@ -1171,8 +1189,8 @@ function cgNoneCardHtml() {
 
    WHAT CHANGED, and it is a removal not an addition:
      · the four `<details>` drawers are GONE — they are rows in the rail like everything else
-     · Quick-access is GONE as a container. Bryce ruled its four aspects are FOUR ROWS
-       (option (a), 2026-08-07): mid-call he is one click from VisitorResolve, not two, and
+     · Quick-access is GONE as a container. the operator ruled its four aspects are FOUR ROWS
+       (option (a), 2026-08-07): mid-call the operator is one click from the second product, not two, and
        nothing collapses inside anything.
 
    ⚠ REFERENCE ROWS CARRY NO ✓ AND ARE NOT IN `CG_ITEM_IDS`. They are reading, not things to
@@ -1185,7 +1203,7 @@ function cgNoneCardHtml() {
    the throttle; flattening it would ship the whole pitch at once, which is the exact defect
    the aspects were built to stop. It uses the CC's registered `disclosure` behavior —
    native details/summary, no JS, no chevron glyph the browser already draws. */
-/* ⚠ THE NAME OF THIS GROUP IS FRAMEWORK VOCABULARY, NOT BRYCE'S SHORTHAND.
+/* ⚠ THE NAME OF THIS GROUP IS FRAMEWORK VOCABULARY, NOT THE OPERATOR'S SHORTHAND.
    He caught it 2026-08-07: *"the quick access — or maybe something more generic that any
    company can refer to — instead of 'Quick-access', that was my term for me."* This ships
    to every client, so the label has to be a word a stranger already owns. It is declared
@@ -1244,13 +1262,13 @@ function cgRefItems(g, config) {
      rendered to check", which is the same deliberate-vs-accidental-empty ambiguity
      the leadId refusal (2026-08-11) exists to end.
 
-     MEASURED 2026-09-10 across four guides on disk — Trackly/Evan Manning,
-     Cinergy/Tony Scelzo, Rialto/Tim Fitzpatrick, Finsider/Mitch Petracca: data-fu
+     MEASURED 2026-09-10 across four guides on disk — four different
+     companies and contacts, one guide each: data-fu
      occurs exactly ONCE in each, and that one is the getAttribute call inside the
      runtime, never an element.
 
      GROUP 'after', NOT A LANE ITEM, ON PURPOSE. (It was 'post' for ten minutes on
-     2026-09-10 and was renamed before shipping: term_already_exists('bryce','post')
+     2026-09-10 and was renamed before shipping: term_already_exists('<tenant>','post')
      returns an EXACT match — connector-registry/post, "something published publicly,
      to everyone rather than to a named person". Same word, different concept, and a
      collision is worse than an unregistered word because both readings are correct.) A follow-up is not covered DURING the
@@ -1289,7 +1307,7 @@ function cgAspectBody(a, howToUse) {
       a.hooks.map(function (h) { return '<li>' + richAnswer(h) + '</li>'; }).join('') + '</ul></div>'
     : '';
   const stop = a.stop ? '<div class="scard cgb-rb dont"><i>STOP</i>' + esc(a.stop) + '</div>' : '';
-  return '<div class="scard cgb-lead"><i>SAY THIS FIRST — THEN STOP</i>' + richAnswer(a.lead) + '</div>' +
+  return cgDocsBar(a) + '<div class="scard cgb-lead"><i>SAY THIS FIRST — THEN STOP</i>' + richAnswer(a.lead) + '</div>' +
          (tiers ? '<div class="cgb-tiers">' + tiers + '</div>' : '') + hooks + stop +
          (howToUse ? '<div class="cgb-hint" style="margin-top:10px">' + richAnswer(howToUse) + '</div>' : '');
 }
@@ -1310,7 +1328,7 @@ function cgRefCardHtml(r) {
          mid-call wiped every tick. Notes already survive a refresh via STORE_KEY; coverage
          surviving is the same promise, and a coverage board that forgets is worse than none.
      (3) THE MIC IS THE CANONICAL `warmDictate` (cc_component behavior row), not the
-         prototype's simpler one — Bryce's own stated condition. Two rules the prototype's
+         prototype's simpler one — the operator's own stated condition. Two rules the prototype's
          mic is missing and that matter on a live call: AUTO-RESTART on `end` unless the user
          stopped it, so an engine timeout does not silently kill dictation mid-call, and
          IGNORE `no-speech`/`aborted` instead of shutting down. ANTI-WIPE is honoured by
@@ -1384,7 +1402,7 @@ function buildLiveBoardHtml(g, config) {
 /* ── assemble the standalone HTML (verbatim structure from artifact) ── */
 function buildStandaloneHtml(g, config) {
   /* THE CONFORMANCE GUARD RUNS BEFORE A BYTE IS ASSEMBLED, and it REFUSES.
-     Bryce, 2026-08-07: "It must remain canonical to the registered components... do not
+     the operator, 2026-08-07: "It must remain canonical to the registered components... do not
      invent anything." A stated claim about conformance is a hypothesis; this is the check,
      and it runs against the CSS actually emitted rather than against the source that wrote
      it. The prototype broke this rule silently in seven colours and twenty class names. */
@@ -1392,7 +1410,7 @@ function buildStandaloneHtml(g, config) {
   if (drift.length) {
     throw new Error('build-call-guide: the live board is NOT canonical to cc_component and ' +
       'will not be built.\n  - ' + drift.join('\n  - ') +
-      '\nRead the vocabulary from Neon cc_component (tenant bryce, surface command-center). ' +
+      '\nRead the vocabulary from Neon cc_component (this tenant, surface command-center). ' +
       'Never from the `component` table (36 rows, all skills) and never from ' +
       'aii-site/design-system/components.css (dead, and it ships a call-guide.html decoy).');
   }
@@ -1410,7 +1428,7 @@ function buildStandaloneHtml(g, config) {
 /* BOARD_CSS carries :root, so it goes FIRST — the older shell's hardcoded hexes are
    unaffected by it, and the board's var() references resolve. */
 /* ASPECTS_CSS and ASPECTS_RUNTIME are NOT shipped. The Quick-access DRAWER they style
-   was retired 2026-08-07 when Bryce moved its four aspects into the rail as their own
+   was retired 2026-08-07 when the operator moved its four aspects into the rail as their own
    rows. Measured before removing: 4 CSS rules and 1 runtime function were still being
    emitted into every guide against ZERO markup. Dead styling is not free — it is a
    second source of truth, and the next session to read a built guide would find
@@ -1433,7 +1451,7 @@ live.html,
   '<button class="btn-log" id="cgr-btn" onclick="cgRefresh()">Update this guide<small>rebuilds it from your notes</small></button>' +
   '<button class="btn-log" id="log-btn" onclick="openLog()">Log Call Notes<small id="log-sub">saves your notes</small></button></div>',
 '<div class="ov" id="logOv"><div class="ov-card"><h2>Some fields are empty</h2><p>Before you log, these are blank:</p><ul id="logMissList"></ul><div class="ov-btns"><button class="btn btn-g" onclick="closeLogOv()">Go back &amp; fill</button><button class="btn btn-p" onclick="forceLog()">Log anyway</button></div></div></div>',
-'<div class="ov" id="lcnOv"><div class="ov-card"><h2>Log Call Notes</h2><p class="lcn-sub" id="lcnWho">Call with —</p><label class="lcn-l">Call notes</label><textarea id="lcnNotes" class="lcn-ta" placeholder="What happened on the call — what they said, where it landed, anything worth putting on the record."></textarea><label class="lcn-l">Anything extra to add <span class="lcn-opt">(optional)</span></label><textarea id="lcnExtra" class="lcn-ta lcn-sm" placeholder="A detail, a flag, a reminder to yourself."></textarea><div class="lcn-tx"><span>Expecting a transcript?</span><div class="lcn-seg"><button id="lcnTyes" class="lcn-segbtn" onclick="lcnTrans(true)">Yes</button><button id="lcnTno" class="lcn-segbtn lcn-on" onclick="lcnTrans(false)">No</button></div></div><p class="lcn-hint" id="lcnTransHint" style="display:none">I&#39;ll mark this note &quot;transcript pending&quot; and tee up your debrief so the two marry up when it lands.</p><div class="lcn-btns"><button class="btn btn-g" onclick="lcnClose()">Cancel</button><button class="btn btn-p" id="lcnSave" onclick="lcnSave()">Save to CRM</button></div><div class="lcn-status" id="lcnStatus"></div></div></div>',
+'<div class="ov" id="lcnOv"><div class="ov-card"><h2>Log Call Notes</h2><p class="lcn-sub" id="lcnWho">Call with —</p><label class="lcn-l">Call notes</label><div class="lcn-tawrap"><textarea id="lcnNotes" class="lcn-ta" placeholder="What happened on the call — what they said, where it landed, anything worth putting on the record. Type, or talk — hit the mic."></textarea><button class="cgb-mic" id="lcnNotesMic" onclick="warmDictate(\'lcnNotes\',\'lcnNotesMic\')" title="Talk instead of type">\uD83C\uDFA4</button></div><label class="lcn-l">Anything extra to add <span class="lcn-opt">(optional)</span></label><div class="lcn-tawrap"><textarea id="lcnExtra" class="lcn-ta lcn-sm" placeholder="A detail, a flag, a reminder to yourself. Type, or talk."></textarea><button class="cgb-mic" id="lcnExtraMic" onclick="warmDictate(\'lcnExtra\',\'lcnExtraMic\')" title="Talk instead of type">\uD83C\uDFA4</button></div><div class="lcn-tx"><span>Expecting a transcript?</span><div class="lcn-seg"><button id="lcnTyes" class="lcn-segbtn" onclick="lcnTrans(true)">Yes</button><button id="lcnTno" class="lcn-segbtn lcn-on" onclick="lcnTrans(false)">No</button></div></div><p class="lcn-hint" id="lcnTransHint" style="display:none">I&#39;ll mark this note &quot;transcript pending&quot; and tee up your debrief so the two marry up when it lands.</p><div class="lcn-btns"><button class="btn btn-g" onclick="lcnClose()">Cancel</button><button class="btn btn-p" id="lcnSave" onclick="lcnSave()">Save to CRM</button></div><div class="lcn-status" id="lcnStatus"></div></div></div>',
 '<div class="foot-stamp">BUILD ' + BUILD_STAMP + ' · auto-generated · Log Call Notes</div>',
 '<script>var CONFIG=' + JSON.stringify(cfg) + ';var SECTION_LABELS=' + JSON.stringify(sec.labels) +
   ';var CG_ITEM_IDS=' + JSON.stringify(live.ids) + ';</' + 'script>',
@@ -1496,7 +1514,7 @@ function regenRefuse(code, label, sentence) {
 
 /* ════════════════════════════════════════════════════════════════
    THE CRM-RECORD GATE — an empty leadId is REFUSED, a deliberate one is DECLARED.
-   Added 2026-08-11, Bryce pop-up-approved, through aii-adjudicate.
+   Added 2026-08-11, the operator pop-up-approved, through aii-adjudicate.
 
    WHAT IT REFUSES: a guide built with no CRM record attached. That guide's "Log Call
    Notes" button cannot post a note — ccWhyNot() returns 'this guide has no CRM record
@@ -1504,8 +1522,7 @@ function regenRefuse(code, label, sentence) {
    button and it is not one, and the operator finds out mid-call.
 
    MEASURED BEFORE IT WAS WRITTEN, on real bytes, 2026-08-11: 12 of the 20 guides on
-   disk carried leadId:"" — Lloyd Easters, Cynthia Davis, Ryan Sutton, Jerry Waldon,
-   Jim Buckley, Robert Desroches, Glenn Antoine, Brian Manning and the 4 cohorts. Eight
+   disk carried leadId:"" — twelve guides across four people and four cohorts. Eight
    of those were produced by ONE build run at 02:03 on 2026-08-10. Nothing complained,
    at build time or after, because nothing was asking.
 
@@ -1513,7 +1530,7 @@ function regenRefuse(code, label, sentence) {
    Log-Call-Notes-Modal-SPEC §4 rule 4 named "a guide with no leadId on it" as one of
    "the only legitimate fallbacks". That sentence is why this defect was not a bug for
    six days: the builder was obeying it. Eleven lines below it, in the same section,
-   sits Bryce's own ruling from the same day — "The user should never have to DO
+   sits the operator's own ruling from the same day — "The user should never have to DO
    something extra the AI should be able to do for them." A guide that tells him to
    paste his call notes into Claude by hand is the thing that ruling forbids. The
    section contradicted itself and the permissive half is what shipped. The spec is
@@ -1530,7 +1547,7 @@ function regenRefuse(code, label, sentence) {
    so it is refused too, by length.
 
    NYGARD — a rule with no refusing surface has no red to go. Core §5.4 already says
-   this in Bryce's own framework; four instances of this defect class shipped anyway
+   this in the operator's own framework; four instances of this defect class shipped anyway
    (logWebhookUrl → 96 files, apiBase → 39 debriefs, leadId → 12 guides, beachhead →
    3 debriefs) because in every one of them the rule was PROSE and the builder was
    SILENT. Prose does not refuse. This does.
@@ -1790,7 +1807,7 @@ function regenerate(readPlan, rowsIn, opts) {
 }
 
 /* ── FILING MODE — added 2026-09-17 (card
-   neon_auto_guide_debrief_sweep_builds_to_a_disk_no_client_has_20260916). ────────────────
+   an internal card). ────────────────
    DISK (the default, no flag, AII_FILING unset/'' or 'disk'): exactly what this builder did
    before — the plan registers the ABSOLUTE output path, and nothing it prints changes.
    CLOUD (--cloud, or AII_FILING=cloud): the document is built on a container disk that no
@@ -1832,7 +1849,7 @@ function filingMode(argv, env) {
 }
 
 /* ── --folder — added 2026-09-17 (card
-   neon_cloud_seats_claim_the_guide_and_debrief_sweep_by_ruled_drive_reach_but_the_builder_can_only_write_local_files_20260917).
+   an internal card).
    The saved answer of register-call-doc.js --folder-sql (resolve_folder_address), or
    {"error": "<message>"} when that resolver raised. REFUSES (nothing built): --folder without
    cloud mode, a missing or unreadable file. An UNRESOLVED answer is not a refusal here — it

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-/* prove-hosted-handoff.js — added 2026-09-17 (card
-   neon_cloud_seats_claim_the_guide_and_debrief_sweep_by_ruled_drive_reach_but_the_builder_can_only_write_local_files_20260917).
+/* prove-hosted-handoff.js — added 2026-09-17, when a cloud executor could build a call document
+   but had no way to file it, so every cloud run registered an empty file id.
 
    Proves the builder that sits NEXT TO THIS FILE (build-call-guide.js or build-call-debrief.js)
    by RUNNING it, the way a cloud executor does, in a throwaway folder. The same file ships
@@ -86,7 +86,7 @@ if (IS_GUIDE) {
 const configPath = w('config.json', config);
 const FOLDER_OK = w('folder-ok.json', [{ drive_folder_id: FOLDER_ID, path_label: '02 — Clients/Acme Co/Calls', verified_at: '2026-09-01T00:00:00Z' }]);
 const FOLDER_NONE = w('folder-none.json', []);
-const FOLDER_RAISED = w('folder-raised.json', { error: 'resolve_folder_address: NO REGISTERED ADDRESS for tenant=bryce channel=ai-integrator' });
+const FOLDER_RAISED = w('folder-raised.json', { error: 'resolve_folder_address: NO REGISTERED ADDRESS for tenant=example-tenant channel=example-channel' });
 const FOLDER_TWO = w('folder-two.json', [{ drive_folder_id: FOLDER_ID, path_label: 'a' }, { drive_folder_id: FOLDER_ID + 'x', path_label: 'b' }]);
 
 let n = 0;
@@ -134,8 +134,17 @@ try {
     mint.params[4] === FOLDER_ID && mint.params[5] === 'run_prove_1', JSON.stringify(mint.params));
   const uploader = path.join(HERE, 'upload-call-doc.js');
   check('H2g the upload runs the byte door beside this builder, on the settled file',
-    fs.existsSync(uploader) && (up.run || '').indexOf(uploader) >= 0 && (up.run || '').indexOf(c.json.finalPath) >= 0 &&
+    (up.run || '').indexOf(uploader) >= 0 && (up.run || '').indexOf(c.json.finalPath) >= 0 &&
     /\{\{TICKET\}\}/.test(up.run) && /\{\{DOOR_URL\}\}/.test(up.run), up.run);
+  /* H2g-file: upload-call-doc.js is bundled BESIDE the builder only in the PACKED plugin layout. An author's
+     source tree may keep it elsewhere (any folder under a personal-skills/ parent), so there the file check is
+     NOT RUN with its reason rather than a false red. Anywhere else a missing uploader is a real red. */
+  const MASTER_LAYOUT = /[\/\\]personal-skills[\/\\]/.test(HERE);
+  if (MASTER_LAYOUT && !fs.existsSync(uploader)) {
+    console.log('  - H2g-file NOT RUN — run from a source tree where upload-call-doc.js is not bundled beside the builder (it is in the packed plugin)');
+  } else {
+    check('H2g-file upload-call-doc.js exists beside this builder', fs.existsSync(uploader), uploader);
+  }
   check('H2h the last step reads the row back by doc_id', /FROM call_doc/.test(proveStep.sql || '') &&
     Array.isArray(proveStep.params) && proveStep.params[1] === c.json.docId, JSON.stringify(proveStep));
   check('H2i no step routes the HTML through the storage connector create call',

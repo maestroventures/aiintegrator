@@ -18,7 +18,16 @@ function check(name, ok, got) { console.log((ok ? '  ✓ ' : '  ✗ ') + name + 
 const cfg = { prospect: 'Pat Doe', company: 'Acme Co', domain: 'acme.com', leadId: 'lead_abc', crmName: 'Close' };
 const bare = { sections: [{ id: 's1', label: 'Status', words: ['x'] }] };
 const h1 = buildLinksHtml(bare, cfg);
-check('1a no authored links -> CRM record chip from leadId', /app\.close\.com\/lead\/lead_abc\//.test(h1), h1);
+/* 1a — operator ruling 2026-09-17: a guide NEVER links a person into a tool. This went red the day it
+   was written (the builder had just shipped a CRM chip) and it is the check that keeps it out. */
+check('1a no tool/CRM record link anywhere in the Links row', !/close\.com|leadId|lead_abc/.test(h1), h1);
+const hMail = buildLinksHtml({ links: { person: { name: 'Pat Doe', email: 'pat@acme.com' } }, sections: bare.sections }, cfg);
+check('1c the person is reachable by their own email instead', /href="mailto:pat@acme\.com"/.test(hMail), hMail);
+/* 1d — operator ruling 2026-09-17: "We want email addresses. We want domain names. Here are their links so
+   that we don't have to go into the command center if we don't have to." The reachable facts are
+   ON the guide, so nothing has to be opened to find them. */
+const hCfg = buildLinksHtml(bare, Object.assign({}, cfg, { email: 'pat@acme.com' }));
+check('1d the email from config reaches the guide with no authored links', /href="mailto:pat@acme\.com"/.test(hCfg) && /acme\.com"/.test(hCfg), hCfg);
 check('1b no authored links -> company site from domain', /href="https:\/\/acme\.com"/.test(h1), h1);
 
 const h2 = buildLinksHtml(bare, Object.assign({}, cfg, { domain: 'gmail.com' }));
@@ -39,6 +48,24 @@ try { board = B.buildLiveBoardHtml(Object.assign({ aspects: { items: [] } }, g3)
 catch (e) { board = 'THREW: ' + e.message; }
 check('5a live board renders the card chip', board.includes('cgb-docs') && board.includes('https://example.com/map'), board.slice(0, 200));
 check('5b live board Links row is not the empty-state sentence', !board.includes('No links captured on this guide'), board.slice(0, 200));
+
+/* 6 — added 2026-09-17: a Quick-access tab from the words library can carry a **LINK:**,
+   and it lands on the tab card AND in the Links drawer, on every guide built from that library. */
+const md = [
+  '**TITLE:**', 'Quick-access', '', '**HOW TO USE:**', 'Lead line, then stop.', '', '---', '',
+  '## <a id="asp-pic"></a>◆ The picture — 45 seconds', '', '**LEAD:**', 'Let me show you one picture.', '',
+  '**LINK:**', 'Company AIOS picture | https://example.com/picture | SHARE · click the three tabs', '',
+  '**STOP:**', 'Ask which one looks like them.'
+].concat(['asp-bg', 'asp-ai', 'asp-vr', 'asp-diff'].reduce(function (acc, id) {
+  return acc.concat(['', '---', '', '## <a id="' + id + '"></a>◆ ' + id, '', '**LEAD:**', 'x']);
+}, [])).join('\n');
+const g6 = { aspectsMarkdown: md, sections: [{ id: 's1', label: 'Status', words: ['x'] }] };
+const d6 = buildLinksHtml(g6, cfg);
+check('6a aspect LINK lands in the Links drawer', d6.includes('https://example.com/picture') && d6.includes('The picture'), d6);
+let b6 = '';
+try { b6 = B.buildLiveBoardHtml(g6, Object.assign({ guideId: 'p', eventId: 'e', meetingDate: '20260917' }, cfg)).html; }
+catch (e) { b6 = 'THREW: ' + e.message; }
+check('6b aspect LINK renders on the tab card', /id="c-ref-asp-pic"[\s\S]*?cgb-docs[\s\S]*?example\.com\/picture/.test(b6), b6.slice(0, 300));
 
 console.log(fail ? '\nRED — ' + fail + ' check(s) failed' : '\nGREEN — all link checks pass');
 process.exit(fail ? 1 : 0);
