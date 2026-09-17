@@ -186,6 +186,7 @@ them in the config. `meetingDate` must equal the `YYYYMMDD` slot in the filename
 ```
 node "<skill-folder>/build-call-guide.js" --print-gate-sql --tenant <tenant>
 ```
+   It prints the SELECT (it writes nothing). Run it, save the rows to `gate.json`.
    ⚠ **IT REFUSES ON FEWER THAN FOUR ROWS, and that is Step 3.5's own rule made mechanical**
    ("If the query returns NULL or fewer than four aspects, STOP. Do not build."). A short gate
    set and a clean one read identically, which is why the count is checked and not just the
@@ -214,7 +215,30 @@ node "<skill-folder>/register-call-doc.js" --settle "<planPath>" --result "<resu
    feature, not a failure to work around. Fix what the reason says and build again.
 
    **Never skip (c) and rename the file yourself.** The rename IS the proof that the row landed.
-3. **Save the finished `out.html` into the client folder**, named by the meeting so it links cleanly:
+
+   **(d) ON A CLOUD SEAT — no local folder to save into. (Added 2026-09-17.)** Build with
+   `--cloud`, and resolve the Calls folder FIRST, because the upload ticket only accepts a
+   REGISTERED Calls folder and a row that can never be filed must never be written:
+```
+node "<skill-folder>/build-call-guide.js" --print-folder-sql --channel <channel> --company <Company> [--partner <Partner>]
+```
+   Run that `sql` with its `params` through the board connector and save the rows to `folder.json`.
+   If the resolver RAISES, save `{"error": "<its message>"}` instead — that is an answer. Then:
+```
+node "<skill-folder>/build-call-guide.js" guide.json config.json out.html --gate gate.json --cloud --folder folder.json --run-id <run or session id>
+```
+   - **`hosted.status: "ready"`** → stdout `hosted.steps` is every remaining move, in order:
+     register → settle → mint one upload ticket → upload the BYTES with `upload-call-doc.js` →
+     read the row → confirm the hosted half → read it back. Each step is `sql`+`params` or a
+     command; fill each `{{PLACEHOLDER}}` from the step `hosted.placeholders` names. Run all
+     seven in the same fire — stopping between them leaves an INCOMPLETE document.
+   - **`hosted.status: "folder_address_unresolved"`, exit 4** → nothing was registered and nothing
+     was written. Never guess a folder and never search for one by name. Raise `hosted.marker`.
+   - **Do NOT paste the HTML into the storage connector's create call.** Measured: it re-rendered
+     ten `\u` escapes (91,713 bytes in, 91,680 out), failed past ~40KB, and is Ask-first, which an
+     unattended run cannot answer. The byte door checks the sha256 and Drive's reported size.
+   - Step 4.5's pointer then takes `"localPath": null` and the `file_id` / `view_url` from step 4.
+3. **Save the finished `out.html` into the client folder** (desktop build; a cloud build is filed by (d) and skips this), named by the meeting so it links cleanly:
 ```
 <clients-root>/<ClientName>/<ProspectCompany>/<YYYYMMDD>_callguide_<person>_<calendar-invite-name>.html
 ```
