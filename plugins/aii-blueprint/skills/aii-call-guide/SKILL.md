@@ -243,11 +243,12 @@ After the guide HTML is saved, write **one tiny pointer file** to the file store
     "fileId": "<file-store id of the saved guide>",
     "fileTitle": "<the saved .html filename>",
     "viewUrl": "<the guide's file-store view URL>",
-    "localPath": "<the ABSOLUTE local filesystem path where you saved the guide .html — e.g. /Users/<user>/.../Calls/<file>.html>",
+    "localPath": "<the ABSOLUTE local filesystem path where you saved the guide .html — e.g. /Users/<user>/.../Calls/<file>.html — or null for a guide filed from the cloud>",
     "createdAt": "<ISO timestamp>"
   }
   ```
 - **`localPath` is what makes the guide open as a real page, not code.** A file store shows raw HTML *source* for an `.html` file, so the modal can't open the file-store URL on a call. Instead it opens `file://<localPath>` — a rendered browser tab the user can park behind their camera. Record the exact path you wrote the file to (the path your file tool used). Do **not** hardcode anyone's home folder in the skill: each machine writes its own `localPath`, so it's automatically correct for whoever runs that instance. If you only have the file-store URL and no local path, still write the pointer — the modal falls back to the file-store URL.
+- **`localPath` may be `null`.** A guide built and filed in the cloud has no path on any machine: it was registered with `localPath` null and filed through `upload-call-doc.js`, which returned its `fileId` and `viewUrl`. Write `"localPath": null` — never an empty string, and never a made-up path — and fill `fileId` and `viewUrl` from what the upload returned. The modal falls back to the file-store copy, exactly as above.
 - **One writer rule:** you (the skill) are the only thing that writes pointers. The button and the scheduled sweep both reach the guide through you, so both get the pointer for free.
 - **Some file stores can't overwrite** — that's why it's one file per guide, not one master index. On a **regenerate** (Step 5), the eventId/date+domain are the same, so the pointer filename is the same; if a write collides, that's fine — the old pointer already points at the same meeting. (You may delete the stale pointer first if the fileId changed.)
 

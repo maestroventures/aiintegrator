@@ -1789,9 +1789,53 @@ function regenerate(readPlan, rowsIn, opts) {
   };
 }
 
+/* ── FILING MODE — added 2026-09-17 (card
+   neon_auto_guide_debrief_sweep_builds_to_a_disk_no_client_has_20260916). ────────────────
+   DISK (the default, no flag, AII_FILING unset/'' or 'disk'): exactly what this builder did
+   before — the plan registers the ABSOLUTE output path, and nothing it prints changes.
+   CLOUD (--cloud, or AII_FILING=cloud): the document is built on a container disk that no
+   one will ever open, so the plan registers local_path NULL with a STATED hosted gap, and
+   stdout carries `settledPath` — the file to hand to upload-call-doc.js after --settle.
+   Writing the container path into local_path would be the made-up operator path the cloud
+   filing design exists to retire.
+   REFUSES (before a byte is rendered): an AII_FILING value that is neither 'cloud' nor
+   'disk' (a typo must never quietly become disk), AII_FILING=disk together with --cloud,
+   and --run-id without cloud mode. --run-id <id> appends "(<id>)" to the gap so a stranded
+   row names the run that left it. */
+const FILING_ENV = 'AII_FILING';
+const CLOUD_HOSTED_GAP = 'no local copy - filing pending';
+function filingMode(argv, env) {
+  let cloud = false, runId = null;
+  const ci = argv.indexOf('--cloud');
+  if (ci >= 0) { cloud = true; argv.splice(ci, 1); }
+  const ri = argv.indexOf('--run-id');
+  if (ri >= 0) {
+    runId = argv[ri + 1] || null;
+    argv.splice(ri, runId ? 2 : 1);
+    if (!runId || !/^[A-Za-z0-9_.:-]{1,120}$/.test(runId)) {
+      throw new Error('FILING MODE REFUSED - --run-id needs a plain identifier. Nothing was built.');
+    }
+  }
+  const ev = env && env[FILING_ENV] != null ? String(env[FILING_ENV]) : '';
+  if (ev !== '' && ev !== 'cloud' && ev !== 'disk') {
+    throw new Error('FILING MODE REFUSED - ' + FILING_ENV + '=' + JSON.stringify(ev) +
+      ' is neither "cloud" nor "disk". Nothing was built: a misspelt mode must not quietly become disk.');
+  }
+  if (ev === 'disk' && cloud) {
+    throw new Error('FILING MODE REFUSED - ' + FILING_ENV + '=disk and --cloud disagree. Nothing was built.');
+  }
+  if (ev === 'cloud') cloud = true;
+  if (runId && !cloud) {
+    throw new Error('FILING MODE REFUSED - --run-id only means something in cloud mode. Nothing was built.');
+  }
+  return { cloud, hostedGap: cloud ? CLOUD_HOSTED_GAP + (runId ? ' (' + runId + ')' : '') : null };
+}
+
 /* ── CLI ── */
 async function main() {
   const argv = process.argv.slice(2);
+  /* FILING MODE is lifted out FIRST, like --gate below, so the positionals never shift. */
+  const filing = filingMode(argv, process.env);
 
   /* REGENERATION — two doors, both pure until the very last write. See the block above. */
   if (argv[0] === '--regen-plan') {
@@ -1799,6 +1843,10 @@ async function main() {
     return;
   }
   if (argv[0] === '--regen') {
+    if (filing.cloud) {
+      throw new Error('FILING MODE REFUSED - --regen has no cloud mode yet: it re-renders onto the stored '
+        + 'local path, and a cloud-filed row has none. Nothing was built.');
+    }
     const ri = argv.indexOf('--rows');
     const wi = argv.indexOf('--workspace-root');
     if (!argv[1] || ri < 0 || !argv[ri + 1]) {
@@ -1879,8 +1927,11 @@ async function main() {
     domain:        config.domain || String(config.email || '').split('@')[1] || '',
     callRef:       config.callRef || null,
     // The hosted half is a STATED gap, never a blank: this builder writes the local copy only.
+    // CLOUD MODE (2026-09-17): no operator path at all, and the gap says filing is pending.
+    ...(filing.cloud ? { localPath: null } : {}),
     fileId: '', viewUrl: '',
-    hostedGap: 'builder writes the local copy only — no Drive upload happens at build time',
+    hostedGap: filing.cloud ? filing.hostedGap
+      : 'builder writes the local copy only — no Drive upload happens at build time',
     /* ── KEPT STATE. Added 2026-08-07 (S5). ─────────────────────────────────────────
        THE GUIDE JSON GOES WITH THE REGISTRATION — same plan, same statement, same
        transaction. Before this, every guide this builder produced was born
@@ -1935,11 +1986,25 @@ async function main() {
   console.error('       --result "' + absOut + '.result.json"');
   console.error('');
   console.error('If the row is refused, --settle DELETES the quarantine file. That is the feature.');
+  if (filing.cloud) {
+    console.error('');
+    console.error('CLOUD MODE — registered with NO local path. After --settle:');
+    console.error('  3. node upload-call-doc.js --hash "' + plan.finalPath + '"   (skill folder)');
+    console.error('  4. mint ONE ticket with call_doc_upload_ticket_mint, then --upload that same file');
+    console.error('  5. register-call-doc.js --confirm with the {fileId, viewUrl} the door returned');
+  }
 
-  /* stdout is the machine-readable half, so a session never has to parse the prose above. */
-  console.log(JSON.stringify({ status: 'planned', planPath, resultPath: absOut + '.result.json',
-                               quarantinePath: plan.quarantinePath, finalPath: plan.finalPath,
-                               docId: plan.docId, sql: plan.sql, params: plan.params }, null, 2));
+  /* stdout is the machine-readable half, so a session never has to parse the prose above.
+     Cloud mode ADDS three keys; a disk build prints exactly what it printed before. */
+  const out = { status: 'planned', planPath, resultPath: absOut + '.result.json',
+                quarantinePath: plan.quarantinePath, finalPath: plan.finalPath,
+                docId: plan.docId, sql: plan.sql, params: plan.params };
+  if (filing.cloud) {
+    out.filing = 'cloud';
+    out.hostedGap = filing.hostedGap;
+    out.settledPath = plan.finalPath;   // the file upload-call-doc.js --hash / --upload takes
+  }
+  console.log(JSON.stringify(out, null, 2));
 }
 
 if (require.main === module) {
@@ -1952,4 +2017,5 @@ module.exports = { buildStandaloneHtml, buildSectionsHtml, buildLiveBoardHtml, c
                       error waiting to happen — and the first version of this proof correctly
                       refused to run and exited 3 rather than reporting a pass over nothing. */
                    __gates: { crmRecordGate, MIN_NO_LEAD_REASON },
-                   __links: { buildLinksHtml, cgDocsBar } };
+                   __links: { buildLinksHtml, cgDocsBar },
+                   filingMode, CLOUD_HOSTED_GAP };

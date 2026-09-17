@@ -136,6 +136,24 @@
  *
  * There is no flag that opens a database, on purpose.
  *
+ * CLOUD MODE — localPath: null. Added 2026-09-17 (card
+ * neon_auto_guide_debrief_sweep_builds_to_a_disk_no_client_has_20260916).
+ *   A document built in a cloud container has NO operator path. Writing a made-up Mac path to
+ *   satisfy a CHECK was the lie body v17 of auto-guide-debrief-sweep had to tell. So:
+ *     - localPath === null (exactly null — never '', never absent) means "no operator path".
+ *       The two path checks (absolute, ends with the title) are SKIPPED; they still hold for
+ *       every non-null path.
+ *     - fileTitle is then required, or derived from the basename of the settled file.
+ *     - a PLAN in cloud mode must STATE hostedGap (e.g. 'cloud filing pending (<run_id>)'):
+ *       the row exists before the file is filed, and it has to say so.
+ *     - a CONFIRM on a row whose local_path is NULL is legal: the hosted pair is then the only
+ *       copy, which is exactly what cloud filing produces.
+ *     - the STATEMENT refuses (a row, not a raise) when local_path is null and this company's
+ *       call_doc.local_path is still NOT NULL — i.e. 20260917-call-doc-cloud-filing.sql has
+ *       not run here. A raise would strand the quarantine file; a refusal row destroys it.
+ *   A disk plan (localPath absent -> defaults to the final path, or a real absolute path) is
+ *   byte-for-byte the plan it was before.
+ *
  * TENANT: resolved from AIOS_TENANT, else 'bryce'. Never hardcode a tenant in a caller.
  */
 'use strict';
@@ -199,14 +217,22 @@ function validateShape(f) {
   reqStr(f.kind, 'kind', errs);
   reqStr(f.builtBy, 'builtBy', errs);
   reqStr(f.eventIdSource, 'eventIdSource', errs);
-  reqStr(f.localPath, 'localPath', errs);
+  /* CLOUD MODE (2026-09-17). Only an EXPLICIT null means "no operator path". An empty string
+     or a missing key is still refused here, because '' and "forgot" must never read as the
+     deliberate cloud case — the same NULL-vs-blank rule the hosted half below lives by. */
+  const cloud = f.localPath === null;
+  if (!cloud) reqStr(f.localPath, 'localPath', errs);
 
   if (!/^\d{8}$/.test(String(f.meetingDate || ''))) {
     errs.push('meetingDate must be exactly YYYYMMDD (call_doc_date_ck)');
   }
 
   const fileTitle = f.fileTitle || (f.localPath ? path.basename(f.localPath) : '');
-  if (!fileTitle) errs.push('fileTitle could not be derived — pass localPath or fileTitle');
+  if (!fileTitle) {
+    errs.push(cloud
+      ? 'fileTitle is required when localPath is null (cloud mode) — there is no path to derive it from'
+      : 'fileTitle could not be derived — pass localPath or fileTitle');
+  }
 
   if (f.localPath && !String(f.localPath).startsWith('/')) {
     errs.push('localPath must be ABSOLUTE (call_doc_local_path_ck). LOCAL IS TRUTH — a relative ' +
@@ -413,8 +439,25 @@ kept_gap AS (
            CASE WHEN jsonb_typeof((SELECT guide_json FROM in_f) -> 'sections') = 'array'
                 THEN (SELECT guide_json FROM in_f) -> 'sections' END), 0) = 0
 ),
+/* ── CLOUD-FILING GAP. Added 2026-09-17. ──────────────────────────────────────────
+   A NULL local_path is legal only after the company-database migration
+   20260917-call-doc-cloud-filing.sql has made the column nullable. Before it, the INSERT
+   would RAISE on NOT NULL, the caller would get an error instead of an outcome row, settle
+   would never run and the quarantine file would sit on disk forever. So the statement looks
+   first and refuses as a ROW, naming the migration. A disk plan never trips this. */
+path_gap AS (
+  SELECT 'CLOUD FILING: local_path is NULL (a cloud-built document with no operator path) but '
+         || 'call_doc.local_path on this store is still NOT NULL. The company-database migration '
+         || '20260917-call-doc-cloud-filing.sql has not run here. REFUSING - never write a made-up '
+         || 'operator path to get past this.' AS reason
+   WHERE (SELECT local_path FROM in_f) IS NULL
+     AND EXISTS (SELECT 1 FROM information_schema.columns c
+                  WHERE c.table_name = 'call_doc' AND c.column_name = 'local_path'
+                    AND c.is_nullable = 'NO'
+                    AND c.table_schema = ANY (current_schemas(false)))
+),
 gap AS (SELECT reason FROM vocab_gap UNION ALL SELECT reason FROM cap_gap
-        UNION ALL SELECT reason FROM kept_gap),
+        UNION ALL SELECT reason FROM kept_gap UNION ALL SELECT reason FROM path_gap),
 ins AS (
   INSERT INTO call_doc (doc_id, tenant_id, event_id, kind, call_ref, meeting_date, person, domain,
                         channel, file_title, local_path, file_id, view_url, hosted_gap, built_by,
@@ -531,10 +574,26 @@ function planRegistration(finalFilePath, fields, opts = {}) {
   const f = Object.assign({ localPath: finalFilePath }, fields);
   if (f.kind === 'debrief' && opts.allowMissingCallRef) f.callRef = f.callRef || null;
 
+  /* CLOUD MODE (2026-09-17): no operator path. The title comes from the caller or from the
+     settled file's own name — never from a path that does not exist. */
+  const cloud = f.localPath === null;
+  if (cloud && !f.fileTitle && finalFilePath) f.fileTitle = path.basename(String(finalFilePath));
+
   const v = validateShape(f);
   let errs = v.errs;
   if (opts.allowMissingCallRef) {
     errs = errs.filter((e) => !e.startsWith('a DEBRIEF must carry callRef'));
+  }
+  if (cloud) {
+    if (!String(v.hostedGap).trim()) {
+      errs.push('cloud mode (localPath null) requires a STATED hostedGap, e.g. "cloud filing pending ' +
+        '(<run_id>)". The row is written before the file is filed; with no operator path and no ' +
+        'hosted copy yet, the gap sentence is the only honest thing the row can say.');
+    }
+    if (v.fileTitle && finalFilePath && path.basename(String(finalFilePath)) !== v.fileTitle) {
+      errs.push('cloud mode: the settled file name must equal fileTitle, or the file uploaded is not ' +
+        'the one registered: settled=' + path.basename(String(finalFilePath)) + ' title=' + v.fileTitle);
+    }
   }
   if (errs.length) {
     throw new Error('register-call-doc: refused before writing anything.\n  - ' + errs.join('\n  - '));
@@ -556,6 +615,9 @@ function planRegistration(finalFilePath, fields, opts = {}) {
       'to `register-call-doc.js --settle <plan.json> --result <result.json>`.',
     docId,
     tenant: TENANT,
+    /* Present ONLY in cloud mode (true = registered with NO operator path, local_path NULL);
+       settle() reads it. Absent on a disk plan so a disk plan.json stays byte-identical. */
+    ...(cloud ? { cloud: true } : {}),
     finalPath: finalFilePath,
     quarantinePath: quarantinePathFor(finalFilePath),
     /* settle() JUDGES this. A guide whose result comes back with no kept_state_id is a
@@ -565,7 +627,7 @@ function planRegistration(finalFilePath, fields, opts = {}) {
     sql: GUARDED_UPSERT,
     params: [
       docId, TENANT, f.eventId, f.kind, f.callRef || '', String(f.meetingDate),
-      f.person || '', f.domain || '', f.channel || 'call', v.fileTitle, f.localPath,
+      f.person || '', f.domain || '', f.channel || 'call', v.fileTitle, cloud ? null : f.localPath,
       v.fileId, v.viewUrl, v.hostedGap, f.builtBy, f.eventIdSource,
       guideJson, f.changeNote || null, requireKept,
       /* THE LEAD — added 2026-08-11. Deliberately NOT validated here: crmRecordGate in
@@ -625,6 +687,9 @@ function confirmHosted(row, hosted, opts = {}) {
   }
   for (const k of ['doc_id', 'event_id', 'kind', 'built_by', 'event_id_source', 'meeting_date',
                    'file_title', 'local_path']) {
+    // CLOUD MODE (2026-09-17): a NULL local_path is a real state of a cloud-filed row, not a
+    // partial read. Only an explicit null passes — undefined (key absent) and '' still refuse.
+    if (k === 'local_path' && row[k] === null) continue;
     if (typeof row[k] !== 'string' || !String(row[k]).trim()) {
       throw new Error('confirm-call-doc: refused — the row is missing "' + k + '". A confirm ' +
         'rebuilds the WHOLE row through the guarded statement, so a partial row would write ' +
@@ -800,6 +865,12 @@ function settleRegistration(plan, result, io) {
       '\nThe pointer now names a path that does not exist. Fix the filesystem and rename by ' +
       'hand, or re-run the builder — do NOT delete the row, that would hide the break.'
     );
+  }
+  /* local_path reports what was REGISTERED: null for a cloud plan, and then settled_path is
+     where the bytes now sit on THIS disk — the file a cloud run hands to upload-call-doc.js.
+     A disk settle returns exactly what it returned before. */
+  if (plan.cloud === true) {
+    return Object.assign({}, ok, { local_path: null, settled_path: plan.finalPath });
   }
   return Object.assign({}, ok, { local_path: plan.finalPath });
 }
@@ -1296,6 +1367,99 @@ function selfTest() {
         && /coalesce\(max\(s\.version\), 0\) \+ 1/.test(s);   // never a hardcoded 1
   });
 
+  /* ── CLOUD MODE — localPath null. Added 2026-09-17. ──────────────────────────────
+     N1/N2 are a matched pair one field apart: the same cloud plan with and without its
+     hostedGap. N4/N5 prove null is the ONLY spelling of "no path". N12 is the disk-mode
+     control: a plan with no localPath key is still the plan it was before today. */
+  const cloudFields = Object.assign({}, guideFields, {
+    localPath: null, hostedGap: 'cloud filing pending (run_test)', guideJson: goodGuide });
+  const cloudFinal = '/tmp/container/20260805_callguide_larry-golden_x.html';
+
+  chk('N1 a CLOUD guide plan (localPath null + hostedGap) is ACCEPTED and carries NULL local_path', () => {
+    const p = planRegistration(cloudFinal, cloudFields);
+    return p.cloud === true && p.params.length === 21 && p.params[10] === null
+        && p.params[9] === '20260805_callguide_larry-golden_x.html'
+        && p.params[13] === 'cloud filing pending (run_test)' && p.keptState === true;
+  });
+  chk('N2 RED — the identical cloud plan with NO hostedGap is refused', () => {
+    try { planRegistration(cloudFinal, Object.assign({}, cloudFields, { hostedGap: '' })); return false; }
+    catch (e) { return /cloud mode \(localPath null\) requires a STATED hostedGap/.test(e.message); }
+  });
+  chk('N3 RED — a cloud plan carrying a hosted pair instead of a gap is refused', () => {
+    try {
+      planRegistration(cloudFinal, Object.assign({}, cloudFields,
+        { hostedGap: '', fileId: '1abc', viewUrl: 'https://drive.google.com/file/d/1abc/view' }));
+      return false;
+    } catch (e) { return /requires a STATED hostedGap/.test(e.message); }
+  });
+  chk('N4 an EMPTY-STRING localPath is still refused — "" is not "no path"', () => {
+    const { errs } = validateShape(Object.assign({}, base, { localPath: '' }));
+    return errs.some((e) => /^localPath is required/.test(e));
+  });
+  chk('N5 a MISSING localPath key is still refused by validateShape — absent is not null', () => {
+    const noKey = Object.assign({}, base); delete noKey.localPath;
+    const { errs } = validateShape(noKey);
+    return errs.some((e) => /^localPath is required/.test(e));
+  });
+  chk('N6 RED — a cloud plan whose settled file name differs from fileTitle is refused', () => {
+    try {
+      planRegistration(cloudFinal, Object.assign({}, cloudFields,
+        { fileTitle: '20260805_callguide_someone-else_x.html' }));
+      return false;
+    } catch (e) { return /settled file name must equal fileTitle/.test(e.message); }
+  });
+  chk('N7 a cloud plan with no fileTitle derives it from the settled file, and the path checks are skipped', () => {
+    const { errs } = validateShape(Object.assign({}, cloudFields, { fileTitle: '20260805_callguide_larry-golden_x.html' }));
+    return errs.length === 0 && planRegistration('relative/20260805_callguide_larry-golden_x.html', cloudFields).params[10] === null;
+  });
+  chk('N8 cloud validateShape with NO fileTitle names the cloud reason', () => {
+    const { errs } = validateShape(Object.assign({}, cloudFields));
+    return errs.some((e) => /fileTitle is required when localPath is null/.test(e));
+  });
+  chk('N9 a cloud SETTLE promotes, reports local_path null and the settled path', () => {
+    const p = planRegistration(cloudFinal, cloudFields);
+    const [F, st] = fakeFs();
+    const out = settleRegistration(p, [Object.assign({}, okRow,
+      { doc_id: p.docId, kept_state_id: 'cgs_' + p.docId + '_v1', kept_version: 1 })], F);
+    return st.renamed.length === 1 && out.local_path === null && out.settled_path === cloudFinal;
+  });
+  chk('N10 a CONFIRM on a cloud row (local_path NULL) is ACCEPTED and keeps local_path NULL', () => {
+    const cloudRow = Object.assign({}, stagedRow, { local_path: null, hosted_gap: 'cloud filing pending (run_test)' });
+    const p = confirmHosted(cloudRow, realPair);
+    return p.params[10] === null && p.params[11] === '1abc' && p.params[13] === ''
+        && p.priorHostedGap === 'cloud filing pending (run_test)';
+  });
+  chk('N11 RED — a confirm row with local_path "" or ABSENT is still refused (only null is cloud)', () => {
+    let a = false, b = false;
+    try { confirmHosted(Object.assign({}, stagedRow, { local_path: '' }), realPair); } catch (_e) { a = true; }
+    const noKey = Object.assign({}, stagedRow); delete noKey.local_path;
+    try { confirmHosted(noKey, realPair); } catch (_e) { b = true; }
+    return a && b;
+  });
+  chk('N12 DISK CONTROL — a plan with no localPath key is unchanged: path in params, no cloud key, no settled_path', () => {
+    const p = gPlan({ guideJson: goodGuide });
+    const [F] = fakeFs();
+    const out = settleRegistration(p, [Object.assign({}, okRow,
+      { doc_id: p.docId, kept_state_id: 'cgs_x', kept_version: 1 })], F);
+    return p.cloud === undefined && !('cloud' in p) && out.settled_path === undefined
+        && p.params[10] === '/q/20260805_callguide_larry-golden_x.html'
+        && out.local_path === '/q/20260805_callguide_larry-golden_x.html';
+  });
+  chk('N13 a cloud DEBRIEF with a transcript id is ACCEPTED', () => {
+    const p = planRegistration('/tmp/container/20260805_debrief_larry-golden_x.html', {
+      eventId: '4p9e9u82qq2au5hl31o7tsq21d', kind: 'debrief', builtBy: 'call-debrief',
+      eventIdSource: 'build', meetingDate: '20260805', callRef: 'ff_abc',
+      localPath: null, hostedGap: 'cloud filing pending (run_test)' });
+    return p.cloud === true && p.params[10] === null && p.keptState === false;
+  });
+  chk('N14 the STATEMENT refuses a NULL local_path on an unmigrated store as a ROW, in the gap union', () => {
+    const s = GUARDED_UPSERT;
+    return /path_gap AS \(/.test(s)
+        && /WHERE \(SELECT local_path FROM in_f\) IS NULL/.test(s)
+        && /c\.is_nullable = 'NO'/.test(s)
+        && /UNION ALL SELECT reason FROM path_gap\)/.test(s);
+  });
+
   console.log(`\n  ${pass} passed, ${fail} failed`);
   console.log('  This proves the SHAPE refusals and every SETTLE outcome, offline.');
   console.log('  The VOCABULARY and CAPABILITY refusals live in the SQL now, not in this');
@@ -1377,6 +1541,8 @@ if (require.main === module) {
       'usage: register-call-doc.js\n' +
       '  --self-test                              prove the offline refusals, write nothing\n' +
       '  --plan <finalPath> <fields.json>         emit the plan (sql + params + quarantinePath)\n' +
+      '                                           fields.localPath null = cloud mode: no operator\n' +
+      '                                           path, hostedGap required (see header)\n' +
       '  --settle <plan.json> --result <res.json> promote or destroy the built file\n' +
       '  --confirm <row.json> <hosted.json>       emit a HOSTED-HALF confirmation plan\n' +
       '                                           (row.json = the existing call_doc row;\n' +

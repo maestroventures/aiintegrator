@@ -348,6 +348,21 @@ each question from the store. **Sort:**
 - **Missing** — not answered. Fix = ask the owner that one question (Step 3), never answer it for them.
 - **Unreadable** — the store holds no questions or no recommendations to compare with.
 
+### Step 2j — Keep a record of what you told them, and say what is still due *(added 2026-09-17)*
+
+Telling someone once and forgetting you told them means telling them again every session, or never again.
+*(Ruled `dr_setup_check_records_what_it_told_20260917`.)*
+
+- **Record every "not right" reading from Steps 2g–2i** through the store's told door (`setup_check_reading_told_put`),
+  using the recorder in `setup-check-told.js`: one record per thing, with what was expected and what was found. A
+  repeat of the same thing counts up; a newer version of the thing starts the count again. If a reading cannot be
+  recorded, say why once.
+- **If they say "remind me later"**, record that reply on the same record. It stops the automatic check from raising
+  it, and it still shows when they ask for the check themselves.
+- **Say what is still due in plain words.** Read the due list and show each line through `dueLine()`: the question's own
+  wording and the choice's label, never an internal name (no `wall_icp`, no `everyone`).
+- **Still never change a setting.** Recording what you told them is not fixing it; the person makes the change.
+
 ---
 
 ## Step 3 — Offer: one plain fix at a time, user says yes or skip
@@ -438,6 +453,8 @@ reconnect, remove, or install anything on its own, even when the right fix looks
 is the user's yes.
 
 ---
+
+*v1.10 — 2026-09-17. New **Step 2j**: record every not-right reading from 2g–2i through the told door, offer remind-me-later, and show what is still due in plain words through `dueLine()`; still never change a setting. Approved by pop-up (`dr_setup_check_records_what_it_told_20260917`). Additive wording only.*
 
 *v1.9 — 2026-09-16. New **Steps 2g–2i**: the plugin version, the instructions box, and who can see what — three more inventories with one bucket each, the same ask-if-present / unknown-if-not / never-change-a-setting rules, and "nothing to compare against is not a pass". Approved by pop-up (`dr_setup_check_reads_plugin_box_privileges_20260916`). Additive wording only; Steps 2–2f untouched.*
 
