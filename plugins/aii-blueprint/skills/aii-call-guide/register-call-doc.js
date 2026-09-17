@@ -1468,13 +1468,156 @@ function selfTest() {
   return fail === 0;
 }
 
+/* ── HOSTED HANDOFF — added 2026-09-17 (card
+   neon_cloud_seats_claim_the_guide_and_debrief_sweep_by_ruled_drive_reach_but_the_builder_can_only_write_local_files_20260917).
+   ──────────────────────────────────────────────────────────────────────────────────────
+   Cloud mode (--cloud) already registered a row with NO operator path and printed three
+   prose lines about what to do next. Two things were still missing, and together they are
+   why a cloud executor with no local folder built nothing and left file_id empty:
+     1. NOTHING MACHINE-READABLE SAID WHAT TO DO AFTER --settle. The ticket mint, the upload,
+        the confirm and the read-back lived in stderr prose, so an unattended run had to
+        re-derive them — and re-derived "paste it into the storage connector" instead.
+     2. THE FOLDER WAS NOT KNOWN UNTIL AFTER THE ROW EXISTED. The ticket needs a REGISTERED
+        Calls folder id. A company with no registered folder got a call_doc row whose hosted
+        half could never be filled: a stranded row that reads "filing pending" forever.
+   So the folder is resolved FIRST, by the session, through resolve_folder_address — this
+   file never guesses one and never takes a folder from a name — and the builder turns the
+   answer into one of two handoffs:
+     ready                      → every remaining step as {sql, params} or a command, with
+                                  named {{PLACEHOLDERS}} and the step whose result fills each.
+     folder_address_unresolved  → nothing is registered and nothing is written.
+
+   ⛔ THE UPLOAD IS THE BYTE DOOR (upload-call-doc.js → /api/cc/call-doc-file), NOT THE STORAGE
+   CONNECTOR'S create CALL. Measured, not preferred: that call re-rendered ten \u escapes
+   (91,713 bytes in, 91,680 out, 2026-08-31), failed outright past ~40KB (2026-09-09), and is
+   Ask-first, which an unattended run cannot answer (2026-09-17 07:27, died-in-gate). The door
+   takes the container's BYTES, checks them against the sha256 minted here, and checks Drive's
+   reported size after upload. */
+const FOLDER_SQL = 'SELECT drive_folder_id, path_label, verified_at\n' +
+  '  FROM resolve_folder_address($1, $2, $3, $4, $5)';
+const MINT_SQL = 'SELECT ticket, expires_at, door_url, file_title, drive_folder_id\n' +
+  '  FROM call_doc_upload_ticket_mint($1, $2, $3, $4, $5, $6)';
+const READBACK_SQL = 'SELECT doc_id, file_title, local_path, file_id, view_url, hosted_gap\n' +
+  '  FROM call_doc WHERE tenant_id = $1 AND doc_id = $2';
+const HOSTED_EXIT_UNRESOLVED = 4;
+
+function folderSql(o) {
+  const q = o || {};
+  const channel = String(q.channel == null ? '' : q.channel).trim();
+  const company = String(q.company == null ? '' : q.company).trim();
+  const partner = q.partner == null || String(q.partner).trim() === '' ? null : String(q.partner).trim();
+  if (!channel || !company) {
+    throw new Error('folder-sql: refused — --channel and --company are both required. The channel ' +
+      'is read off the matched CRM record\'s source channel, never guessed from the company name.');
+  }
+  return {
+    _what_this_is: 'Run `sql` with `params` through the board connector. Save the FULL rows to a ' +
+      'file and pass it to the builder with --folder. If the resolver RAISES, save ' +
+      '{"error": "<the message>"} to that file instead — that is an answer, not a failure.',
+    sql: FOLDER_SQL,
+    params: [TENANT, channel, company, 'calls', partner],
+  };
+}
+
+/* Reads what the session saved from FOLDER_SQL. Exactly one row with a plain Drive id is
+   resolved; everything else is unresolved WITH A NAMED REASON. Never picks one of several. */
+function readFolderAddress(raw) {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw) &&
+      (raw.error || raw.ok === false) && !Array.isArray(raw.rows)) {
+    return { resolved: false, reason: 'resolver raised: ' + String(raw.error || 'ok=false').slice(0, 400) };
+  }
+  const rows = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.rows) ? raw.rows : null);
+  if (!rows) return { resolved: false, reason: 'folder file carries no rows — a resolver that returned nothing was never asked' };
+  if (rows.length === 0) return { resolved: false, reason: 'no registered Calls folder (0 rows)' };
+  if (rows.length > 1) return { resolved: false, reason: 'ambiguous: ' + rows.length + ' rows — pass the partner; never pick one' };
+  const id = rows[0] && rows[0].drive_folder_id != null ? String(rows[0].drive_folder_id).trim() : '';
+  if (!/^[A-Za-z0-9_-]{10,}$/.test(id)) {
+    return { resolved: false, reason: 'the one row carries no usable drive_folder_id (got ' + JSON.stringify(id) + ')' };
+  }
+  return { resolved: true, driveFolderId: id, pathLabel: rows[0].path_label == null ? '' : String(rows[0].path_label) };
+}
+
+/* plan    the cloud registration plan (planRegistration with localPath null)
+   bytes   the EXACT Buffer written to the quarantine file — the hash is of what ships
+   folder  readFolderAddress() output
+   o       { planPath, resultPath, runId, company, skillDir } */
+function hostedHandoff(plan, bytes, folder, o) {
+  const opt = o || {};
+  if (!plan || plan.cloud !== true) {
+    throw new Error('hosted-handoff: refused — only a CLOUD plan (localPath null) has a hosted handoff.');
+  }
+  if (!Buffer.isBuffer(bytes) || !bytes.length) {
+    throw new Error('hosted-handoff: refused — needs the exact bytes that were written.');
+  }
+  const fileName = plan.params[9];
+  const kind = plan.params[3];
+  const eventId = plan.params[2];
+  if (!folder || !folder.resolved) {
+    return {
+      status: 'folder_address_unresolved',
+      registered: false,
+      written: false,
+      docId: plan.docId,
+      fileName,
+      reason: folder && folder.reason ? folder.reason : 'no folder answer was given',
+      marker: '⚑ NEEDS YOU — No registered Calls folder: ' + (opt.company || '(company unknown)') +
+        ' — ' + kind + ' authored, NOT registered and NOT filed. Register the folder by ID-descent, then rebuild.',
+    };
+  }
+  const sha256 = require('crypto').createHash('sha256').update(bytes).digest('hex');
+  const dir = opt.skillDir || __dirname;
+  const q = (s) => '"' + String(s).replace(/(["\\$`])/g, '\\$1') + '"';
+  const upload = path.join(dir, 'upload-call-doc.js');
+  const registrar = path.join(dir, 'register-call-doc.js');
+  const by = opt.runId || '{{RUN_OR_SESSION_ID}}';
+  return {
+    status: 'ready',
+    route: 'byte-door',
+    docId: plan.docId,
+    fileName,
+    bytes: bytes.length,
+    sha256,
+    folder: { driveFolderId: folder.driveFolderId, pathLabel: folder.pathLabel },
+    notThrough: 'the storage connector create call — measured mangling bytes, failing past ~40KB, and Ask-first',
+    placeholders: {
+      '{{RUN_OR_SESSION_ID}}': opt.runId ? 'filled: --run-id' : 'your job_run id, or this session id',
+      '{{TICKET}}': 'step 3 result: ticket',
+      '{{DOOR_URL}}': 'step 3 result: door_url',
+      '{{FILE_ID}}': 'step 4 result: file_id',
+      '{{VIEW_URL}}': 'step 4 result: view_url',
+    },
+    steps: [
+      { n: 1, do: 'register', via: 'board connector', sql: plan.sql, params: plan.params,
+        save: opt.resultPath, expect: "one row, outcome='registered'" },
+      { n: 2, do: 'settle', run: 'node ' + q(registrar) + ' --settle ' + q(opt.planPath) + ' --result ' + q(opt.resultPath),
+        expect: 'exit 0; the file now has its real name: ' + plan.finalPath },
+      { n: 3, do: 'mint one upload ticket', via: 'board connector', sql: MINT_SQL,
+        params: [TENANT, plan.docId, sha256, bytes.length, folder.driveFolderId, by],
+        expect: 'one row: ticket, door_url (15 minutes, one use)' },
+      { n: 4, do: 'upload the bytes', run: 'node ' + q(upload) + ' --upload ' + q(plan.finalPath) +
+        ' --ticket {{TICKET}} --door {{DOOR_URL}}',
+        expect: 'exit 0 and {file_id, view_url}. Exit 3 (lost response): run --status with the same ticket; never upload twice.' },
+      { n: 5, do: 'read the row back', via: 'board connector', sql: LOOKUP, params: [TENANT, eventId, kind],
+        save: 'row.json (the one row, whole)' },
+      { n: 6, do: 'plan the hosted half', run: 'node ' + q(registrar) + ' --confirm row.json ' +
+        "'{\"fileId\":\"{{FILE_ID}}\",\"viewUrl\":\"{{VIEW_URL}}\"}'",
+        then: 'run its sql with its params through the board connector, save the FULL result, then ' +
+          'node ' + q(registrar) + ' --confirm-settle <confirm-plan.json> --result <confirm-result.json>' },
+      { n: 7, do: 'prove it', via: 'board connector', sql: READBACK_SQL, params: [TENANT, plan.docId],
+        expect: "file_id = {{FILE_ID}}, view_url = {{VIEW_URL}}, hosted_gap = ''. Anything else is INCOMPLETE, not built." },
+    ],
+  };
+}
+
 module.exports = { planRegistration, settleRegistration, quarantinePathFor, lookupSql,
                    confirmHosted, confirmSettle, cleanupSettleScratch,
                    validateShape, deriveDocId, GUARDED_UPSERT,
                    /* TENANT is exported so a caller never types 'bryce' a second time.
                       A tenant literal in a second file is the drift this module refuses
                       everywhere else; build-call-guide.js --regen reads it from here. */
-                   TENANT };
+                   TENANT,
+                   /* HOSTED HANDOFF (2026-09-17) — see the block above module.exports. */
+                   folderSql, readFolderAddress, hostedHandoff, HOSTED_EXIT_UNRESOLVED };
 
 if (require.main === module) {
   const argv = process.argv.slice(2);
@@ -1532,6 +1675,14 @@ if (require.main === module) {
       process.exit(0);
     }
 
+    if (cmd === '--folder-sql') {
+      // --folder-sql --channel <c> --company <x> [--partner <p>]
+      const val = (n) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : null; };
+      console.log(JSON.stringify(folderSql({ channel: val('--channel'), company: val('--company'),
+        partner: val('--partner') }), null, 2));
+      process.exit(0);
+    }
+
     if (cmd === '--lookup-sql') {
       console.log(JSON.stringify(lookupSql(argv[1], argv[2]), null, 2));
       process.exit(0);
@@ -1550,6 +1701,8 @@ if (require.main === module) {
       '  --confirm-settle <plan.json> --result <res.json>\n' +
       '                                           judge a confirmation. Touches no file.\n' +
       '  --lookup-sql <eventId> [kind]            emit the read SQL\n' +
+      '  --folder-sql --channel <c> --company <x> [--partner <p>]\n' +
+      '                                           emit the Calls-folder read a cloud build needs\n' +
       '\nThere is no flag that opens a database. The session is the wire: run plan.sql through\n' +
       'the board connector, resolved BY CATEGORY (Core §11 rule 4), and hand the result back.'
     );

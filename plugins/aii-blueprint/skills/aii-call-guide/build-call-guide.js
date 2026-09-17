@@ -1828,14 +1828,91 @@ function filingMode(argv, env) {
   if (runId && !cloud) {
     throw new Error('FILING MODE REFUSED - --run-id only means something in cloud mode. Nothing was built.');
   }
-  return { cloud, hostedGap: cloud ? CLOUD_HOSTED_GAP + (runId ? ' (' + runId + ')' : '') : null };
+  return { cloud, runId, hostedGap: cloud ? CLOUD_HOSTED_GAP + (runId ? ' (' + runId + ')' : '') : null };
+}
+
+/* ── --folder — added 2026-09-17 (card
+   neon_cloud_seats_claim_the_guide_and_debrief_sweep_by_ruled_drive_reach_but_the_builder_can_only_write_local_files_20260917).
+   The saved answer of register-call-doc.js --folder-sql (resolve_folder_address), or
+   {"error": "<message>"} when that resolver raised. REFUSES (nothing built): --folder without
+   cloud mode, a missing or unreadable file. An UNRESOLVED answer is not a refusal here — it
+   becomes the named handoff status folder_address_unresolved (exit 4).
+   --folder is OPTIONAL (0.9.37, agreed 2026-09-17 with the live auto-guide-debrief-sweep, option (a)):
+   cloud mode WITHOUT --folder returns undefined and the build follows the 0.9.36 cloud path
+   exactly — no handoff, no exit 4. The exit-4 stop applies only when --folder IS given and its
+   rows are empty, an error, or ambiguous. */
+function liftFolder(argv, filing) {
+  const fi = argv.indexOf('--folder');
+  let folderPath = null;
+  if (fi >= 0) { folderPath = argv[fi + 1] || null; argv.splice(fi, folderPath ? 2 : 1); }
+  if (fi >= 0 && !filing.cloud) {
+    throw new Error('FILING MODE REFUSED - --folder only means something in cloud mode. Nothing was built.');
+  }
+  if (!filing.cloud) return undefined;
+  if (fi < 0) return undefined;   /* cloud without --folder: the 0.9.36 path, unchanged */
+  if (!folderPath) {
+    throw new Error('FILING MODE REFUSED - --folder needs a file: the saved answer of\n' +
+      '  node register-call-doc.js --folder-sql --channel <c> --company <x> [--partner <p>]\n' +
+      'run through the board connector ({"error": "..."} if it raised). Nothing was built.');
+  }
+  if (!fs.existsSync(folderPath)) {
+    throw new Error('FILING MODE REFUSED - --folder ' + folderPath + ' does not exist. Nothing was built.');
+  }
+  try { return JSON.parse(fs.readFileSync(folderPath, 'utf8')); }
+  catch (e) {
+    throw new Error('FILING MODE REFUSED - --folder ' + folderPath + ' is not readable JSON (' + e.message + '). Nothing was built.');
+  }
+}
+
+/* Cloud mode only. Returns the handoff; the caller stops before any write when it is not ready. */
+function cloudHandoff(R, plan, html, folderRaw, filing, config, absOut) {
+  if (typeof R.hostedHandoff !== 'function' || typeof R.readFolderAddress !== 'function') {
+    throw new Error('FILING MODE REFUSED - the registrar that loaded has no hosted handoff (an older copy?). ' +
+      'Use the register-call-doc.js that ships beside this builder. Nothing was built.');
+  }
+  return R.hostedHandoff(plan, Buffer.from(html, 'utf8'), R.readFolderAddress(folderRaw), {
+    planPath: absOut + '.plan.json', resultPath: absOut + '.result.json',
+    runId: filing.runId, company: config.company || '', skillDir: __dirname,
+  });
+}
+
+function stopUnresolved(handoff) {
+  console.error('✗ ' + handoff.status + ' — ' + handoff.reason);
+  console.error('  NOTHING was registered and NOTHING was written. Never guess a folder; never file by name.');
+  console.error('  ' + handoff.marker);
+  console.log(JSON.stringify({ status: handoff.status, filing: 'cloud', docId: handoff.docId, hosted: handoff }, null, 2));
+  process.exitCode = handoff.status === 'folder_address_unresolved' ? 4 : 1;
 }
 
 /* ── CLI ── */
 async function main() {
   const argv = process.argv.slice(2);
+
+  /* PRINT DOORS — pure, write nothing, and answer before any build flag is read.
+     --print-gate-sql is the command SKILL.md Step 4 names. Until 2026-09-17 nothing here
+     handled it: it fell through to the positional build and failed with
+     "ENOENT: no such file or directory, open '--print-gate-sql'". */
+  if (argv[0] === '--print-gate-sql') {
+    const ti = argv.indexOf('--tenant');
+    console.log(gateSql(ti >= 0 ? argv[ti + 1] : null));
+    return;
+  }
+  if (argv[0] === '--print-folder-sql') {
+    const val = (n) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : null; };
+    console.log(JSON.stringify(loadRegistrar().folderSql({ channel: val('--channel'),
+      company: val('--company'), partner: val('--partner') }), null, 2));
+    return;
+  }
+
   /* FILING MODE is lifted out FIRST, like --gate below, so the positionals never shift. */
   const filing = filingMode(argv, process.env);
+
+  /* --folder is lifted out here, beside --cloud, for the same reason: the positionals must
+     never shift. Added 2026-09-17 (hosted handoff — see register-call-doc.js). OPTIONAL in cloud
+     mode (0.9.37, option (a)): WITH it the Calls folder is resolved BEFORE the row exists, so a
+     company with no registered folder never gets a row that can only say "filing pending"
+     forever; WITHOUT it the build is exactly the 0.9.36 cloud build. */
+  const folderRaw = liftFolder(argv, filing);
 
   /* REGENERATION — two doors, both pure until the very last write. See the block above. */
   if (argv[0] === '--regen-plan') {
@@ -1881,7 +1958,10 @@ async function main() {
   }
   const [guidePath, configPath, outPath] = argv;
   if (!guidePath || !configPath || !outPath) {
-    console.error('Usage: node build-call-guide.js <guide.json> <config.json> <output.html>');
+    console.error('Usage: node build-call-guide.js <guide.json> <config.json> <output.html> --gate <gate.json>\n' +
+                  '         [--cloud [--folder <folder.json>] [--run-id <id>]]\n' +
+                  '       node build-call-guide.js --print-gate-sql --tenant <tenant>\n' +
+                  '       node build-call-guide.js --print-folder-sql --channel <c> --company <x> [--partner <p>]');
     process.exit(1);
   }
   const g = JSON.parse(stripFences(fs.readFileSync(guidePath, 'utf8')));
@@ -1968,6 +2048,15 @@ async function main() {
                 + (crm.attached ? '' : ' — NO CRM RECORD, DECLARED: ' + crm.noLeadReason),
   });
 
+  /* HOSTED HANDOFF (2026-09-17). Decided BEFORE a byte is written: an unresolved Calls folder
+     registers nothing and writes nothing, and exits 4 with the reason on stdout.
+     Only when --folder was given (0.9.37, option (a)); without it this is the 0.9.36 cloud build. */
+  let handoff = null;
+  if (filing.cloud && folderRaw !== undefined) {
+    handoff = cloudHandoff(R, plan, html, folderRaw, filing, config, absOut);
+    if (handoff.status !== 'ready') { stopUnresolved(handoff); return; }
+  }
+
   /* Write to QUARANTINE. This name deliberately does not match the <YYYYMMDD>_<kind>_
      convention, so a leftover can never be mistaken for a real document. */
   fs.writeFileSync(plan.quarantinePath, html, 'utf8');
@@ -1986,12 +2075,21 @@ async function main() {
   console.error('       --result "' + absOut + '.result.json"');
   console.error('');
   console.error('If the row is refused, --settle DELETES the quarantine file. That is the feature.');
-  if (filing.cloud) {
+  if (filing.cloud && !handoff) {
+    /* 0.9.36 cloud text, byte for byte — the no --folder path. */
     console.error('');
     console.error('CLOUD MODE — registered with NO local path. After --settle:');
     console.error('  3. node upload-call-doc.js --hash "' + plan.finalPath + '"   (skill folder)');
     console.error('  4. mint ONE ticket with call_doc_upload_ticket_mint, then --upload that same file');
     console.error('  5. register-call-doc.js --confirm with the {fileId, viewUrl} the door returned');
+  }
+  if (filing.cloud && handoff) {
+    console.error('');
+    console.error('CLOUD MODE — registered with NO local path, into Calls folder ' + handoff.folder.driveFolderId +
+                  (handoff.folder.pathLabel ? ' (' + handoff.folder.pathLabel + ')' : '') + '.');
+    console.error('  Follow stdout `hosted.steps` 1-7 IN ORDER, in this fire: register, settle, mint,');
+    console.error('  upload the bytes (' + handoff.bytes + ', sha256 ' + handoff.sha256.slice(0, 12) + '…), read the row,');
+    console.error('  confirm the hosted half, read it back. Stopping between 1 and 7 leaves an INCOMPLETE document.');
   }
 
   /* stdout is the machine-readable half, so a session never has to parse the prose above.
@@ -2003,6 +2101,7 @@ async function main() {
     out.filing = 'cloud';
     out.hostedGap = filing.hostedGap;
     out.settledPath = plan.finalPath;   // the file upload-call-doc.js --hash / --upload takes
+    if (handoff) out.hosted = handoff;  // 2026-09-17: every remaining step, machine-readable (only with --folder)
   }
   console.log(JSON.stringify(out, null, 2));
 }
