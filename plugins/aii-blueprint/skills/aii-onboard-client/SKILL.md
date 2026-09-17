@@ -276,6 +276,15 @@ them; it **runs** them, in order, in the client's own words.
   different answers means the element is unsettled, not that somebody is wrong (option label
   verbatim: *"Don't tick it off — just ask them (Recommended)"*). Then ask only what is genuinely
   still open.
+- **IF THE COMPANY WAS SET UP FROM A CONFIGURED ONBOARDING, ASK ITS BELIEFS AS CONFIRMATIONS, ONE AT A
+  TIME.** A configured onboarding is set up in advance by a trade or a partner. Read the confirm
+  prompts the store hands you for this company (`interviewPlanFor`). For each one, say the belief in
+  its own words and ask *"Is that true for your business?"*, with three replies: **yes** (save the
+  belief as their answer), **mostly, in my words** (save their words), **not us** (save nothing and ask
+  that question in full, the ordinary way). Save only through `recordConfirmReply`, which records where
+  the belief came from and what they said. Nothing is saved before they answer. Never offer a belief for
+  a goal question, and if the store refuses, stop and say so. With no prompts, run the interview exactly
+  as below. *(Approved 2026-09-16/17, `dr_third_onboarding_path_is_configured_onboarding_20260916`.)*
 - **Ask them here, one at a time, in plain language.** A form does this badly: it cannot follow up, cannot notice an answer that contradicts an earlier one, and cannot
   tell the difference between *"I do not know"* and *"that does not apply to us."* A conversation can.
 - **Write every answer back to the client's own record, as it is given** — not at the end, not in a
