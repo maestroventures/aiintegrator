@@ -5,7 +5,7 @@ description: >
   The ONE recurring task installed on each AI platform a tenant uses. It carries NO job logic and
   NO schedule — it only asks the tenant's queue what is due, claims exactly one job, does it, and
   beats. Identical text on every platform. Install once per platform; never edit again.
-  Installed AI Integrator Blueprint plugin version: 0.9.40.
+  Installed AI Integrator Blueprint plugin version: 0.9.41.
 ---
 
 # Job Poke — install this once per AI platform, then forget it

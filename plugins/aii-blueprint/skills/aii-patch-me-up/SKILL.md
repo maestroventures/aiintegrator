@@ -2,22 +2,21 @@
 name: aii-patch-me-up
 description: >
   AI Integrator Blueprint: Patch Me Up. The one front door that checks a user's own setup and gets
-  them current. On request (and at onboarding), it reads their connectors, their skills, their ways
-  into their own files, and each connector's PER-VERB PERMISSIONS, and sorts every one into a plain
+  them current. On request (and at onboarding), it reads the Blueprint connector, which tools are signed
+  in behind it, their skills, their ways into their own files, and each act's PERMISSION SETTING, and sorts every one into a plain
   bucket — live, off in this chat, needs a reconnect, installed-but-unused, missing, or not the way
   you set it — then OFFERS the single fix, one item at a time, user says yes or skip. It DETECTS and
   REPORTS: it never connects, disconnects, installs, or changes a permission on its own; every change
   is an act the human performs. Use on "patch me up," "bring me current," "check my setup," "am I
-  connected," "reconnect my connectors," "are my permissions right," or the onboarding/refresh sweep.
-  Once every connector is healthy it hands off to the Tune-Up (`aii-tune-up`) to audit the company
-  against the framework — gated behind healthy connectors, because it reads their real stuff through
-  them.
+  connected," "reconnect my tools," "are my permissions right," or the onboarding/refresh sweep.
+  Once Blueprint is live and every tool the company uses reads connected, it hands off to the Tune-Up
+  (`aii-tune-up`) to audit the company against the framework, reading their real stuff through them.
 ---
 
 # Patch Me Up
 
-Every user drifts out of date: a connector silently drops its authorization, a new connector ships and
-they never install it, one is installed but switched off in the current chat, another was added once
+Every user drifts out of date: a tool's sign-in in the Command Center lapses, a new tool becomes available and
+they never sign it in, the Blueprint connector is switched off in the current chat, a tool was signed in once
 and never used. None of it is visible until something quietly fails. **Patch Me Up is the one front
 door that makes a user's own setup visible and gets them current** — the user-facing cousin of the
 Tune-Up (`aii-tune-up`), which does the same reconciling job for the *company* instead of the *setup*.
@@ -44,18 +43,16 @@ and so which room runs first, is read from their record and never picked by them
 
 ## Step 1 — Look: read the user's setup
 
-Read the user's **connector inventory** and, for each connector, its **live state** — is it
-authorized/connected, and is it enabled in this chat. Use the platform's connector-list capability for
-this (the master names the slot; the platform provides the read). A connector whose status can't be
+Read the **Blueprint connector's** live state (call `ping`; is it on in this chat), then call
+`what_can_i_do` and read each act's `connected` field — that is which tools are signed in behind it.
+Tools are signed in once in the Command Center (Settings → Admin → Company tools, #settings/tools; Google under Me → Connections, #settings/connections). An act whose state can't be
 read is **unknown**, not broken — say so, don't guess it's down.
 
-**The read only sees connectors the user has installed.** A connector that exists in the platform's
-directory but was never installed does **not** come back from the connector-list read — it is invisible
-to this skill (it shows only in the user's own settings, under a "not connected" / "available" list).
-So this skill never claims coverage the read can't back up: it reports on installed connectors and
-**names this edge out loud**, pointing the user to their settings' *not-connected* list to eyeball
-anything they've never set up. *(Lens: Nygard — fail honest; a silent blind spot is worse than a
-visible one.)*
+**Nothing is invisible any more.** The only connector a person installs is Blueprint. A tool the company
+uses but never signed in comes back from `what_can_i_do` as `connected: false` on its acts, so this skill
+names it directly instead of pointing at a settings list. It still never claims coverage the read can't
+back up: it reports exactly what `what_can_i_do` returned. *(Lens: Nygard — fail honest; a silent blind
+spot is worse than a visible one.)*
 
 This is a *read*. Nothing changes in Step 1.
 
@@ -72,8 +69,8 @@ Sort each connector into exactly one bucket:
   reconnect / re-authorize it.
 - **Installed but unused** — installed and never turned on, and the user doesn't appear to need it.
   Fix = *offer* to remove it. This is a suggestion, never an action (see the remove rule below).
-- **Missing** — a connector the framework expects the user to have (e.g. the AI Integrator connector)
-  that isn't installed at all. Fix = install it.
+- **Missing** — the Blueprint connector not installed, or a tool this company uses not signed in
+  (acts read `connected: false`). Fix = add the plugin, or sign the tool in at the Command Center (Settings → Admin → Company tools, #settings/tools; Google under Me → Connections, #settings/connections).
   A connector this company does not use (not allowed in its own list) is never reported as "missing".
   It is not theirs to have.
 
@@ -165,16 +162,16 @@ roots. This body names the job, never a door, a tool or a path.)*
 
 ## Step 2d — And do it for the PER-VERB PERMISSIONS on each connector
 
-A missing connector announces itself. A connector that is present but **set differently than the
+A missing tool announces itself. A tool that is present but **set differently than the
 person meant** announces nothing at all — every read still works, and the one verb they never
 intended to block simply never appears. So permissions get the same treatment as the other three
 inventories — **this is Step 2 pointed at a fourth inventory, not a different job.**
 
-**Both halves again, and neither alone is honest.** The connector publishes what it CAN do — every
-verb it exposes, and the permission the framework recommends for each. Only this running session
-knows what is VISIBLE: a verb the person has set to Blocked **does not appear in the session's tool
-list at all**, and no query can see that list. Compare the two. Same shape as Step 2b one level down
-— there it was skills, here it is the verbs inside one connector.
+**Read the settings, don't infer them.** `what_can_i_do` returns every act with its setting —
+always-allow, always-ask or blocked — and where it was held (company, department or you). Compare
+that with what the person chose and with what the framework recommends. There is no longer a
+per-connector tool list to diff: every act runs through `do_action`, and `check_action` answers
+for one act before it runs.
 
 ⚠ **NEVER discover a verb's state by CALLING it.** An unapproved verb hangs an unattended run
 forever and spams an attended one with prompts. The compare above calls nothing, and must stay that
@@ -222,13 +219,12 @@ is wrong, and never touch it. A setting the person says to leave alone stays exa
 
 **Honest limits, stated here rather than discovered later.**
 
-- **It reads ONE BIT, not three states.** Blocked is distinguishable from not-blocked. *Always
-  allow* and *Needs approval* both appear in the tool list and look identical. Never report a full
-  permission read-back from this.
+- **It reads all three states.** `what_can_i_do` returns always-allow, always-ask and blocked, and
+  where each was held. Report exactly what it returned.
 - **It is scoped to THIS chat and THIS seat**, like every other read in this skill. One person with
   two logins gets two answers, and that difference is data, not an error.
-- **The tool list is frozen when the session starts.** A change made mid-session is invisible until
-  a fresh one — say so, rather than reporting the old state as current.
+- **Settings are read live.** A change made in the Command Center mid-session shows on the next
+  `what_can_i_do` call — re-read rather than reporting the old state as current.
 
 *(Points at, never restates: this step's authority tier is already settled by the User Permissions
 Framework's wrapper rule — a wrapper takes the tier of its most-privileged action, and this one
@@ -236,7 +232,7 @@ reads and reports, so it is self-serve. What the person SAID they set is the ins
 job, not this step's; when that record exists, compare against it FIRST and against the
 recommendation second.)*
 
-*(Instance note: which connectors this seat has, where the recommended per-verb list is read from,
+*(Instance note: which tools this seat has signed in, where the recommended per-act list is read from,
 and where a stated intent is recorded are instance-specific and live in the overlay. This body names
 the job, never a connector, a tool or a table.)*
 
@@ -370,7 +366,7 @@ Telling someone once and forgetting you told them means telling them again every
 ## Step 3 — Offer: one plain fix at a time, user says yes or skip
 
 For everything that isn't **Live**, hand over the fix **one item at a time**, in plain language, worst
-blocker first *(Goldratt — the connector that blocks the most, like the AI Integrator connector, goes
+blocker first *(Goldratt — the thing that blocks the most, like the Blueprint connector itself, goes
 first, not alphabetical)*. Each offer is: what's off, the one step to fix it, and a yes/skip. Never
 dump the whole list as a wall; never fix anything the user didn't say yes to.
 
@@ -384,13 +380,13 @@ been onboarded.** The next one guesses wrong, clicks nothing, and the framework 
 equipment that is not there while nothing fails loudly. *(Lens: Krug — never make them work out what
 is being asked. Nygard — a silent non-answer must never read as a decline.)*
 
-- **Turn-on and reconnect steps** are UI actions in the user's connector settings — hand the plain
-  step ("open connector settings, switch on / reconnect [name]"), then re-read state to confirm it
-  took *(pairs with `aii-prove-it` — the confirming read is the proof, not the claim)*.
-- **Installing a connector** is a machine step — route it through **Run Command** (`aii-run-command`):
-  one double-click file, never a pasted command, never "open your terminal and type this."
+- **Sign-in and reconnect steps** are clicks in the Command Center — Settings → Admin → Company tools
+  (#settings/tools), or Me → Connections (#settings/connections) for Google. Hand the plain step, then
+  re-read `what_can_i_do` to confirm the tool's acts now read `connected` *(pairs with `aii-prove-it`)*.
+- **Nothing else is installed.** The only connector is Blueprint and it arrives with the plugin; if it
+  is missing, the fix is adding the plugin.
 - **The remove rule.** No tool can disconnect a connector for the user — that's a click in their
-  settings. So for an *installed-but-unused* connector, this skill **flags it and hands the removal
+  settings. So for a leftover AI Integrator connector from before the one-connector plugin, or any installed-but-unused connector, this skill **flags it and hands the removal
   step; it never removes anything itself**, and it always asks first. A connector the user says to
   keep stays exactly as it was.
 - **The poke schedule — the ONE thing this skill may change itself, and only on a yes** *(ruled
@@ -410,12 +406,12 @@ is being asked. Nygard — a silent non-answer must never read as a decline.)*
 
 A user whose setup is already clean gets the honest, useful result: **"You're current — nothing to
 fix."** That's a valid, complete run. Pair it with the coverage note from Step 1: this checked the
-connectors you've *installed*; anything you've never set up shows only in your settings'
-*not-connected* list — glance there if you're expecting one that didn't appear.
+the Blueprint connector and every act's `connected` field; a tool you never signed in shows there as
+not connected — sign it in at Settings → Admin → Company tools (#settings/tools).
 
 ---
 
-## Step 4 — Then offer the deeper audit (Tune-Up): build half anytime, reconcile half once connectors are Live
+## Step 4 — Then offer the deeper audit (Tune-Up): build half anytime, reconcile half once tools read connected
 
 Hand off to the **Tune-Up** (`aii-tune-up`) — the deep audit of the company against the framework (for
 this user, each of their product instances). Patch Me Up does **not** re-implement the
@@ -428,10 +424,10 @@ gates the *reconcile* half, not the whole thing:
   **pre-seeding the board from the CEO audit** all read the intake / CEO interview — not the company's
   live tools. So this half is offered even on a fresh, unconnected setup and is **not** gated behind
   Live connectors. It produces an ideal + a pre-seeded board **clearly marked *not yet reconciled*.**
-- **Reconcile half — gated behind healthy connectors on purpose.** Laying the company's real stuff
-  against the ideal (and lighting the KPI scoreboard) reads that real stuff *through* the connectors,
-  so running it while one is down produces a false, half-blind picture. This half waits until every
-  connector the audit needs is **Live**.
+- **Reconcile half — gated behind connected tools on purpose.** Laying the company's real stuff
+  against the ideal (and lighting the KPI scoreboard) reads that real stuff *through* Blueprint's `do_action`,
+  so running it while a tool reads not connected produces a false, half-blind picture. This half waits until every
+  tool the audit needs reads **connected** in `what_can_i_do`.
 
 So: the build half can go the moment there's a goal + a CEO audit; the reconcile half is the part that
 "connectors healthy first, then the audit" was always really protecting. *(Lens: Evans — two clean
@@ -442,7 +438,7 @@ bounded contexts, one owner each; the gate lives on the seam between them, not a
 ## Running at onboarding and on a refresh
 
 This is the deep first run at onboarding (get the new user fully connected) and the routine "bring me
-current" sweep after that (a new connector shipped, an authorization lapsed). On a scheduled or
+current" sweep after that (a new tool became available, a sign-in lapsed). On a scheduled or
 onboarding run it produces the same offer list and still waits for the user to act on each item.
 
 ---

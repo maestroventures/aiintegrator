@@ -3,9 +3,9 @@ name: aii-onboard-client
 description: >
   AI Integrator Blueprint: Onboard Client. The one skill that owns standing a new client up on the
   Blueprint, end to end, so nobody re-derives the order. It knows where the email ends and where the
-  session takes over: the email does only what cannot wait for a session — add the plugin and connect
-  the Workspace connector — and hands the person into a task. Everything after that runs here, with
-  someone on the line: every remaining connector installed, authorized and given its permissions while
+  session takes over: the email does only what cannot wait for a session — add the plugin and sign in
+  to its one Blueprint connector — and hands the person into a task. Everything after that runs here, with
+  someone on the line: every tool the company uses signed in once in the Command Center and its permissions checked while
   the person clicks, the required account skills, the equipment check, the interview with every answer
   written back to the client's own store, then the hand-off to the audit. Fires on "onboard," "new client setup," "get them
   started," "stand up their Blueprint," "run the install," or the first working session on a fresh
@@ -23,7 +23,7 @@ this is the procedure.
 **The one sentence this skill exists to hold: the email does as little as possible, and everything a
 session can carry, the session carries.** The line is not "is this a click in Settings" — a person can
 click while a session guides them. **The line is whether anyone is on the line with them.** Before the
-Workspace connector is connected, nobody is, so those steps have to be written down in an email. The
+Blueprint connector is signed in, nobody is, so those steps have to be written down in an email. The
 moment it is connected, a session is there, and it can do what an email never can: see whether a step
 actually landed, notice when it did not, and keep track. Every argument about "what onboarding means"
 has been this line, undrawn.
@@ -58,16 +58,16 @@ the company you want to bring?"* — rather than guessing.
 ## Step 0 — Know which side of the line you are on
 
 Before anything else, establish **where this client is**: have they done the email's two things — the
-plugin added and the Workspace connector connected — or not?
+plugin added and its Blueprint connector signed in — or not?
 
 - **Not yet** → your job is Step 1: get them the email, or back to it. There is no session to work in
-  until the Workspace connector is connected.
+  until the Blueprint connector is signed in.
 - **Both done, and they are in a task with you** → your job is Step 2 onward. Do **not** start the
   interview until Step 2 is finished: a client answering questions before their equipment is live
   produces answers with nowhere to land.
 
 If you cannot tell, **say so and ask them one plain question** — *"have you added the plugin and
-connected the Workspace connector yet?"* — rather than guessing, then read the live state to confirm it.
+signed in to the Blueprint connector yet?"* — rather than guessing, then call `ping` to confirm it.
 Guessing here is how a client gets asked to redo work they already did.
 
 ---
@@ -79,16 +79,16 @@ So the first message is an **email**, and its whole job is the two things that c
 session:
 
 1. **Get the plugin added.**
-2. **Get the Workspace connector connected and authorized.**
+2. **Get the Blueprint connector (it arrives with the plugin) signed in.**
 
 Around those two, it carries only what they need to do them: a short, plain description of what is
 about to happen and roughly how long it takes; what to have ready before they start; how to add the
-plugin and how to connect the Workspace connector, each with *how you will know it worked*; and the
+plugin and how to sign in to its Blueprint connector, each with *how you will know it worked*; and the
 handoff — **open the desktop app, start a new task (not a chat), and say they are ready to onboard.**
 The words for the app and the kind of task come from the person's own setup, never typed as a vendor
 name into the copy.
 
-**It does NOT carry anything a session can do instead** — no other connector, no permissions step, no
+**It does NOT carry anything a session can do instead** — no tool sign-ins, no permissions step, no
 link to a setup page, and nothing about what happens after they are connected. An email can instruct
 and can never check; a session can do both. Every step moved out of the email is a step that can be
 tracked.
@@ -101,7 +101,7 @@ see whether it actually happened.
 
 ---
 
-## Step 2 — In the session, they click and you guide, one connector at a time
+## Step 2 — In the session, they click and you guide, one tool at a time
 
 The person is now in a task with you. **They do the clicking; you tell them the next click, one at a
 time, and you check each one landed before moving on.** Nothing here is a screen or a form.
@@ -110,14 +110,14 @@ time, and you check each one landed before moving on.** Nothing here is a screen
    word for word, and ask only "is this right?". If they correct a field, call `correct_my_seat_env`
    with just that field. Everything you tell them to click branches on it, and getting it wrong
    describes a screen they do not have.
-2. **Confirm the plugin and the Workspace connector from the email actually landed.** Read the live
+2. **Confirm the plugin and its Blueprint connector from the email actually landed.** Call `ping` and read the live
    state; a person who followed the email is not proof that it worked. The framework's own skills
    **arrive with the plugin** — there is no separate step for them, and telling a client to install
    them individually sends them hunting for something that is already there.
-3. **Set the Workspace connector's permissions with them.** This moved out of the email on purpose: here
-   you can look at the settings with them instead of leaving them to find the page alone.
-4. **Capture their sender addresses, then let them confirm each one.** Once Workspace is authorized,
-   call the Workspace connector's `email_sendas_list` on their own account and pass its `aliases`
+3. **Check their permissions with them.** Call `what_can_i_do` and walk the settings it returns; any
+   change is theirs to make in the Command Center, never the session's.
+4. **Capture their sender addresses, then let them confirm each one.** Once Google is signed in (Me →
+   Connections, #settings/connections), call `do_action` for "See sending identity" on their own account and pass the addresses
    unchanged to `capture_my_sender_addresses` with source "connector". If that read fails, ask them to
    list the addresses they send email from, and pass their words with source "person_said". Then call
    `list_my_unconfirmed_sender_addresses` and ask each `question` word for word, one address at a time:
@@ -125,15 +125,15 @@ time, and you check each one landed before moving on.** Nothing here is a screen
    `confirm_my_sender_address` before asking the next. Never answer for them; `suggested` is a hint,
    not their answer. No new Google permission is asked for (ruling
    dr_a_clients_sender_addresses_are_captured_in_their_first_onboarding_session_20260915).
-5. **Then each tool THIS company uses, and nothing else.** The list is the company's own connectors marked
-   allowed (`client_connector.allowed = true`), never the plugin's manifest and never the connector catalog. A
-   connector the company does not use is not offered, not mentioned and not installed. For each one, the same
-   loop: install it, authorize it, set what it is allowed to do, verify it — then the next. Installing and authorizing are
-   **two acts, in that order**; a connector that is installed but not authorized is not connected. Never
-   report a later act as done because an earlier one succeeded.
-   A tool that already runs through the Blueprint connector (its sign-in stored in the Command Center) is
-   NOT installed as a connector of its own: sign it in once, in the Command Center, and verify one call.
-   If the company has no allowed connectors recorded, say so and ask which tools they use; never fall
+5. **Then each tool THIS company uses, and nothing else.** The list is the company's own tools marked
+   allowed (`client_connector.allowed = true`), never the plugin's manifest and never the catalog. A
+   tool the company does not use is not offered, not mentioned and not signed in. For each one, the same
+   loop: sign it in once in the Command Center (Settings → Admin → Company tools, #settings/tools; Google under Me → Connections, #settings/connections), then call `what_can_i_do` and confirm its acts read `connected`, then check its settings — then the next.
+   Nothing is installed: the only connector is Blueprint, and every action goes through `do_action` / `check_action`.
+   Never report a later act as done because an earlier one succeeded.
+   Every tool runs through the Blueprint connector (its sign-in stored in the Command Center); none is
+   installed as a connector of its own. Sign it in once, in the Command Center, and verify one call.
+   If the company has no allowed tools recorded, say so and ask which tools they use; never fall
    back to installing everything.
 6. **Enable the required account-level skills.** These are **not** the framework's own skills and do
    **not** arrive with the plugin — each is enabled per account, one at a time. Which ones are required
@@ -157,7 +157,7 @@ a completed one.)*
 
 By now the client has done the email's two things and Step 2 with you. **Do not open with a question
 about their business.** Open by confirming that what they just set up is actually live — hand this to
-**`aii-patch-me-up`**, which owns it: it reads their connector inventory and the required-capability
+**`aii-patch-me-up`**, which owns it: it reads the Blueprint connector, which tools read connected, and the required-capability
 floor, sorts everything into plain buckets, and offers the one fix for anything that is not live.
 
 This is a hand-off, not a re-implementation. **One fact, one file.**
@@ -166,7 +166,7 @@ Two things this skill insists on, because a checklist the client ticks cannot ch
 
 - **A step the client ticked is a claim, not a proof.** Re-read the live state. A client who clicked
   "authorize" and landed on an error page will tick the box anyway, because the page told them to.
-- **A missing skill announces nothing.** A missing connector fails loudly the first time something
+- **A missing skill announces nothing.** A tool that is not signed in fails loudly the first time something
   reaches for it; a missing skill just quietly does not fire. So the floor gets checked explicitly,
   every time, and a floor read that comes back empty is a **defect, never a clean result.**
 
@@ -199,7 +199,7 @@ is the rule; this is the only moment it can be applied for free.
   the top of their Drive (and for each ruled folder under it): if there is one, reuse it and create
   only what is missing; if there are two, stop and show them both — never pick one. After their yes,
   create the root in the person's own Drive at the
-  account root, named "AIOS — <Company>", then each folder under it with `drive_create`, keeping every
+  account root, named "AIOS — <Company>", then each folder under it with `do_action` "Create file" (a folder), keeping every
   id Drive returns. Then record the whole shape in ONE call to `client_workspace_shape_apply()`. It
   refuses a partial shape or a folder that is not in the template, and records nothing when it refuses
   — so if it refuses, say what Drive already made and stop. `lib/onb/workspace-shape.js` is this same
@@ -210,7 +210,7 @@ is the rule; this is the only moment it can be applied for free.
   personal folder had become a load-bearing address for something else. People adopt what is already
   there. Born with the shape costs one step; retrofitting it costs a session and risks a regression.
 - **Do not report this step done if you cannot see the folders.** Same rule as every other step here.
-  Seeing them means reading them back: list "AIOS — <Company>" and its folders in their Drive, and
+  Seeing them means reading them back: list "AIOS — <Company>" and its folders with `do_action` "See file", and
   read the saved workspace root and one folder record per folder from their store. If any is missing,
   say which and do not move on.
 
@@ -323,7 +323,7 @@ audit of the company against the framework. This skill does not perform the audi
 duplicate any part of it.
 
 Note the seam that already exists and do not re-litigate it: the Tune-Up's **build half** needs no
-connectors and can run early; its **reconcile half** waits until the connectors are live, because it
+connectors and can run early; its **reconcile half** waits until the company's tools read connected, because it
 reads the company's real stuff through them.
 
 The hand-off is done only when the board shows the ranked gap cards the Tune-Up wrote for this
@@ -354,7 +354,7 @@ it.
 ## When NOT to use
 
 Not for a client who is already stood up and running — that is `aii-patch-me-up` for the setup and
-`aii-tune-up` for the company. Not for adding one connector to an existing seat. This is the first
+`aii-tune-up` for the company. Not for signing one more tool in on an existing seat. This is the first
 run, once, for a new client.
 
 ---

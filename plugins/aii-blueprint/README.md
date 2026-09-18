@@ -1,7 +1,7 @@
 # AI Integrator Onboarding plugin
 
 The installable unit a brand-new AI Integrator client puts on their own machine to stand up their
-AIOS seat — connect their tools, install and authenticate the live Blueprint board connector (the
+AIOS seat — install the plugin and sign in to its one Blueprint connector (the
 company brain their Claude reads), and get the AI Integrator Blueprint skill set — with almost no
 hand-holding.
 
@@ -11,17 +11,17 @@ hand-holding.
 
 **The onboarding engine**
 - `aii-patch-me-up` — the one front door that checks the user's own setup and gets them current. It
-  reads the connector inventory, sorts every connector into a plain bucket (live · off in this chat ·
-  needs a reconnect · installed-but-unused · missing), and OFFERS the single fix for anything that
-  isn't live — one item at a time, the user says yes or skip. It detects and offers; it never
-  connects or installs on its own. Once every connector is healthy it hands off to `aii-tune-up`.
+  reads the Blueprint connector and, through `what_can_i_do`, which tools are signed in and how each
+  act is set, sorts every item into a plain bucket (live · off in this chat · needs a sign-in ·
+  installed-but-unused · missing), and OFFERS the single fix for anything that isn't live — one item at a time, the user says yes or skip. It detects and offers; it never
+  signs in or changes a setting on its own. Once every needed tool reads connected it hands off to `aii-tune-up`.
 
 **The AI Integrator Blueprint skill set (bundled, client-ready/generic copies)**
 - `aii-front-door` · `aii-clarify` · `aii-advisors` · `aii-prove-it` · `aii-safe-edit`
 - `aii-knowledge-hygiene` · `aii-voice-capture` · `aii-betterment-slot` · `aii-session-handoff`
 
 **The pipe**
-- `.mcp.json` bundles the **Blueprint board connector** — the live company brain the client's Claude
+- `.mcp.json` bundles **one connector — Blueprint** — the live company brain the client's Claude
   reads (the Initiatives Board, company + department profiles). It authenticates each seat by
   approved-email allow-list: the client signs in once on first board read, and it binds to their board.
 
@@ -29,22 +29,20 @@ hand-holding.
 
 A new seat comes up in this order — the walk and the Patch-Me-Up sweep both follow it:
 
-1. **Connect the Workspace connector and sign in** — the seat's identity (email/allow-list) rides on this.
-2. **Install + authenticate the Blueprint board connector** — the live company brain. On first board
+1. **Add the plugin** — its one connector, Blueprint, arrives with it.
+2. **Sign in to the Blueprint connector** — the live company brain. On first board
    read the user signs in once with their approved email; from then on their Claude reads the real
    board (their deals, initiatives, profiles), never sample data.
-3. **Connect the remaining tools and confirm the skills** — Close (CRM), Gmail, Google Calendar,
-   Google Drive/Sheets, Fireflies; optional/volume-only Instantly + MillionVerifier. Order among
-   these does not matter; Patch-Me-Up walks whatever isn't live, one at a time.
+3. **Sign in the company's tools once in the Command Center** — Settings → Admin → Company tools
+   (#settings/tools), and Google under Me → Connections (#settings/connections). Nothing else is
+   installed; every action goes through `what_can_i_do` / `do_action` / `check_action`.
 
 The proof the brain is real: at the first board read ("show me our deal board"), the seat returns the
 user's actual deal names — not samples.
 
 ## Before you install (one prerequisite)
 
-The client's Claude account must be on **Pro**. The free tier allows exactly **one** custom
-connector, and the AI Integrator stack needs several. Patch-Me-Up names this up front so it's never a
-surprise.
+The plugin carries one connector: Blueprint. Every tool behind it is signed in once in the Command Center.
 
 ## Install
 
@@ -62,11 +60,11 @@ surprise.
   a hardcoded-sample test server; the plugin was repointed to the real board connector on 2026-07-20
   (T17·S5). Do not point `.mcp.json` back at it — that would connect a new seat to fake sample data.
 
-## The connector punch-list (mirrors the VR stack)
+## The tool punch-list
 
-Required for the loop: **Blueprint board connector (bundled), Close (CRM), Gmail, Google Calendar,
-Google Drive/Sheets, Fireflies.** Optional / volume-only: **Instantly, MillionVerifier.** Back-end pipes (Lambda, S3,
-Supabase, Vercel, Stripe) run server-side and are **not** things the client connects through Claude.
+One connector: **Blueprint (bundled).** The tools behind it — CRM, email, calendar, files, transcripts —
+are signed in once in the Command Center and read through `what_can_i_do`. Back-end pipes run server-side
+and are **not** things the client connects through Claude.
 
 ## Known limit to name before go-live
 

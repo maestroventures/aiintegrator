@@ -30,10 +30,10 @@ This skill ships with a locked builder script (`build-call-guide.js`) in the ski
 
 You may be triggered three ways: (a) the user asks in chat, (b) the artifact handed them a formatted prompt they pasted, (c) a scheduled sweep found an upcoming meeting. In all cases, pull what you can yourself before asking them anything.
 
-1. **Find the person + company in the CRM.** Use the CRM connector to find the lead, prior context (note history), and the deal and its goal. Read the real records — don't guess.
-2. **Find the meeting.** Use the calendar connector to get the exact date/time, title, and attendees. The date/time + person is the key that links the guide file to the meeting.
+1. **Find the person + company in the CRM.** Through Blueprint: `do_action` "See organization" / "See person" / "See note" / "See deal" for the lead, prior context, and the deal and its goal. Read the real records — don't guess.
+2. **Find the meeting.** Through Blueprint: `do_action` "See appointment" for the exact date/time, title, and attendees. The date/time + person is the key that links the guide file to the meeting.
    **Capture the link keys now** — you'll write them into a pointer file in Step 4.5 so the daily brief never has to re-guess the filename later. Hold on to: the **calendar `eventId`**, the meeting **date** (`YYYYMMDD`), every outside attendee **email**, and the **email domain**. If a button handed you a pasted prompt, those keys are on a `Link keys:` line in it — use them verbatim. If you're triggered another way, read them off the calendar event.
-3. **Check for a transcript** of any prior call with this person (meeting-transcript connector, matched by attendee email).
+3. **Check for a transcript** of any prior call with this person (the Google Meet notes attached to that meeting's calendar event, read through `do_action` "See appointment" then "See file"; matched by attendee email).
 4. **If the person is NOT in the CRM:** don't stop and don't make the user go create them. Build from the details they gave you, and note in the guide's "what you already said" that they're not yet in the CRM.
 
 **Only ask the user something if a fact that changes the guide is genuinely missing** (e.g., the goal of the call is unclear and you can't infer it). Ask in one pop-up, one question, plain language. Otherwise proceed.

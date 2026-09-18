@@ -35,13 +35,13 @@ into a state, rank the gaps by what most blocks the goal, and hand a human a dec
 Full design lives in the engine's spec doc (Ideal-State & Reconciliation Engine SPEC) in the
 operating-system specs folder.
 
-> **Connector gate — the build half runs connector-less; the reconcile half needs Live connectors.**
+> **Tool gate — the build half needs no tools; the reconcile half needs the company's tools connected.**
 > **Steps 1–2** (goal + model-select + design the ideal) are the **build half**: they read the goal +
 > the CEO/executive audit + the intake — **not** the company's live tools. So they run **before any
 > connector is hooked up, including before the onboarding call**, and their output **pre-seeds the
 > Initiatives Board from the CEO audit** (a board so seeded is an **ideal, *not yet reconciled*** —
 > mark it that way). **Steps 3–4.5** are the **reconcile half**: they read the company's real stuff
-> *through* its connectors, so they are **gated behind healthy connectors** — the gate Patch Me Up
+> *through* Blueprint's `do_action`, so they are **gated behind every needed tool reading connected in `what_can_i_do`** — the gate Patch Me Up
 > (`aii-patch-me-up`, Step 4) hands off to. Two bounded contexts (Evans); the gate lives on the seam
 > between them, not around the whole skill.
 
@@ -126,10 +126,10 @@ pick; the client never sees a model name.**
 
 ## Step 3 — Ingest "today" and stand up the source of truth
 
-> **Reconcile half starts here — needs Live connectors.** From this step down the engine reads the
-> company's *real* stuff *through* its connectors, so Steps 3–4.5 are **gated behind healthy
-> connectors** (the connector-gate note up top). Don't run them against a half-connected setup — a
-> down connector produces a false, half-blind reconcile.
+> **Reconcile half starts here — needs the company's tools connected.** From this step down the engine reads the
+> company's *real* stuff *through* Blueprint's `do_action`, so Steps 3–4.5 are **gated behind every needed
+> tool reading connected** (the tool-gate note up top). Don't run them against a half-connected setup — a
+> tool that is not signed in produces a false, half-blind reconcile.
 
 1. **Take the company's actual stuff and how it works.** At most companies this is scattered across
    tools — that's expected.

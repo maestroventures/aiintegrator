@@ -279,7 +279,7 @@ Every job opens with the same gate, and this is the heart of the skill. A schedu
 in a **fresh session** where tools are deferred and nothing is pre-attached, so the job must go
 and find what it needs — in this order, every time:
 
-1. **State the CATEGORY and the JOB TO BE DONE.** Not "the Close connector" — `crm` /
+1. **State the CATEGORY and the JOB TO BE DONE.** Not "the CRM tool" — `crm` /
    `lead_search`. The category is the durable fact; the connector is this month's answer to it.
 2. **Reach the client's own registry** — the client's own database, not a shared one and not
    this file. Find the reader by *searching for it*, not by naming it (see the warning below).
