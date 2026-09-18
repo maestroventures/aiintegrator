@@ -52,7 +52,7 @@ Collateral & Messaging Standard v1.0:
    deliverable that was never written to disk. Neither of them is a write door on
    `assets`; there is still no asset_put.
 """
-import base64, json, pathlib, re, sys, asyncio
+import base64, json, os, pathlib, re, sys, asyncio
 
 # ⛔ content.py IS NOT IMPORTED AT MODULE LEVEL — GENERICIZED 2026-09-09, same reason
 #    as the frame below. content.py holds the SHEETS for ONE prospect and is written
@@ -161,7 +161,7 @@ def load_palette():
     """The sending company's COLOURS, READ OUT OF THE STORE. REQUIRED, no default.
 
     ⛔ THE HARDCODED BRANDS{} MAP IS GONE, 2026-09-10. It held two keys, `aii` and `vr`, and
-       that was the whole reason a Galson sheet came out in AI Integrator's colours: a required
+       that was the whole reason a partner's sheet came out in the plugin maker's colours: a required
        parameter whose value set is two rows deep is a WALL for every partner, and a wall
        invites shipping without their identity. It was also a SECOND HOME for a fact the
        database already owned — this file's own docstring forbids exactly that for WORDS, and
@@ -300,9 +300,92 @@ REGISTRATION_FLAGS = ("--deliver-to", "--tenant", "--company", "--department",
                       "--program", "--by", "--dispatch-mode")
 
 
+# ⭐ WHERE A SHEET LIVES — 2026-09-18, the sheet-homes ruling: THE RECIPIENT DECIDES FIRST, THEN THE BRAND.
+#    (1) made for ONE named recipient (personalized, co-branded or not) -> that recipient's own folder;
+#    (2) carries a PARTNER'S brand and is made for no single recipient -> that partner's folder;
+#    (3) neither -> the channel's generic home.
+#    WHY THIS BUILDER HAD TO LEARN IT. One content.py can hold a generic AND a personalized sheet, and until
+#    today the whole build took ONE --deliver-to. So whichever folder the build ran from, one of the two was
+#    registered in the wrong home: generics landed in a prospect's folder and a personalized piece landed in
+#    the generic home. Measured on the 2026-09-18 re-file: 43 sheets had to be moved by hand.
+#    ⛔ NO FOLDER NAME LIVES HERE. This program ships to every seat and does not know any company's folders.
+#    The CALLER resolves each destination from the tenant's own folder addresses (resolve_folder_address in
+#    the store, which this machine cannot reach) and passes it per RULE. The folder text passed is the same
+#    workspace-relative string the asset row is keyed on, so the path written and the path registered are one
+#    value. Absent all three flags the old single --deliver-to still works, but ONLY for a build whose sheets
+#    all fall under one rule: a mixed build with one destination is the defect itself, and it is refused.
+ROUTE_FLAGS = {"personalized": "--folder-personalized", "partner": "--folder-partner", "generic": "--folder-generic"}
+ROUTE_RULE = {"personalized": "rule 1: made for one named recipient -> that recipient's folder",
+              "partner": "rule 2: a partner's brand, no single recipient -> that partner's folder",
+              "generic": "rule 3: no recipient, no partner brand -> the channel's generic home"}
+
+
+def route_of(s, pbrand):
+    """Which of the three rules places this sheet. The recipient decides first, then the brand."""
+    if s.get("kind") == "personalized":
+        return "personalized"
+    if pbrand or s.get("partner"):
+        return "partner"
+    return "generic"
+
+
+def routed_mode():
+    return any(_flag(f) for f in ROUTE_FLAGS.values())
+
+
+def workspace_root():
+    """The folder the --folder-* paths are relative to. --workspace-root, else the directory the build runs from."""
+    return pathlib.Path(_flag("--workspace-root") or ".").expanduser().resolve()
+
+
+def resolve_routes(sheets, pbrand):
+    """{route: workspace-relative folder} for every rule this build needs, or None in single-destination mode.
+    REFUSES, before any sheet is written, a build whose destination cannot be right for every sheet in it."""
+    need = sorted({route_of(s, pbrand) for s in sheets})
+    if not routed_mode():
+        if len(need) > 1:
+            raise SystemExit(
+                "build.py: REFUSED - no sheet was written. This content.py holds sheets under %d different home "
+                "rules (%s), and one --deliver-to cannot be right for all of them - that is how generic sheets "
+                "ended up in a prospect's folder. Pass one folder per rule instead:\n  %s"
+                % (len(need), ", ".join(need), "\n  ".join("%s  <%s>" % (ROUTE_FLAGS[r], ROUTE_RULE[r]) for r in need)))
+        return None
+    missing = [r for r in need if not _flag(ROUTE_FLAGS[r])]
+    if missing:
+        raise SystemExit(
+            "build.py: REFUSED - no sheet was written. This build holds sheets for rule(s) with no folder given:\n  %s\n"
+            "Resolve each from the tenant's folder addresses; there is no default."
+            % "\n  ".join("%s  <%s>" % (ROUTE_FLAGS[r], ROUTE_RULE[r]) for r in missing))
+    root, out = workspace_root(), {}
+    for r in need:
+        v = _flag(ROUTE_FLAGS[r]).strip().rstrip("/")
+        if pathlib.PurePath(v).is_absolute() or ".." in pathlib.PurePath(v).parts:
+            raise SystemExit("build.py: REFUSED - %s %r must be RELATIVE to the workspace root (%s), the same string "
+                             "the asset row is keyed on. No sheet written." % (ROUTE_FLAGS[r], v, root))
+        dest = (root / v).resolve()
+        if dest == WORK or WORK in dest.parents:
+            raise SystemExit("build.py: REFUSED - %s %r is inside --work (%s). --work is the staging area for this "
+                             "build, never a sheet's home. No sheet written." % (ROUTE_FLAGS[r], v, WORK))
+        out[r] = v
+    return out
+
+
+def print_routes(sheets, pbrand, routes):
+    """--dry-route: say where every sheet in this build would live, and write nothing."""
+    root = workspace_root()
+    print("dry route - nothing rendered, nothing written:")
+    for s in sheets:
+        r = route_of(s, pbrand)
+        folder = routes[r] if routes else _flag("--deliver-to")
+        print("  %-12s %s.pdf\n               -> %s\n               (%s)"
+              % (r, file_name(s), root / folder if folder else "(no destination given)", ROUTE_RULE[r]))
+
+
 def require_registration_inputs():
-    """The values this build must hand its registrar. No defaults, and no build without them."""
-    missing = [f for f in REGISTRATION_FLAGS if not _flag(f)]
+    """The values this build must hand its registrar. No defaults, and no build without them.
+    In routed mode --deliver-to is not asked for: each rule's folder IS that group's --deliver-to."""
+    need = [f for f in REGISTRATION_FLAGS if not (f == "--deliver-to" and routed_mode())]
+    missing = [f for f in need if not _flag(f)]
     if missing:
         raise SystemExit(
             "build.py: REFUSED \u2014 no sheet was written.\n"
@@ -314,7 +397,7 @@ def require_registration_inputs():
             "  --deliver-to     the path under '02 \u2014 Clients/' the file will actually LIVE at\n"
             "  --dispatch-mode  dispatched | stationed | governing\n"
             "  --touchpoint / --inherited-from  a PERSONALISED sheet is a message and needs both")
-    return {f: _flag(f) for f in REGISTRATION_FLAGS}
+    return {f: _flag(f) for f in need}
 
 
 def b64(p):
@@ -1082,14 +1165,14 @@ def file_name(s):
     if s.get("kind") == "personalized":
         # A PERSONALIZED filename names the recipient company. The vertical never goes here; it stays in
         # canonical_name only (ruling dr_collateral_sheet_generic_or_personalized_never_mixed_20260914).
-        out = s.get("company", "AI Integrator")
+        out = _sender_company(s)
         if s.get("partner"):
             out += " + %s" % s["partner"]
         out += " & %s" % s["recipient_company"]
         if s.get("filename_suffix"):
             out += " %s" % s["filename_suffix"]
         return out
-    out = s.get("company", "AI Integrator")
+    out = _sender_company(s)
     if s.get("partner"):
         out += " + %s" % s["partner"]
     vertical = s.get("vertical", s.get("file_label", ""))
@@ -1100,11 +1183,21 @@ def file_name(s):
     return out
 
 
+def _sender_company(s):
+    """The company SENDING the sheet. Required: there is no safe default. It used to fall back to the
+    plugin maker's own name, which would have printed another company's name on a client's sheet.
+    Refused rather than guessed (2026-09-18)."""
+    c = (s.get("company") or "").strip()
+    if not c:
+        raise SystemExit("REFUSED: this sheet has no 'company' (the company sending it). Set it in the sheet spec; nothing was built.")
+    return c
+
+
 def canonical_name(s):
     """The v1.5 four-slot string. NOT the filename any more — this is what the
     asset row stores in assets.canonical_name, because faceting is a registry
     job and addressing an inbox is a filename job (§2 v1.6)."""
-    slots = [s.get("company", "AI Integrator"),
+    slots = [_sender_company(s),
              s.get("family", "Where AI Fits"),
              s.get("vertical", s.get("file_label", "")),
              s.get("audience", "")]
@@ -1334,7 +1427,7 @@ def main():
         #    is a step that runs without the one before it, forever.
         print(palette_sql(_flag("--tenant"), _flag("--brand")))
         print()
-        print(inheritors_sql(_flag("--tenant"), _flag("--deliver-to")))
+        print(inheritors_sql(_flag("--tenant"), _flag("--folder-generic") or _flag("--deliver-to")))
         return
     if "--selftest-frame" in sys.argv:
         raise SystemExit(selftest_frame_refusal())
@@ -1343,6 +1436,12 @@ def main():
     #   the guard: load_frame() above any write_text() is what makes "REFUSES and
     #   writes no file" true rather than aspirational.
     require_work()
+    if "--dry-route" in sys.argv:
+        # Reads content.py and the flags only - no store rows, no fonts, no render - and writes nothing.
+        _sheets = load_sheets()
+        _pb = _flag("--partner-brand")
+        print_routes(_sheets, _pb, resolve_routes(_sheets, _pb))
+        return
     # BEFORE THE GATE, because it is the cheapest of the three and needs no store read.
     REG = require_registration_inputs()
     # THE GATE RUNS BEFORE THE FRAME, AND BOTH RUN BEFORE ANY WRITE. Ordering is the
@@ -1366,6 +1465,9 @@ def main():
 
     items = []
     SHEETS_ALL = load_sheets()
+    # WHERE EACH SHEET LIVES, settled BEFORE a byte is rendered (see ROUTE_FLAGS).
+    ROUTES = resolve_routes(SHEETS_ALL, PBRAND)
+    ROUTE_OF = {}
     INHERITORS = load_inheritors(SHEETS_ALL)
     SIBLINGS = sibling_terms(SHEETS_ALL)
     EXPECT, AUD = {}, {}
@@ -1392,6 +1494,7 @@ def main():
         (WORK / "words").mkdir(exist_ok=True)
         (WORK / "words" / f"{name}.html").write_text(h, encoding="utf-8")
         items.append((name, p))
+        ROUTE_OF[name] = route_of(s, PBRAND)
         EXPECT[name] = h.count(PAGE_MARK)
         AUD[name + ".pdf"] = {"audience_kind": s["kind"],
                               "recipient_company": s.get("recipient_company") if s["kind"] == "personalized" else None,
@@ -1473,35 +1576,66 @@ def main():
     #   must name the touchpoint it was made for, which the caller READS from the debrief that
     #   asked for it. Those rules are ENFORCED BY THE REGISTRAR and are deliberately not restated
     #   here — one fact, one file.
-    import subprocess
-    cmd = [sys.executable, str(_reg), "--scan", str(OUT),
-           "--asset-type", "concept_sheet",
-           "--body-from", str(WORK / "words")]
-    for flag in REGISTRATION_FLAGS:
-        cmd += [flag, REG[flag]]
-    # ⭐ 2026-09-15 (an internal card, raised by a session that day): --brand and --partner-brand were
-    #   REQUIRED by this build (load_palette / load_partner_vars) but never handed on, so the registrar exited 6
-    #   ("no --brand given") on every build. --brand is always present by here; --partner-brand only when given.
-    cmd += ["--brand", _flag("--brand")]
-    for flag in ("--partner-brand", "--template", "--touchpoint", "--inherited-from", "--channel", "--note"):
-        v = _flag(flag)
-        if v:
-            cmd += [flag, v]
-    print("   running the registrar: %s --scan" % _reg.name)
-    r = subprocess.run(cmd)
-    if r.returncode != 0:
-        # ⛔ THE REGISTRAR'S REFUSAL IS THIS BUILD'S REFUSAL, AND ITS EXIT CODE PASSES STRAIGHT
-        #   THROUGH rather than being flattened into 9: 2 means it could not read the folder and
-        #   6 means a required value or the sheet's words are missing. Collapsing those into
-        #   "not delivered yet" would tell the caller to go run a step that fails the same way.
-        print()
-        print("⛔ THE REGISTRAR REFUSED (exit %d). The sheets are written; the delivery is NOT "
-              "planned." % r.returncode)
-        raise SystemExit(r.returncode)
+    import subprocess, shutil
+
+    def _register(scan_dir, deliver_to):
+        cmd = [sys.executable, str(_reg), "--scan", str(scan_dir),
+               "--asset-type", "concept_sheet",
+               "--body-from", str(WORK / "words")]
+        for flag in REG:
+            cmd += [flag, deliver_to if flag == "--deliver-to" else REG[flag]]
+        if "--deliver-to" not in REG:
+            cmd += ["--deliver-to", deliver_to]
+        # ⭐ 2026-09-15 (an internal card, raised by a session that day): --brand and --partner-brand were
+        #   REQUIRED by this build (load_palette / load_partner_vars) but never handed on, so the registrar exited 6
+        #   ("no --brand given") on every build. --brand is always present by here; --partner-brand only when given.
+        cmd += ["--brand", _flag("--brand")]
+        for flag in ("--partner-brand", "--template", "--touchpoint", "--inherited-from", "--channel", "--note"):
+            v = _flag(flag)
+            if v:
+                cmd += [flag, v]
+        print("   running the registrar: %s --scan %s" % (_reg.name, scan_dir))
+        r = subprocess.run(cmd)
+        if r.returncode != 0:
+            # ⛔ THE REGISTRAR'S REFUSAL IS THIS BUILD'S REFUSAL, AND ITS EXIT CODE PASSES STRAIGHT
+            #   THROUGH rather than being flattened into 9: 2 means it could not read the folder and
+            #   6 means a required value or the sheet's words are missing. Collapsing those into
+            #   "not delivered yet" would tell the caller to go run a step that fails the same way.
+            print()
+            print("⛔ THE REGISTRAR REFUSED (exit %d). The sheets are written; the delivery is NOT "
+                  "planned." % r.returncode)
+            raise SystemExit(r.returncode)
+        return scan_dir / "_delivery.json"
+
+    plans = []
+    if ROUTES is None:
+        plans.append(_register(OUT, REG["--deliver-to"]))
+    else:
+        # ⭐ ROUTED (2026-09-18): each rule's sheets are planned against THEIR OWN home and then MOVED there, so the
+        #   path registered and the path on disk are one value and nothing is left behind in out/. Each group is
+        #   staged in its own folder first because the registrar plans every deliverable in the folder it scans,
+        #   and a home folder already holds other sheets.
+        root = workspace_root()
+        for route in sorted(set(ROUTE_OF.values())):
+            names = [n for n in ROUTE_OF if ROUTE_OF[n] == route]
+            stage = OUT / ("_route-" + route)
+            stage.mkdir(exist_ok=True)
+            for n in names:
+                os.replace(OUT / (n + ".pdf"), stage / (n + ".pdf"))
+            (stage / "_audience.json").write_text(
+                json.dumps({k: v for k, v in AUD.items() if k[:-4] in names}, ensure_ascii=False, indent=1),
+                encoding="utf-8")
+            plans.append(_register(stage, ROUTES[route]))
+            home = root / ROUTES[route]
+            home.mkdir(parents=True, exist_ok=True)
+            for n in names:
+                os.replace(stage / (n + ".pdf"), home / (n + ".pdf"))
+                print("   %-12s %s.pdf -> %s" % (route, n, home))
     print()
-    print("   PLANNED. Now run these two through the board — they need the connector:")
-    print('     python3 "%s" --plan "%s" --sql' % (_reg, OUT / "_delivery.json"))
-    print('     python3 "%s" --plan "%s" --settle <rows.json>' % (_reg, OUT / "_delivery.json"))
+    print("   PLANNED. Now run these through the board — they need the connector:")
+    for plan in plans:
+        print('     python3 "%s" --plan "%s" --sql' % (_reg, plan))
+        print('     python3 "%s" --plan "%s" --settle <rows.json>' % (_reg, plan))
     print("   ⚠ A rebuild that produces the SAME BYTES comes back `unchanged` and writes")
     print("     nothing. That is a pass, not a miss: the file name was never the question.")
     raise SystemExit(9)

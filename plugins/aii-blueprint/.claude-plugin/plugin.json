@@ -1,7 +1,7 @@
 {
   "name": "aii-blueprint",
   "displayName": "AI Integrator - Blueprint Plugin",
-  "version": "0.9.41",
+  "version": "0.9.42",
   "description": "The AI Integrator Blueprint, as one installable file. Brings your company's brain, the AI Integrator Blueprint skill set, and the one Blueprint connector every tool runs through. Sign your tools in once in the Command Center (Settings → Admin → Company tools). Start by saying 'patch me up' or 'set me up'.",
   "author": {
     "name": "AI Integrator",

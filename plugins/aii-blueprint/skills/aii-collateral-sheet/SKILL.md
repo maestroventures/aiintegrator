@@ -307,6 +307,16 @@ assertions and the layout probes; content is data passed in.
 present, and the runtime that has one is not always the runtime you are in. If you are on a surface
 that cannot run it, **say so and stop** — do not hand-roll the output.
 
+**Where each sheet lands — you pass it, the builder never guesses.** One build can hold more than one
+kind of sheet, so the builder takes one destination per kind: `--folder-personalized`,
+`--folder-partner` and `--folder-generic`. Resolve each from the company's own folder address, never
+type a path. The kind is decided recipient first, then brand:
+1. made for ONE named recipient (co-branded or not) → that recipient's own folder, under the channel
+   the relationship came through;
+2. carries a partner's brand and is for no single recipient → that partner's folder;
+3. neither → the company's generic sheets folder.
+The sheet spec must name the company SENDING it; a sheet with none is refused, never defaulted.
+
 **REFUSES:** hand-writing markup, rebuilding the shell to fix one element, or editing the builder to
 special-case one sheet. Patch, never rebuild — the existing design is ground truth.
 
