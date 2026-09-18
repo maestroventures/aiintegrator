@@ -140,6 +140,168 @@ function loadRegistrar() {
 
 const BUILD_STAMP = '2026-08-07-COVERAGE-BOARD';
 
+/* ════════════════════════════════════════════════════════════════════════════════════
+   KEPT STATE IS A REPRODUCTION SOURCE, NOT JUST THE CONTENT. Added 2026-09-17 (S4),
+   after the first live cloud fire (2026-09-17 20:37Z) built a guide, registered it, stored
+   kept state, resolved the folder and minted a ticket — and then the container's egress
+   proxy refused CONNECT to our own door (curl 56, 403 connect_rejected, organization
+   policy). Filing therefore has to happen on OUR infrastructure, from the stored source.
+
+   AND THE STORED SOURCE COULD NOT ANSWER. Measured on Maestro
+   (cdb_maestro_20260819_unadopted) and on a real built page the same day: a built guide
+   embeds `var CONFIG={...}` with ELEVEN keys. Six are columns on call_doc (eventId,
+   meetingDate, prospect->person, domain, leadId, docId), ONE is derived by the renderer
+   (totalSections), and FOUR were stored NOWHERE — guideId, company, email, crmName. The
+   builder's own fallback for the first of those is `'g' + Date.now()`, so a re-render could
+   not even be WRONG the same way twice. A re-render was therefore never byte-identical, and
+   a filer that must prove it is filing the recorded document could never accept it.
+
+   THE FIX IS TO STORE IT, NOT TO DERIVE IT. Every derivation attempt reproduces the defect:
+   a derived guideId is exactly what broke this. So kept state now carries the CONFIG THE
+   PAGE ACTUALLY EMBEDS, beside the content, plus a `render` block recording WHICH BUILDER
+   made those bytes and WHAT THEY HASHED TO. A later render can then do the one thing prose
+   cannot: refuse. `builderSha256` is how a re-render knows the builder has MOVED under it;
+   `htmlSha256` is how it knows its own output is not the recorded document.
+
+   ⚠ THE ENVELOPE IS A SUPERSET, NEVER A REWRAPPING. `config` and `render` are added BESIDE
+   the content's own top-level keys, so:
+     · the 104 kept-state rows that predate this stay readable, with `config` simply absent
+       (named absence — `render_config_absent`, not a crash and not a guess);
+     · `cgs_json_has_sections_ck` still sees the content's own non-empty sections[];
+     · nothing in this file iterates the content's keys, so two added keys cannot change one
+       byte of the page. That is ASSERTED rather than assumed — prove-kept-state-render.js
+       builds, envelopes, re-renders and compares sha256, and goes red if it ever stops
+       being true.
+
+   THE SAME BLOCK SHIPS IN build-call-debrief.js. There is no shared module in the plugin
+   format (pack.config.json's own `_bundle_rule`), so it is duplicated on purpose and
+   labelled — IF YOU CHANGE ONE, CHANGE THE OTHER. A sibling three lines away keeping the
+   old behaviour is exactly how the Save button was fixed on the guide in August and left
+   broken on the debrief.
+   ════════════════════════════════════════════════════════════════════════════════════ */
+const crypto = require('crypto');
+const KEPT_ENVELOPE = 'call-doc-kept-v1';
+
+function sha256(x) { return crypto.createHash('sha256').update(x).digest('hex'); }
+
+/* THE BUILDER'S OWN REVISION, read off this file's bytes — never a hand-bumped version
+   string. BUILD_STAMP is a label a human maintains and it has not moved since 2026-08-07
+   through dozens of real changes, so it cannot answer "has the renderer moved?". The file
+   hash can, and it cannot be forgotten. */
+let _builderSha = null;
+function builderSha256() {
+  if (_builderSha === null) _builderSha = sha256(fs.readFileSync(__filename));
+  return _builderSha;
+}
+
+/* content + the config the page embeds + how it was rendered. Idempotent: re-enveloping an
+   envelope overwrites `config`/`render` rather than nesting them, which is what the
+   regeneration path needs. */
+function keptEnvelope(content, cfg, html, extra) {
+  const bytes = Buffer.from(html, 'utf8');
+  return Object.assign({}, content, extra || {}, {
+    config: cfg,
+    render: {
+      envelope: KEPT_ENVELOPE,
+      kind: 'guide',
+      builder: 'build-call-guide.js',
+      buildStamp: BUILD_STAMP,
+      builderSha256: builderSha256(),
+      configSha256: sha256(JSON.stringify(cfg)),
+      contentSha256: sha256(JSON.stringify(content)),
+      htmlSha256: sha256(bytes),
+      htmlBytes: bytes.length,
+    },
+  });
+}
+
+/* ── THE PURE RENDER ENTRY POINT — kept state in, HTML out. ─────────────────────────────
+   This is the seam aii-site's lib/cc/call-doc-cloud/render-registry.js is waiting for, and
+   its shape is that file's contract, not a new one: it NEVER throws, it writes NO file, it
+   re-registers NOTHING and it mints NO kept state. It is the only thing in this builder
+   that a server may call.
+
+   IT REFUSES BY NAME, one code per cause, because two different failures reported by one
+   guard is the X1 lesson from gate_call_guide_state(). In particular a MISMATCH and a
+   MISSING INPUT must never look alike: bytes that "did their best" would be refused later on
+   the sha and would read as a mismatch defect instead of the missing input it is.
+
+   WHAT IT DELIBERATELY DOES NOT DO: re-run crmRecordGate. That gate is an AUTHORING rule —
+   it decides whether a guide may be born — and this path authors nothing. The stored config
+   already passed it at build time, and re-judging it here could only ever refuse to reproduce
+   a document that legitimately exists. */
+const RENDER_EXIT = {
+  kept_state_absent: 4, kept_state_unusable: 5, render_config_absent: 8,
+  builder_moved: 9, render_not_reproducible: 10, render_threw: 11,
+};
+
+function renderRefuse(code, detail) { return { ok: false, refused: code, detail }; }
+
+function renderFromKeptState(kept, opts) {
+  opts = opts || {};
+  /* A call_guide_state ROW or the guide_json itself — a caller holding either is holding
+     the same fact, and making them pass the inner object is a trap with no upside. */
+  const k = (kept && typeof kept === 'object' && !Array.isArray(kept) && kept.guide_json)
+    ? kept.guide_json : kept;
+  const stateId = (kept && kept.state_id) || (opts && opts.stateId) || 'the kept state handed in';
+
+  if (!k || typeof k !== 'object' || Array.isArray(k)) {
+    return renderRefuse('kept_state_absent',
+      'there is no kept-state JSON to re-render. An empty read is "I could not find it", never ' +
+      '"build it fresh" — a re-AUTHORING is a different document and is never filed under a ' +
+      'registered title.');
+  }
+  if (!Array.isArray(k.sections) || k.sections.length === 0) {
+    return renderRefuse('kept_state_unusable',
+      stateId + ' carries no non-empty sections[]. A source with no sections is not a source.');
+  }
+  if (!k.config || typeof k.config !== 'object' || Array.isArray(k.config)) {
+    return renderRefuse('render_config_absent',
+      stateId + ' carries the content but not the render config the page embeds (guideId, ' +
+      'company, email, crmName among eleven keys). Four of those are stored nowhere else, so a ' +
+      're-render would differ from the original INSIDE the file and could never match the ' +
+      'recorded sha256. This row was written before the builder stored the config; rebuild it ' +
+      'with the authoring skill if you need it reproducible.');
+  }
+
+  const r = (k.render && typeof k.render === 'object' && !Array.isArray(k.render)) ? k.render : null;
+  if (!opts.allowBuilderDrift && r && r.builderSha256 && r.builderSha256 !== builderSha256()) {
+    return renderRefuse('builder_moved',
+      'the builder that made these bytes hashed ' + String(r.builderSha256).slice(0, 12) + '… and ' +
+      'this one hashes ' + builderSha256().slice(0, 12) + '…. The renderer has MOVED, so a ' +
+      're-render would be a DIFFERENT document wearing a registered title. Run the builder of ' +
+      'record, or pass allowBuilderDrift when a deliberate re-render at the new revision is ' +
+      'what you mean.');
+  }
+
+  let html;
+  try { html = buildStandaloneHtml(k, k.config); }
+  catch (e) {
+    return renderRefuse('render_threw',
+      'the renderer refused this source: ' + (e && e.message ? e.message.split('\n')[0] : String(e)));
+  }
+
+  const bytes = Buffer.from(html, 'utf8');
+  const htmlSha256 = sha256(bytes);
+  const expect = opts.expectSha256 || (r && r.htmlSha256) || null;
+  if (expect && expect !== htmlSha256) {
+    return renderRefuse('render_not_reproducible',
+      'the re-render is NOT the recorded document: stored sha256 ' + String(expect).slice(0, 12) +
+      '… and this render hashes ' + htmlSha256.slice(0, 12) + '… (' + bytes.length + ' bytes). ' +
+      'Either the stored config was edited or the content and the config disagree. Nothing was ' +
+      'written and nothing was filed — a document that cannot be reproduced must not be filed ' +
+      'under a registered title.');
+  }
+
+  return {
+    ok: true, html, htmlSha256, bytes: bytes.length,
+    config: k.config, render: r,
+    /* TRUE only when a recorded hash was actually compared. With no stored hash this is a
+       render, not a reproduction, and saying so is the difference between the two. */
+    byteIdentical: !!expect,
+  };
+}
+
 /* ── helpers (verbatim from artifact) ── */
 function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function stripFences(s) { return String(s || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim(); }
@@ -1400,7 +1562,7 @@ function buildLiveBoardHtml(g, config) {
 
 
 /* ── assemble the standalone HTML (verbatim structure from artifact) ── */
-function buildStandaloneHtml(g, config) {
+function buildStandaloneHtml(g, config, out) {
   /* THE CONFORMANCE GUARD RUNS BEFORE A BYTE IS ASSEMBLED, and it REFUSES.
      the operator, 2026-08-07: "It must remain canonical to the registered components... do not
      invent anything." A stated claim about conformance is a hypothesis; this is the check,
@@ -1418,6 +1580,13 @@ function buildStandaloneHtml(g, config) {
   const live = buildLiveBoardHtml(g, config);
   const sec = buildSectionsHtml(g);           /* still built: SECTION_LABELS feeds the CRM log */
   const cfg = Object.assign({}, config, { totalSections: live.ids.length });
+  /* THE CONFIG THE PAGE EMBEDS, handed back to the caller so kept state can store exactly
+     what shipped rather than a reconstruction of it. An OPTIONAL third argument on purpose:
+     every existing two-argument caller is byte-for-byte unaffected, which is the only way a
+     locked shell may grow a new output. `totalSections` is added HERE, by the renderer, and
+     it is the one of the eleven keys that is genuinely derived — storing the assembled cfg
+     is what makes it not need deriving again. */
+  if (out && typeof out === 'object') out.cfg = cfg;
   const title = (g.header && g.header.title) || ('Call Guide — ' + config.prospect);
   const sub = (g.header && g.header.subtitle) || '';
 
@@ -1698,7 +1867,44 @@ function regenerate(readPlan, rowsIn, opts) {
   /* The config the renderer needs is reconstructed from the call_doc row — the same
      columns the original build wrote. guideId is derived so two regenerations of the
      same document are not told apart by a timestamp nobody reads. */
-  const config = {
+  /* ── THE CONFIG COMES FROM KEPT STATE WHEN KEPT STATE HAS IT. Added 2026-09-17. ────
+     Everything below this comment used to be the ONLY path: rebuild the config from the
+     call_doc columns and DERIVE the guideId. That reconstruction cannot be byte-identical
+     and never could — four of the eleven keys the page embeds (guideId, company, email,
+     crmName) sit on no column, and 'regen-' + doc_id is a fifth invented value. It is kept
+     verbatim as the fallback for the 104 kept-state rows written before the envelope, and
+     the result now SAYS which of the two ran: "regenerated" meaning two different things is
+     how a re-render that silently downgraded a page went unnoticed for a month. */
+  const storedCfg = (g.config && typeof g.config === 'object' && !Array.isArray(g.config))
+    ? g.config : null;
+  let config;
+  if (storedCfg) {
+    config = Object.assign({}, storedCfg);
+    /* The ROW is authoritative for the document's own address: a doc_id cannot be anything
+       but its own, and here the authoritative value is already in hand. */
+    config.docId = row.doc_id;
+
+    /* ⚠ ONLY A REAL CORRECTION IS WRITTEN IN, AND THAT IS NOT TIDINESS. An unconditional
+       `leadId: … || ''` / `noLeadReason: … || ''` ADDS a key the original page never carried,
+       JSON.stringify then emits a CONFIG with an extra key, and the re-render is a DIFFERENT
+       document. Measured, not reasoned: the first version of this function did exactly that
+       and turned an otherwise byte-identical re-render red on its own proof (R15). The
+       stored config is the record of what shipped; silence about the lead is part of that
+       record. */
+    const leadFix = (opts && opts.leadId) || readPlan.leadId || '';
+    const reasonFix = (opts && opts.noLeadReason) || readPlan.noLeadReason || '';
+    if (leadFix) config.leadId = leadFix;
+    if (reasonFix) config.noLeadReason = reasonFix;
+    /* Nobody corrected anything AND the stored config declares neither state — then the row
+       is the restoration, in the same order the reconstruction path below has always used.
+       This is the 2026-08-11 fix (a regeneration must not downgrade a working page) reaching
+       the envelope path too. */
+    if (!leadFix && !reasonFix && !config.leadId && !config.noLeadReason) {
+      if (row.lead_id) config.leadId = row.lead_id;
+      else if (row.no_lead_reason) config.noLeadReason = row.no_lead_reason;
+    }
+  } else {
+    config = {
     guideId: 'regen-' + row.doc_id,
     /* The REGENERATED page addresses the refresh door by the SAME doc_id it was read from —
        taken off the row, not re-derived, because here the authoritative value is already in
@@ -1748,12 +1954,27 @@ function regenerate(readPlan, rowsIn, opts) {
     leadId: (opts && opts.leadId) || readPlan.leadId || row.lead_id || '',
     noLeadReason: (opts && opts.noLeadReason) || readPlan.noLeadReason
                   || row.no_lead_reason || '',
-  };
+    };
+  }
+  const configSource = storedCfg
+    ? 'kept state ' + row.state_id + ' — the stored render config, so this re-render can be ' +
+      'compared byte for byte against the recorded document'
+    : 'RECONSTRUCTED from call_doc columns — kept state ' + row.state_id + ' predates the ' +
+      'stored render config (' + KEPT_ENVELOPE + '), so guideId is derived and company, email ' +
+      'and crmName are BLANK. This re-render is NOT byte-identical to the original and must ' +
+      'never be filed as if it were.';
 
   /* Same gate as a fresh build. A regeneration is a build. */
   crmRecordGate(config);
 
-  const html = buildStandaloneHtml(g, config);
+  const rendered = {};
+  const html = buildStandaloneHtml(g, config, rendered);
+  /* PROVEN, not asserted: when the source carried a recorded hash, say whether these bytes
+     ARE the recorded document. A regeneration that quietly produces different bytes under a
+     registered title is the whole failure this envelope exists to make visible. */
+  const htmlSha256 = sha256(Buffer.from(html, 'utf8'));
+  const storedSha = (g.render && g.render.htmlSha256) || null;
+  const reproducedStored = storedSha ? (storedSha === htmlSha256) : null;
 
   const plan = R.planRegistration(where.absPath, {
     eventId:       row.event_id,
@@ -1774,7 +1995,7 @@ function regenerate(readPlan, rowsIn, opts) {
     /* The SAME JSON goes back in. A regeneration mints a new kept-state version whose
        source is byte-identical to the one it read: the render changed, the content did
        not, and that is a fact the store should be able to prove later. */
-    guideJson:  g,
+    guideJson:  keptEnvelope(g, rendered.cfg, html),
     /* THE LEAD GOES BACK IN, from the config the gate just approved — not from the row.
        If the caller CORRECTED the lead, this is what persists the correction; if it fell
        back to the stored value, this rewrites the same value and the upsert's CASE reads
@@ -1795,6 +2016,12 @@ function regenerate(readPlan, rowsIn, opts) {
     docId: row.doc_id,
     fromKeptState: row.state_id,
     fromVersion: row.kept_version,
+    configSource,
+    htmlSha256,
+    storedHtmlSha256: storedSha,
+    /* null = the source recorded no hash (a pre-envelope row), so there was nothing to
+       compare. false is a RED and must never be read as "no answer". */
+    reproducedStored,
     pathVia: where.via,
     planPath,
     resultPath: where.absPath + '.result.json',
@@ -1914,6 +2141,47 @@ async function main() {
     console.log(gateSql(ti >= 0 ? argv[ti + 1] : null));
     return;
   }
+  /* ── THE PURE RENDER DOORS — kept state in, HTML out. Added 2026-09-17. ───────────
+     Both write NOTHING, register NOTHING and mint NOTHING, and they answer before any
+     build flag is read so nothing about a build can reach them.
+       --render-state <keptState.json>   HTML on stdout, for a caller that wants the bytes
+       --render-check <keptState.json>   the verdict as JSON, for a caller that wants to
+                                         know whether the bytes are reproducible first
+     A refusal exits on its own code (RENDER_EXIT) and prints its own sentence. A server
+     calls renderFromKeptState() directly instead; see that function's header. */
+  if (argv[0] === '--render-state' || argv[0] === '--render-check') {
+    const door = argv[0];
+    const statePath = argv[1];
+    if (!statePath || statePath.startsWith('--')) {
+      console.error('Usage: node build-call-guide.js ' + door + ' <keptState.json> ' +
+                    '[--allow-builder-drift]\n' +
+                    '       The file is a call_guide_state row, or its guide_json. Nothing is written.');
+      process.exit(1);
+    }
+    if (argv.indexOf('--cloud') >= 0 || argv.indexOf('--folder') >= 0) {
+      console.error('REFUSED - ' + door + ' is a pure render: it writes no file and registers ' +
+                    'nothing, so a filing flag on it is a misunderstanding, not a mode.');
+      process.exit(1);
+    }
+    const out = renderFromKeptState(JSON.parse(fs.readFileSync(statePath, 'utf8')),
+      { allowBuilderDrift: argv.indexOf('--allow-builder-drift') >= 0 });
+    if (!out.ok) {
+      console.error('\u2717 RENDER REFUSED \u2014 ' + out.refused + ': ' + out.detail);
+      console.error('  NOTHING was rendered, written, registered or filed.');
+      if (door === '--render-check') {
+        console.log(JSON.stringify({ ok: false, refused: out.refused, detail: out.detail }, null, 2));
+      }
+      process.exit(RENDER_EXIT[out.refused] || 1);
+    }
+    if (door === '--render-check') {
+      console.log(JSON.stringify({ ok: true, htmlSha256: out.htmlSha256, bytes: out.bytes,
+        byteIdentical: out.byteIdentical, config: out.config, render: out.render }, null, 2));
+    } else {
+      process.stdout.write(out.html);
+    }
+    return;
+  }
+
   if (argv[0] === '--print-folder-sql') {
     const val = (n) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : null; };
     console.log(JSON.stringify(loadRegistrar().folderSql({ channel: val('--channel'),
@@ -2010,7 +2278,8 @@ async function main() {
      refusal that fires after the file exists is a cleanup instruction, not a gate. */
   const crm = crmRecordGate(config);
 
-  const html = buildStandaloneHtml(g, config);
+  const rendered = {};
+  const html = buildStandaloneHtml(g, config, rendered);
   const absOut = path.resolve(outPath);
 
   /* PLAN FIRST — every shape refusal happens before a single byte is written. */
@@ -2045,7 +2314,13 @@ async function main() {
        already registers call_doc: the SESSION runs plan.sql through the board connector
        resolved BY CATEGORY. This builder's database connection was removed because it
        read a raw password off local disk, and nothing here puts one back. */
-    guideJson:  g,
+    /* ⚠ IT IS THE ENVELOPE, NOT `g`. Changed 2026-09-17 — see the KEPT STATE block at the
+       top of this file. `g` alone is the CONTENT; what a server-side filer needs is the
+       content AND the eleven-key config the page embeds AND which builder made the bytes.
+       `rendered.cfg` is the config buildStandaloneHtml actually embedded three lines above,
+       handed back rather than rebuilt here: rebuilding it is how it would drift, and the
+       drift would be invisible because both copies would look plausible. */
+    guideJson:  keptEnvelope(g, rendered.cfg, html),
     /* THE DECLARATION TRAVELS WITH THE ROW, not just the build log. A build-time check
        that leaves no trace cannot answer "was this guide's missing lead a decision or an
        accident?" three weeks later — which is the exact question nobody could answer about
@@ -2134,4 +2409,8 @@ module.exports = { buildStandaloneHtml, buildSectionsHtml, buildLiveBoardHtml, c
                       refused to run and exited 3 rather than reporting a pass over nothing. */
                    __gates: { crmRecordGate, MIN_NO_LEAD_REASON },
                    __links: { buildLinksHtml, cgDocsBar },
-                   filingMode, CLOUD_HOSTED_GAP };
+                   filingMode, CLOUD_HOSTED_GAP,
+                   /* THE SEAM aii-site's render-registry.js is waiting for. ONE implementation,
+                      exported — never vendored into a second repository. */
+                   renderFromKeptState, keptEnvelope, builderSha256, sha256,
+                   KEPT_ENVELOPE, RENDER_EXIT };

@@ -42,11 +42,11 @@ SELECT count(*) AS live_connectors
 
 **Why this block exists, stated so it does not get tidied away.** Until 2026-08-06 this skill was
 kept OUT of the AI Integrator Blueprint plugin, on the grounds that a client would not have what it
-needs. Bryce retired that test: *"Even if the user is never gonna use the AII adjudicate, doesn't
+needs. The operator retired that test: *"Even if the user is never gonna use the AII adjudicate, doesn't
 mean the user shouldn't have it."* **Non-use is not a reason to withhold.** A skill is withheld only
 if it would MISLEAD or FAIL LOUDLY — **and that guard belongs INSIDE the skill, which is this block,
 not in a packing list where the skill itself can never see it.** Card:
-`neon_seven_builder_only_skills_reach_nobody_including_bryce_20260805`, step F.
+an internal card of 2026-08-05, step F.
 
 ---
 
@@ -224,6 +224,6 @@ designed in `04/specs/Session-Log-SPEC-DRAFT.md` (Evans portable-core / anti-cor
 Nygard tier-3 floor, Redman distill-at-source, Goldratt one-record-two-pains) — it does not restate
 the spec, it carries out the read half. Pairs with `aii-session-handoff` (the write half). Adopted
 via `aii-adjudicate` (grepped 03 ABSENT — distinct from `aii-chat-history-search`, which searches a
-local chat export, not the handoff-written records; four-test + one-fact-one-file passed). Bryce
+local chat export, not the handoff-written records; four-test + one-fact-one-file passed). The operator
 pop-up-approved 2026-07-14. Personal copy already live; the generic master now inherits to every
 client.*

@@ -9,7 +9,7 @@ home_folder_guard.py; this file only reads the tool call and answers.
 Exit 2 = blocked (stderr is handed back to the session as the reason). Exit 0 = allowed.
 Ships in the AI Integrator Blueprint plugin (hooks/hooks.json, via hooks/run-guard.sh) so every seat
 gets it; the builder's seat also registered it in AIOS/.claude/settings.local.json first. Added
-2026-09-11, slog_solo_20260911_055344_c1a0d7, on Bryce's instructions "add the hook" and "make it work"
+2026-09-11, by a session that day, on the operator's instructions "add the hook" and "make it work"
 for every user. The rule it enforces is the house tier's.
 """
 import json
@@ -38,7 +38,7 @@ def main():
         line = g.home_rooted_search(cmd)
         if line:
             block("this searches from the home folder (or above). A walk like that reaches into\n"
-                  "    Mail, Messages, Safari and Photos and makes macOS show Bryce the pop-up\n"
+                  "    Mail, Messages, Safari and Photos and makes macOS show the user the pop-up\n"
                   "    \"claude would like to access data from other apps\".\n    Line: " + line[:160])
         strays = g.stray_home_paths(cmd, call.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR"))
         if strays:
@@ -55,7 +55,7 @@ def main():
         #    MEASURED: the LANDED case blocks every pathless Grep and Glob for the whole session,
         #    Bash keeps working, and there was NO override of any kind — AIOS_ALLOWED_TOPS does
         #    not reach this test, which is a flat set membership. A seat in that state cannot
-        #    search at all and the old message pointed it at rules it could not act on. Bryce hit
+        #    search at all and the old message pointed it at rules it could not act on. The operator hit
         #    it on 2026-09-11 (stuck at v0.9.13) and had to hand-upload a plugin to get out.
         asked_for = inp.get("path") or ""
         root = asked_for or call.get("cwd") or ""

@@ -79,7 +79,11 @@ if (IS_GUIDE) {
   extra = ['--gate', w('gate.json', [1, 2, 3, 4].map(function (i) { return { template_id: 't' + i, ok: true, detail: 'ok' }; }))];
   config.guideId = 'pat-doe-20260918';
 } else {
-  docPath = w('doc.json', { header: { title: 'Debrief — Pat Doe' }, captureQuestions: [] });
+  /* nextCallGoal is not decoration: a debrief that renders NO sections has no section index
+     to keep, and since 2026-09-17 keptSectionsGate refuses it before a byte is written (kept
+     state will not hold a bodyless document). The old fixture built exactly that page. */
+  docPath = w('doc.json', { header: { title: 'Debrief — Pat Doe' }, captureQuestions: [],
+    nextCallGoal: 'Lock the rooftop and the start date.' });
   config.debriefId = 'pat-doe-20260918';
   config.callRef = 'ff_abc123';
 }

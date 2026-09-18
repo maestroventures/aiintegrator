@@ -27,7 +27,7 @@
  *    of reconstructing it."
  * The guess was never removed. This file removes it.
  *
- * THE RULE IT IMPLEMENTS (Bryce, board card
+ * THE RULE IT IMPLEMENTS (the operator's ruling, board card
  * fw_registration_at_build_time_never_on_a_schedule_20260802):
  *   "the writer of the state is the ACT that changes it ... so the store cannot drift
  *    from reality without the act itself failing. A scheduled check is then a
@@ -52,9 +52,9 @@
  *    registry exists to end (see no_vocabulary_drift.py, which refuses to run
  *    without a snapshot for exactly this reason).
  * 4. THERE IS NO LEGAL VALUE FOR A HAND-TYPED GUIDE, and there must not be one.
- *    Found live 2026-08-05: a chat session hand-wrote a markdown "call brief" for the
- *    Larry Golden 10:00 call, delivered it as a chat file, and had to register it as
- *    `manual` — the closest LEGAL value and not an honest one. Bryce, verbatim:
+ *    Found live 2026-08-05: a chat session hand-wrote a markdown "call brief" for a
+ *    prospect's 10:00 call, delivered it as a chat file, and had to register it as
+ *    `manual` — the closest LEGAL value and not an honest one. The operator, verbatim:
  *    "Just because it's scaled down doesn't mean it doesn't need to be a part of
  *    this entire process." `manual` stays legal ONLY so an accident can be recorded
  *    rather than hidden.
@@ -99,8 +99,8 @@
  *     builtBy:  'call-guide',         // or 'call-debrief' / 'auto-guide-debrief-sweep'
  *     eventIdSource: 'build',
  *     meetingDate: '20260805',        // YYYYMMDD, must equal the filename's date slot
- *     person:  'Larry Golden',
- *     domain:  'teamgolden.biz',
+ *     person:  'Pat Doe',
+ *     domain:  'acme.co',
  *     localPath: outPath,             // ABSOLUTE, must end with fileTitle
  *     // hosted half — supply EITHER of these two shapes, never a blank:
  *     fileId: '', viewUrl: '', hostedGap: 'not uploaded to the Drive mirror at build time',
@@ -136,8 +136,7 @@
  *
  * There is no flag that opens a database, on purpose.
  *
- * CLOUD MODE — localPath: null. Added 2026-09-17 (card
- * neon_auto_guide_debrief_sweep_builds_to_a_disk_no_client_has_20260916).
+ * CLOUD MODE — localPath: null. Added 2026-09-17 (an internal card).
  *   A document built in a cloud container has NO operator path. Writing a made-up Mac path to
  *   satisfy a CHECK was the lie body v17 of auto-guide-debrief-sweep had to tell. So:
  *     - localPath === null (exactly null — never '', never absent) means "no operator path".
@@ -154,7 +153,8 @@
  *   A disk plan (localPath absent -> defaults to the final path, or a real absolute path) is
  *   byte-for-byte the plan it was before.
  *
- * TENANT: resolved from AIOS_TENANT, else 'bryce'. Never hardcode a tenant in a caller.
+ * TENANT: resolved from AIOS_TENANT, else this seat's own tenant. Never hardcode a
+ * tenant in a caller.
  */
 'use strict';
 
@@ -171,17 +171,16 @@ const CAP_ACTION = 'record_call_doc';
  * ════════════════════════════════════════════════════════════════════════════
  * This module used to `require('pg')` and `require('./board-conn')`, and board-conn.js
  * reads a raw postgres:// URL off local disk (~/aios-workshop/hub.env -> BOARD_DATABASE_URL).
- * That is exactly the door Bryce deleted on 2026-08-02 on purpose — "a dead credential
- * path is an invitation to go satisfy it" — and the same defect class as
- * neon_three_connector_stores_hold_client_credentials_in_the_house_db_20260804
+ * That is exactly the door the operator deleted on 2026-08-02 on purpose — "a dead credential
+ * path is an invitation to go satisfy it" — and the same defect class as an internal
+ * card of 2026-08-04 recorded against it
  * (Connector-Build-Standard §13 / Core §8 rule 6).
  *
  * It mattered here for a second reason: aii-call-guide and aii-call-debrief could not
  * ship in the Blueprint plugin while this chain existed, because shipping them would
  * have put a code path wanting a local database URL on every client's machine. Cutting
  * the door is what makes those two skills shippable — the packer was never the blocker
- * for them (card neon_seven_builder_only_skills_reach_nobody_including_bryce_20260805,
- * step C).
+ * for them (an internal card of 2026-08-05, step C).
  *
  * WHAT REPLACED IT: the session is the wire. This module RETURNS SQL; a session runs it
  * through the connector resolved BY CATEGORY (Core §11 rule 4). Same pattern, same
@@ -196,7 +195,7 @@ const CAP_ACTION = 'record_call_doc';
  * can no longer be skipped by a caller that decides to write the row itself.
  *
  * After this cut the whole call-doc chain needs only `fs` and `path`. No pg, no npm,
- * no credential, no local database — on Bryce's seat and on a client's alike.
+ * no credential, no local database — on the operator's seat and on a client's alike.
  */
 
 /* ── validation that happens BEFORE any byte is written, so the caller gets a sentence ── */
@@ -351,8 +350,7 @@ WITH in_f AS (
          $20::text AS lead_id, $21::text AS no_lead_reason
 ),
 terms AS (
-  /* TIER WALK, TENANT WINS — changed 2026-09-15 (session slog_solo_20260914_170944_d6a27d, card
-     neon_call_doc_registration_refuses_every_tenant_row_after_terms_promoted_to_house_20260915).
+  /* TIER WALK, TENANT WINS — changed 2026-09-15 (a session that day, on an internal card).
      This read used to be tenant_id = the tenant ONLY. At 04:25:13Z and 06:45:48Z that day the
      three words were promoted to __house__ and the tenant copies superseded, so it returned
      0 of 3 and refused every call document on every seat. Now: __house__ and the tenant, and
@@ -605,7 +603,17 @@ function planRegistration(finalFilePath, fields, opts = {}) {
      or it is born unregenerable. The flag is what the SQL reads to decide whether to
      refuse; it is set from the KIND, never from whether the caller happened to pass
      something, so "I forgot" and "there is nothing to pass" cannot look the same. */
-  const requireKept = f.kind === 'guide';
+  /* ⚠ WIDENED 2026-09-17, and the widening is OPT-IN rather than by kind. The rule above
+     stays exactly as it was written — set from the KIND, so "I forgot" and "there is nothing
+     to pass" cannot look the same — and `opts.requireKept` lets a CALLER that knows it has a
+     source demand the same red for a kind this file does not yet require it of.
+     WHY NOT JUST ADD 'debrief' TO THE KIND TEST: confirmHosted() rebuilds the WHOLE row
+     through this same guarded statement with guide_json NULL and require_kept false, days
+     after the build. Making the requirement follow the kind would make every debrief's
+     hosted confirm refusable by kept_gap — the door built to close a gap, refused by the
+     guard built to close another. So the builder asks for the red on its own build, and the
+     confirm door is untouched. build-call-debrief.js passes it. */
+  const requireKept = opts.requireKept === true || f.kind === 'guide';
   const guideJson = (f.guideJson === undefined || f.guideJson === null)
     ? null : JSON.stringify(f.guideJson);
 
@@ -986,23 +994,23 @@ function lookupSql(eventId, kind) {
 function selfTest() {
   const base = {
     eventId: '4p9e9u82qq2au5hl31o7tsq21d', kind: 'guide', builtBy: 'call-guide',
-    eventIdSource: 'build', meetingDate: '20260805', person: 'Larry Golden',
-    domain: 'teamgolden.biz',
-    localPath: '/Users/x/Calls/20260805_callguide_larry-golden_reconnect.html',
+    eventIdSource: 'build', meetingDate: '20260805', person: 'Pat Doe',
+    domain: 'acme.co',
+    localPath: '/Users/x/Calls/20260805_callguide_pat-doe_reconnect.html',
     fileId: '', viewUrl: '', hostedGap: 'not in the Drive mirror at build time',
   };
   const mut = (o) => Object.assign({}, base, o);
   const cases = [
-    ['C1 the real Larry-shaped guide is ACCEPTED', base, false],
+    ['C1 the real fixture-shaped guide is ACCEPTED', base, false],
     ['C2 a real hosted pair is ACCEPTED', mut({ fileId: '1abc', viewUrl: 'https://drive.google.com/file/d/1abc/view', hostedGap: '' }), false],
     ['M1 blank hosted half with no reason', mut({ hostedGap: '' }), true],
     ['M2 hosted pair AND a gap reason', mut({ fileId: '1abc', viewUrl: 'https://x/view' }), true],
     ['M3 only half a hosted pair', mut({ fileId: '1abc', hostedGap: '' }), true],
-    ['M4 relative localPath', mut({ localPath: 'Calls/20260805_callguide_larry-golden_reconnect.html' }), true],
+    ['M4 relative localPath', mut({ localPath: 'Calls/20260805_callguide_pat-doe_reconnect.html' }), true],
     ['M5 path does not end with the title', mut({ fileTitle: '20260805_callguide_other_x.html' }), true],
     ['M6 filename date disagrees with meetingDate', mut({ meetingDate: '20260804' }), true],
-    ['M7 wrong kind slot in the filename', mut({ kind: 'debrief', callRef: '01JX', localPath: '/Users/x/Calls/20260805_callguide_larry-golden_reconnect.html' }), true],
-    ['M8 debrief with no transcript id', mut({ kind: 'debrief', localPath: '/Users/x/Calls/20260805_debrief_larry-golden_reconnect.html' }), true],
+    ['M7 wrong kind slot in the filename', mut({ kind: 'debrief', callRef: '01JX', localPath: '/Users/x/Calls/20260805_callguide_pat-doe_reconnect.html' }), true],
+    ['M8 debrief with no transcript id', mut({ kind: 'debrief', localPath: '/Users/x/Calls/20260805_debrief_pat-doe_reconnect.html' }), true],
     ['M9 meetingDate not YYYYMMDD', mut({ meetingDate: '2026-08-05' }), true],
     ['M10 eventId with whitespace', mut({ eventId: 'has space' }), true],
   ];
@@ -1081,10 +1089,10 @@ function selfTest() {
 
   const stagedRow = {
     doc_id: 'cd_guide_abc', tenant_id: 'bryce', event_id: '4p9e9u82qq2au5hl31o7tsq21d',
-    kind: 'guide', call_ref: null, meeting_date: '20260805', person: 'Larry Golden',
-    domain: 'teamgolden.biz', channel: 'call',
-    file_title: '20260805_callguide_larry-golden_reconnect.html',
-    local_path: '/Users/x/Calls/20260805_callguide_larry-golden_reconnect.html',
+    kind: 'guide', call_ref: null, meeting_date: '20260805', person: 'Pat Doe',
+    domain: 'acme.co', channel: 'call',
+    file_title: '20260805_callguide_pat-doe_reconnect.html',
+    local_path: '/Users/x/Calls/20260805_callguide_pat-doe_reconnect.html',
     file_id: '', view_url: '', hosted_gap: 'not in the Drive mirror at build time',
     /* ATTACHED, on purpose — added 2026-08-11. The confirm door rebuilds the whole row
        through the guarded statement, so a staged row with a BLANK lead could never have
@@ -1155,8 +1163,8 @@ function selfTest() {
   chk('CF7 a debrief row with no transcript id is refused — validateShape still runs', () => {
     const d = Object.assign({}, stagedRow, {
       doc_id: 'cd_debrief_abc', kind: 'debrief', call_ref: null,
-      file_title: '20260805_debrief_larry-golden_reconnect.html',
-      local_path: '/Users/x/Calls/20260805_debrief_larry-golden_reconnect.html',
+      file_title: '20260805_debrief_pat-doe_reconnect.html',
+      local_path: '/Users/x/Calls/20260805_debrief_pat-doe_reconnect.html',
     });
     try { confirmHosted(d, realPair); return false; } catch (_e) { return true; }
   });
@@ -1242,12 +1250,12 @@ function selfTest() {
      written as `ok.kept_state_id === null` would pass that. Absent must fail like null. */
   const guideFields = {
     eventId: '4p9e9u82qq2au5hl31o7tsq21d', kind: 'guide', builtBy: 'call-guide',
-    eventIdSource: 'build', meetingDate: '20260805', person: 'Larry Golden',
-    domain: 'teamgolden.biz', fileId: '', viewUrl: '', hostedGap: 'local only',
+    eventIdSource: 'build', meetingDate: '20260805', person: 'Pat Doe',
+    domain: 'acme.co', fileId: '', viewUrl: '', hostedGap: 'local only',
   };
   const goodGuide = { sections: [{ id: 's1', label: 'Open' }] };
   const gPlan = (extra) => planRegistration(
-    '/q/20260805_callguide_larry-golden_x.html', Object.assign({}, guideFields, extra));
+    '/q/20260805_callguide_pat-doe_x.html', Object.assign({}, guideFields, extra));
 
   chk('K1 a GUIDE plan carries the guide JSON and demands kept state', () => {
     const p = gPlan({ guideJson: goodGuide });
@@ -1264,10 +1272,10 @@ function selfTest() {
   });
 
   chk('K3 a DEBRIEF plan demands none — the gap cannot fire on the sibling builder', () => {
-    const p = planRegistration('/q/20260805_debrief_larry-golden_x.html', {
+    const p = planRegistration('/q/20260805_debrief_pat-doe_x.html', {
       eventId: '4p9e9u82qq2au5hl31o7tsq21d', kind: 'debrief', builtBy: 'call-debrief',
-      eventIdSource: 'build', meetingDate: '20260805', person: 'Larry Golden',
-      domain: 'teamgolden.biz', callRef: 'ff_abc', fileId: '', viewUrl: '',
+      eventIdSource: 'build', meetingDate: '20260805', person: 'Pat Doe',
+      domain: 'acme.co', callRef: 'ff_abc', fileId: '', viewUrl: '',
       hostedGap: 'local only',
     });
     return p.keptState === false && p.params[18] === false && p.params[16] === null;
@@ -1373,12 +1381,12 @@ function selfTest() {
      control: a plan with no localPath key is still the plan it was before today. */
   const cloudFields = Object.assign({}, guideFields, {
     localPath: null, hostedGap: 'cloud filing pending (run_test)', guideJson: goodGuide });
-  const cloudFinal = '/tmp/container/20260805_callguide_larry-golden_x.html';
+  const cloudFinal = '/tmp/container/20260805_callguide_pat-doe_x.html';
 
   chk('N1 a CLOUD guide plan (localPath null + hostedGap) is ACCEPTED and carries NULL local_path', () => {
     const p = planRegistration(cloudFinal, cloudFields);
     return p.cloud === true && p.params.length === 21 && p.params[10] === null
-        && p.params[9] === '20260805_callguide_larry-golden_x.html'
+        && p.params[9] === '20260805_callguide_pat-doe_x.html'
         && p.params[13] === 'cloud filing pending (run_test)' && p.keptState === true;
   });
   chk('N2 RED — the identical cloud plan with NO hostedGap is refused', () => {
@@ -1409,8 +1417,8 @@ function selfTest() {
     } catch (e) { return /settled file name must equal fileTitle/.test(e.message); }
   });
   chk('N7 a cloud plan with no fileTitle derives it from the settled file, and the path checks are skipped', () => {
-    const { errs } = validateShape(Object.assign({}, cloudFields, { fileTitle: '20260805_callguide_larry-golden_x.html' }));
-    return errs.length === 0 && planRegistration('relative/20260805_callguide_larry-golden_x.html', cloudFields).params[10] === null;
+    const { errs } = validateShape(Object.assign({}, cloudFields, { fileTitle: '20260805_callguide_pat-doe_x.html' }));
+    return errs.length === 0 && planRegistration('relative/20260805_callguide_pat-doe_x.html', cloudFields).params[10] === null;
   });
   chk('N8 cloud validateShape with NO fileTitle names the cloud reason', () => {
     const { errs } = validateShape(Object.assign({}, cloudFields));
@@ -1442,11 +1450,11 @@ function selfTest() {
     const out = settleRegistration(p, [Object.assign({}, okRow,
       { doc_id: p.docId, kept_state_id: 'cgs_x', kept_version: 1 })], F);
     return p.cloud === undefined && !('cloud' in p) && out.settled_path === undefined
-        && p.params[10] === '/q/20260805_callguide_larry-golden_x.html'
-        && out.local_path === '/q/20260805_callguide_larry-golden_x.html';
+        && p.params[10] === '/q/20260805_callguide_pat-doe_x.html'
+        && out.local_path === '/q/20260805_callguide_pat-doe_x.html';
   });
   chk('N13 a cloud DEBRIEF with a transcript id is ACCEPTED', () => {
-    const p = planRegistration('/tmp/container/20260805_debrief_larry-golden_x.html', {
+    const p = planRegistration('/tmp/container/20260805_debrief_pat-doe_x.html', {
       eventId: '4p9e9u82qq2au5hl31o7tsq21d', kind: 'debrief', builtBy: 'call-debrief',
       eventIdSource: 'build', meetingDate: '20260805', callRef: 'ff_abc',
       localPath: null, hostedGap: 'cloud filing pending (run_test)' });
@@ -1468,8 +1476,7 @@ function selfTest() {
   return fail === 0;
 }
 
-/* ── HOSTED HANDOFF — added 2026-09-17 (card
-   neon_cloud_seats_claim_the_guide_and_debrief_sweep_by_ruled_drive_reach_but_the_builder_can_only_write_local_files_20260917).
+/* ── HOSTED HANDOFF — added 2026-09-17 (an internal card).
    ──────────────────────────────────────────────────────────────────────────────────────
    Cloud mode (--cloud) already registered a row with NO operator path and printed three
    prose lines about what to do next. Two things were still missing, and together they are
@@ -1612,7 +1619,7 @@ function hostedHandoff(plan, bytes, folder, o) {
 module.exports = { planRegistration, settleRegistration, quarantinePathFor, lookupSql,
                    confirmHosted, confirmSettle, cleanupSettleScratch,
                    validateShape, deriveDocId, GUARDED_UPSERT,
-                   /* TENANT is exported so a caller never types 'bryce' a second time.
+                   /* TENANT is exported so a caller never types a tenant literal twice.
                       A tenant literal in a second file is the drift this module refuses
                       everywhere else; build-call-guide.js --regen reads it from here. */
                    TENANT,

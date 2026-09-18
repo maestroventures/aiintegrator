@@ -5,7 +5,7 @@ description: >
   The ONE recurring task installed on each AI platform a tenant uses. It carries NO job logic and
   NO schedule — it only asks the tenant's queue what is due, claims exactly one job, does it, and
   beats. Identical text on every platform. Install once per platform; never edit again.
-  Installed AI Integrator Blueprint plugin version: 0.9.38.
+  Installed AI Integrator Blueprint plugin version: 0.9.39.
 ---
 
 # Job Poke — install this once per AI platform, then forget it
@@ -39,7 +39,7 @@ SELECT count(*) AS live_connectors
 > ⚠ **THE CATEGORY IN THIS BLOCK WAS WRONG ONCE, ON THE DAY IT WAS WRITTEN, AND IT WAS CAUGHT BY
 > MEASURING RATHER THAN BY READING.** The first draft resolved `scheduled-jobs` /
 > `create_scheduled_job`. That category exists in the registry and has **ZERO** connectors
-> answering `CAN`, so the guard would have refused on Bryce's OWN seat — while **four scheduled
+> answering `CAN`, so the guard would have refused on the operator's OWN seat — while **four scheduled
 > tasks were live and firing on it** (J-05 warm aim dig, the Warm Relationship Engine daily run,
 > the hide-sweep watchdog, the CC grant-bug watch). That is a REGISTRY gap wearing the costume of
 > a missing capability, and it is the false-red shape that trains a person to skim a check. The
@@ -51,11 +51,11 @@ SELECT count(*) AS live_connectors
 
 **Why this block exists, stated so it does not get tidied away.** Until 2026-08-06 this skill was
 kept OUT of the AI Integrator Blueprint plugin, on the grounds that a client would not have what it
-needs. Bryce retired that test: *"Even if the user is never gonna use the AII adjudicate, doesn't
+needs. The operator retired that test: *"Even if the user is never gonna use the AII adjudicate, doesn't
 mean the user shouldn't have it."* **Non-use is not a reason to withhold.** A skill is withheld only
 if it would MISLEAD or FAIL LOUDLY — **and that guard belongs INSIDE the skill, which is this block,
 not in a packing list where the skill itself can never see it.** Card:
-`neon_seven_builder_only_skills_reach_nobody_including_bryce_20260805`, step F.
+an internal card of 2026-08-05, step F.
 
 ---
 
@@ -86,38 +86,55 @@ substitute a similar tool, and never quietly do nothing.**
 ## Step 1 — Free any work abandoned by a dead executor
 
 ```sql
-SELECT * FROM job_reap();
+SELECT * FROM job_reap('<tenant_id>');
 ```
 
-> ⚠ **AMENDED 2026-08-26 — `job_reap()` FREES EVERY TENANT'S WORK, NOT YOURS. The correction is FIRST; the original paragraph is quoted verbatim at the end of this block and NOT deleted.**
+> ✅ **AMENDED 2026-09-18 — DONE. `job_reap` NOW TAKES YOUR TENANT AND FREES ONLY YOUR TENANT'S WORK. Pass the same `<tenant_id>` you pass to `job_claim_next` in Step 2. The 2026-08-26 amendment this replaces is quoted verbatim at the end of this block and NOT deleted.**
 >
-> **`job_reap()` TAKES NO TENANT AND RETURNS NONE.** Measured from `pg_proc` on 2026-08-26: its argument
-> list is **empty**, and it returns `(r_job_name, r_run_id, r_claimed_by)` — no tenant on the way in, no
-> tenant on the way out. **The step directly below it, `job_claim_next(p_tenant, …)`, takes one.** So a
-> single executor, poking for a single tenant, reaps the expired leases of **every tenant in the queue**.
+> **`job_reap(p_tenant)` has been tenant-scoped since 2026-09-17 23:57Z.** The store change the
+> 2026-08-26 block said was owed by whoever owns the queue has landed: the function takes a tenant and
+> reaps expired leases for that tenant only. So the rows it returns ARE your operator's abandoned
+> jobs, and the original instruction below — mention them — is right again.
 >
-> ⛔ **SO DO NOT REPORT REAPED ROWS AS YOUR OWN.** The original wording said *"Any rows returned are jobs
-> that woke and never finished; mention them."* **Mention them as what they are: work this call freed,
-> which may belong to another tenant.** You cannot tell from the return value which is which, and
-> presenting a foreign tenant's abandoned job as your operator's is a leak of the plainest kind — it
-> names another company's job to a person who should never have seen it. **If you cannot say whose a
-> row is, say that you cannot.**
+> ⛔ **THE NO-ARGUMENT FORM IS A LOUD NO-OP.** `SELECT * FROM job_reap();` still runs, frees nothing,
+> returns zero rows and raises a warning. Zero rows from that call does NOT mean nothing was abandoned;
+> it means you asked for nobody. Always pass the tenant.
 >
-> ⚠ **AND NO WORDING IN THIS FILE CAN FIX IT — STATED SO NOBODY THINKS THIS AMENDMENT CLOSED ANYTHING.**
-> The store CAN tell tenants apart: `job_run` carries a tenant column and `job_claim_next` takes
-> `p_tenant`. **This one door chooses not to.** The fix is a `p_tenant` parameter on `job_reap()` and a
-> `WHERE` clause behind it — a STORE change, owned by whoever owns the queue, not by this skill. Until
-> that lands, every executor on every platform reaps across the whole queue, and this block is the only
-> thing standing between that and a cross-tenant disclosure.
+> ⚠ **SKIPPING THIS STEP IS NOW VISIBLE.** `check_no_reaper_crosses_a_tenant_boundary()` branch E goes
+> red once 24 hours pass with nobody reaping, so an executor that drops Step 1 is caught by the check,
+> not by an operator wondering why a job never came back.
 >
-> ⛔ **THE ORIGINAL PARAGRAPH, QUOTED VERBATIM AND NOT DELETED:**
+> ⛔ **THE 2026-08-26 AMENDMENT, QUOTED VERBATIM AND NOT DELETED:**
 >
-> *"An executor that claimed a job and then died — hit its weekly usage limit, closed its laptop, got
-> killed mid-session — holds a lease it will never release. Reaping turns that into a recorded warning
-> and puts the job back in the queue. **This is the step that makes an executor's death survivable.**
-> Any rows returned are jobs that woke and never finished; mention them."*
->
-> Every sentence of it is still true of what reaping DOES. What it never said is WHOSE.
+> > ⚠ **AMENDED 2026-08-26 — `job_reap()` FREES EVERY TENANT'S WORK, NOT YOURS. The correction is FIRST; the original paragraph is quoted verbatim at the end of this block and NOT deleted.**
+> >
+> > **`job_reap()` TAKES NO TENANT AND RETURNS NONE.** Measured from `pg_proc` on 2026-08-26: its argument
+> > list is **empty**, and it returns `(r_job_name, r_run_id, r_claimed_by)` — no tenant on the way in, no
+> > tenant on the way out. **The step directly below it, `job_claim_next(p_tenant, …)`, takes one.** So a
+> > single executor, poking for a single tenant, reaps the expired leases of **every tenant in the queue**.
+> >
+> > ⛔ **SO DO NOT REPORT REAPED ROWS AS YOUR OWN.** The original wording said *"Any rows returned are jobs
+> > that woke and never finished; mention them."* **Mention them as what they are: work this call freed,
+> > which may belong to another tenant.** You cannot tell from the return value which is which, and
+> > presenting a foreign tenant's abandoned job as your operator's is a leak of the plainest kind — it
+> > names another company's job to a person who should never have seen it. **If you cannot say whose a
+> > row is, say that you cannot.**
+> >
+> > ⚠ **AND NO WORDING IN THIS FILE CAN FIX IT — STATED SO NOBODY THINKS THIS AMENDMENT CLOSED ANYTHING.**
+> > The store CAN tell tenants apart: `job_run` carries a tenant column and `job_claim_next` takes
+> > `p_tenant`. **This one door chooses not to.** The fix is a `p_tenant` parameter on `job_reap()` and a
+> > `WHERE` clause behind it — a STORE change, owned by whoever owns the queue, not by this skill. Until
+> > that lands, every executor on every platform reaps across the whole queue, and this block is the only
+> > thing standing between that and a cross-tenant disclosure.
+> >
+> > ⛔ **THE ORIGINAL PARAGRAPH, QUOTED VERBATIM AND NOT DELETED:**
+> >
+> > *"An executor that claimed a job and then died — hit its weekly usage limit, closed its laptop, got
+> > killed mid-session — holds a lease it will never release. Reaping turns that into a recorded warning
+> > and puts the job back in the queue. **This is the step that makes an executor's death survivable.**
+> > Any rows returned are jobs that woke and never finished; mention them."*
+> >
+> > Every sentence of it is still true of what reaping DOES. What it never said is WHOSE.
 
 An executor that claimed a job and then died — hit its weekly usage limit, closed its laptop, got
 killed mid-session — holds a lease it will never release. Reaping turns that into a recorded warning
@@ -232,7 +249,7 @@ path has only moved the guess one step later."* Resolving the body from `r_job_n
 > It is quoted here so nobody restores it. Corrected 2026-08-05 after a measured seam failure — the
 > claim function was hardened to hand over the address and this file was never told to read it, so
 > `body_ref` gated claimability and decided nothing. Card
-> `neon_the_poke_never_reads_body_ref_it_still_guesses_by_job_name_20260805`.
+> an internal card of 2026-08-05.
 
 Two forms, and they are not interchangeable:
 

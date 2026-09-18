@@ -12,12 +12,12 @@ TWO SEPARATE ACTS, and nothing joins them. A second act runs without the first,
 forever.
 
 ⛔ THE BACKFILL DONE THAT AFTERNOON IS NOT THE FIX AND MUST NOT BE READ AS ONE.
-   64 rows were written on Bryce's ruling "log all 64 now", and #193 fell 78 -> 14.
+   64 rows were written on the operator's ruling "log all 64 now", and #193 fell 78 -> 14.
    That cleared the backlog and changed NOTHING about the mechanism: the 65th
    document built the next day is an orphan again. A one-time backfill linking two
    stores is not a mechanism.
 
-THE RULE IT IMPLEMENTS — Bryce's own, two standing rulings:
+THE RULE IT IMPLEMENTS — the operator's own, two standing rulings:
   fw_registration_at_build_time_never_on_a_schedule_20260802:
     "the writer of the state is the ACT that changes it ... so the store cannot
      drift from reality without the act itself failing. A scheduled check is then
@@ -37,7 +37,7 @@ THE RULE IT IMPLEMENTS — Bryce's own, two standing rulings:
    have.
 
 ============================================================================
-THE UPDATE HALF — Bryce asked for it directly and the answer is MEASURED
+THE UPDATE HALF — the operator asked for it directly and the answer is MEASURED
 ============================================================================
 His question, 2026-09-10, verbatim: "Maybe the delivery step includes, hey. I need
 to update this. I don't know. Maybe it's not needed if it's the same file name.
@@ -45,7 +45,7 @@ That I don't know either."
 
 THE FILE NAME IS NOT THE QUESTION. Measured on the live store that day, the estate
 already answered it BOTH ways and the two answers contradict each other on the same
-row: `asset_visitorresolve_sales_ghost-to-guest-sca-family-entertainment_v1` carries
+row: one live `asset_<brand>_<department>_<family>-<vertical>_v1` key carries
 version = 4 — rebuilt three times, with `_v1` still in its own id and nothing
 anywhere saying what changed. Three other rows were re-minted as brand new `_v2`
 ids with NO `_v1` sibling left, so their history is simply gone. `valid_from` was
@@ -76,7 +76,7 @@ Until 2026-09-11 every asset_put() this script emitted carried the literal
 'stationed'. The `assets` table forbids a stationed row from carrying a step
 (assets_only_dispatched_has_timing), so every file registered through here was
 BARRED from ever being placed in a campaign — 0 of 71 pieces registered 2026-09-09/10
-reached one. Bryce ruled the fix (dr_touchpoint_record_may_reach_client_stores_20260911_084747;
+reached one. The operator ruled the fix (dr_touchpoint_record_may_reach_client_stores_20260911_084747;
 spec 04 — Daily Operating System/specs/Campaign-Engine-Touchpoint-Record-SPEC-DRAFT.md §4.5):
 
   --dispatch-mode   REQUIRED. dispatched | stationed | governing. No default: a default
@@ -100,7 +100,7 @@ script never holds a credential and never guesses a result.
 
 USAGE
   register-delivered-asset.py --scan <dir> --deliver-to <path under 02 — Clients> \
-      --tenant bryce --company ai-integrator --department sales \
+      --tenant <tenant> --company <company> --department <department> \
       --asset-type concept_sheet --program <program_id> --by session:<id> \
       --dispatch-mode dispatched|stationed|governing \
       [--template <touchpoint template id>] [--touchpoint <touchpoint_id>] \
@@ -177,13 +177,13 @@ def scan(args):
             "inherited_from": args.inherited_from or "",
             "change_note": args.note or "",
             # ⭐ BRAND — 2026-09-14, ruling fwc_ruling_a_sheets_brand_points_at_the_brand_registry_and_its_success_measure_is_its_programs_20260914
-            #   (Bryce yes). asset_put cannot write a brand, so --sql emits asset_brand_put() after it. brand and partner are
+            #   (operator yes). asset_put cannot write a brand, so --sql emits asset_brand_put() after it. brand and partner are
             #   brand_keys from the brand table; outcome_metric only when the piece's aim differs from its program's.
             "brand": args.brand or "", "partner_brand": args.partner_brand or "",
             "outcome_metric": args.outcome_metric or "", "files": []}
     if not plan["brand"]:
         print("EXIT 6 — no --brand given. Every delivered piece names the registered brand it obeys (a brand_key from "
-              "the brand table, e.g. ai-integrator or visitorresolve; add --partner-brand <key> when it is co-created). "
+              "the brand table; add --partner-brand <key> when it is co-created). "
               "asset_put cannot record it, so without it the piece lands incomplete and check #71 reds.", file=sys.stderr)
         raise SystemExit(6)
     # ⭐ AUDIENCE — 2026-09-14, ruling dr_collateral_sheet_generic_or_personalized_never_mixed_20260914. The builder
@@ -452,10 +452,10 @@ def selftest():
         ok = False; print("  FAIL  touchpoint/inherited_from not emitted in position: %s" % msg_sql[-90:])
     # ⭐ BRAND (2026-09-14): asset_put cannot write a brand, so a plan with --brand emits asset_brand_put() right
     #   after its asset_put(), looked up by the same source_ref; a plan without one emits no brand line at all.
-    br = dict(msg, brand="visitorresolve", partner_brand="cardlogix", outcome_metric="")
+    br = dict(msg, brand="northwind", partner_brand="acme-co", outcome_metric="")
     br_sql = sql_for(br)
     want = ("SELECT * FROM asset_brand_put('t', (SELECT asset_id FROM assets WHERE tenant_id = 't' AND source_ref = '02 — Clients/x.pdf'), "
-            "'b', 'visitorresolve', 'cardlogix', NULL);")
+            "'b', 'northwind', 'acme-co', NULL);")
     put_at = br_sql.find("asset_put("); brand_at = br_sql.find(want)
     if put_at != -1 and brand_at > put_at:
         print("  pass  a plan with --brand emits asset_brand_put() after asset_put(), partner as a key and no metric as NULL")

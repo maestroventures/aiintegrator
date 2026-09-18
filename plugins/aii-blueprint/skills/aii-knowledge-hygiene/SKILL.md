@@ -117,6 +117,6 @@ human-written store stays draft-first (flag, human approves). Points to `aii-ses
 for the write-step index cap rather than restating it (advisors Redman + Goldratt; source card
 `oppo_NUl8…`). **Step 1 Bloat check** gains the rule that a machine index's bloat driver is **entry
 count, not per-line length** — retire entries to get under budget (advisor Goldratt; source
-`neon_fwc_index_prune_verify_glue_20260707`, entry-count facet; the adjacency-glue facet of that same
+an internal card of 2026-07-07, entry-count facet; the adjacency-glue facet of that same
 card is homed by scope in `aii-prove-it` Step 2). Four-test + one-fact-one-file passed. Personal
 `00/personal-skills/aii-knowledge-hygiene` needs a re-paste to inherit.*

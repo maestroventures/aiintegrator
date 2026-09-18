@@ -19,7 +19,7 @@ no_undeclared_gate0_dependency.py / no_client_data_on_the_house_store.py /
 no_stale_published_skill_body.py.
 
 WHY THIS EXISTS — AND IT IS NOT THE DEFECT ANYONE ASSUMED
-  Bryce, 2026-08-10, verbatim: "our AI leaves an absolute trail of crap and never comes back
+  The operator, 2026-08-10, verbatim: "our AI leaves an absolute trail of crap and never comes back
   to clean it."  MEASURED THE SAME HOUR, and the measurement INVERTED the premise:
 
     loose .bak files outside a drawer ..........    9   (of 1,115 on disk)
@@ -34,14 +34,14 @@ WHY THIS EXISTS — AND IT IS NOT THE DEFECT ANYONE ASSUMED
     _parked-from-deploy-2026-07-31 · _retired-cited-20260807 · _superseded · _superseded-v1.0
 
   ~20 words for THREE ideas. So this is not a cleanup problem and a sweeper is the wrong tool.
-  It is a VOCABULARY problem, and Bryce already owns the machine for vocabulary problems.
+  It is a VOCABULARY problem, and the operator already owns the machine for vocabulary problems.
 
   Governing rule: the operator's own weight-3 memory
   `feedback-the-one-field-nothing-constrains-is-the-one-that-inflates.md` —
   "Constrain the INFLOW at write time, or a periodic sweep never catches up."
   Canon: blueprint-core.md `core-canon:file-lifecycle` — location equals status; for a
   file's status the filesystem is the source of truth.
-  Ruling: dr_park_non_governing_files_20260730 (Bryce) · dec_bryce_marked_dead_backups_are_a_set_20260806.
+  Ruling: dr_park_non_governing_files_20260730 · the dead-backups-are-a-set decision of 2026-08-06.
 
 THE REGISTRY IS THE INPUT. THIS SCRIPT CONTAINS NO DRAWER LIST.
   Same discipline as no_vocabulary_drift.py (#5) and no_ungranted_scheduled_verb.py (#6): a
@@ -56,7 +56,7 @@ THE ONE-QUESTION TEST
   is its name a registered work_drawer?
   Legal = the exact registered name, or that name followed by a HYPHEN and a suffix
   (`_to_delete-shadow-duplicates-2026-07-30` is the shape 38 live folders already use, and
-  Bryce ruled park-never-delete on them). `_to_deleteX` with no hyphen is NOT legal — that
+  the operator ruled park-never-delete on them). `_to_deleteX` with no hyphen is NOT legal — that
   precision is load-bearing, see C5.
 
 WHAT IS DELIBERATELY NOT A FINDING
@@ -123,7 +123,7 @@ SCHEMA = "work-drawer-snapshot/1"
 
 # THE TENANT IS AN ARGUMENT, NOT A LITERAL (added 2026-08-10, leg 3, for the plugin ship).
 # This script now ships to client seats inside aii-knowledge-hygiene. Until this edit the snapshot
-# SQL named tenant 'bryce' in two places, so a client seat would have produced the BUILDER's drawer
+# SQL named the builder's own tenant in two places, so a client seat would have produced that drawer
 # vocabulary and read it as its own — a wrong answer, silently, with nothing going red. Same defect
 # class as feedback-a-fallback-that-fires-every-time-is-a-hardcode.
 SNAPSHOT_SQL_TEMPLATE = """-- Produces the snapshot no_unregistered_work_drawer.py reads.
@@ -324,7 +324,7 @@ def self_test():
         if red(ok):
             fails.append(("C%d %s is GREEN" % (2 if ok == "_working" else 3, ok), "green", "red"))
 
-    # C4 — LOAD-BEARING. The suffix form is legal; 38 live folders use it and Bryce ruled
+    # C4 — LOAD-BEARING. The suffix form is legal; 38 live folders use it and the operator ruled
     # park-never-delete on them. Without this the check reds on 38 correct folders on run one.
     if red("_to_delete-shadow-duplicates-2026-07-30"):
         fails.append(("C4 suffix form _to_delete-<why>-<date> is GREEN", "green", "red"))

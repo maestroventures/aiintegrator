@@ -256,14 +256,14 @@ empty, and an empty inheritance field is machinery that exists and is unused.
 **Can't see a vertical? Don't invent one, and don't skip the step.** If the sheet generalizes to a
 vertical, build the canonical and link it — no question to anyone. Only when no vertical is visible
 does it go to a person: a question card asking whether it is a one-off or which vertical it belongs
-to. Until one of those happens, branch D of the check below is red. *(Ruled by Bryce 2026-09-14.)*
+to. Until one of those happens, branch D of the check below is red. *(Ruled 2026-09-14.)*
 
 ### Every sheet is GENERIC or PERSONALIZED — never a mix
 
 Ruled by the operator, 2026-09-14 (`dr_collateral_sheet_generic_or_personalized_never_mixed_20260914`),
 after a sheet named for a whole industry reached one prospect carrying that prospect's program name, a
 person's name and their website: *"A generic piece needs to be completely generic, so that someone at
-Caesars isn't reading it and saying 'what the hell is this M Sphere thing?' Otherwise it should have been
+[another company in the vertical] isn't reading it and saying 'what the hell is this [program] thing?' Otherwise it should have been
 named … the company name."*
 
 Say which one each sheet is, out loud, before you write it:

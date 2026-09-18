@@ -58,7 +58,7 @@ are in, and so which room runs first, is read from their record and never picked
    You do NOT collect a separate "what the execs think they have" inventory — the only exec input is
    the goal + context. **Echo it back against a live CRM fact before Step 2 starts** (deal value,
    status, pipeline reality) and get an explicit correction pass — a stated goal is routinely off in
-   the same shape a real client's will be (proven on both dogfood runs: Cinergy was handed as "first
+   the same shape a real client's will be (proven on both dogfood runs: a real client was handed as "first
    paying client," actually a $0 beta + evangelist; VR's "dealer accounts" needed translating to
    agency-partner accounts), and a wrong goal re-runs the whole engine. This is the Source-First
    duty (§8) applied at the one moment Tune-Up takes an exec's word for something checkable.
@@ -320,8 +320,8 @@ onto Step 4's four states — so a model can't pass with a dead dashboard. Engin
 catalog + capability map + auto-discovery + API auto-probe stay the source of truth in
 `KPI-Library-SPEC-v0.1.md` §6/§6b. Carries the Tufte stub-not-fake-number rule and Goldratt's
 "a measurement gap doesn't auto-rank high" discipline. Operating form of Signal #5 (Core §5.16).*
-*v1.3 — 2026-07-20. Build/reconcile carve-out (T17·S8, Bryce pop-up-approved; mechanism ruled T17·S7,
-card neon_fwc_company_activation_audit_seed_20260720). Named the seam that was already implicit: added
+*v1.3 — 2026-07-20. Build/reconcile carve-out (T17·S8, pop-up-approved by the operator; mechanism ruled T17·S7,
+an internal card of 2026-07-20). Named the seam that was already implicit: added
 the top-of-skill **connector gate** note (build half = Steps 1–2, connector-less, runs pre-call,
 pre-seeds the board from the CEO audit; reconcile half = Steps 3–4.5, gated behind Live connectors),
 marked Step 2 as the connector-less pre-call build half, and marked Step 3 as where the reconcile half
@@ -333,14 +333,14 @@ what the engine reconciles or how it ranks.*
 today is a gap in the job it serves and ranks by what it blocks, and the review itself lives in
 `aii-patch-me-up` Step 2e (this step only ranks what it finds). Plus a one-line pointer to the one
 entry point, homed in `aii-onboard-client`. Adjudicated EXISTS-BUT-WRONG → corrective sharpen (the one
-sentence asserted the opposite of Bryce's ruling); the decision-gate paragraph below it is unchanged and
-still correct — a downstream asset gap never outranks a broken gate. Bryce approved the exact wording
+sentence asserted the opposite of the ruling); the decision-gate paragraph below it is unchanged and
+still correct — a downstream asset gap never outranks a broken gate. The operator approved the exact wording
 2026-09-11 (Campaign Assets & Cohort Profile S4); registers
 `dr_an_asset_is_measured_against_company_state_every_time_the_function_is_called_20260909`,
 `dr_what_the_asset_pass_does_with_an_asset_20260911_074423`,
 `dr_locked_03_edit_asset_review_and_entry_20260911_083405`. Lens: Goldratt (rank by what it blocks,
 never by what kind of thing it is), Evans (Patch Me Up measures, Tune-Up ranks).*
-*v1.5 — 2026-09-15 (Boise). Bryce pop-up-approved (dr_tune_up_skill_reads_the_live_models_and_writes_the_map_20260915,
+*v1.5 — 2026-09-15 (Boise). Pop-up-approved by the operator (dr_tune_up_skill_reads_the_live_models_and_writes_the_map_20260915,
 option label "Approve all 6 edits (Recommended)"). Brought the skill in line with the live store (card job_4_6_20260810).
 The library is read from the live `experience_model` and `building_block` rows, never a count or
 `model-library.md`, so the stale "6 Building Blocks" is gone with no number put in its place. Step 2.6

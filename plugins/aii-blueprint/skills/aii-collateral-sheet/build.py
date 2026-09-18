@@ -18,8 +18,8 @@ Collateral & Messaging Standard v1.0:
 
    WHAT WAS WRONG HERE. front() and back() carried nine AI Integrator literals —
    the 90/10 line, The Throughline, both CTAs, the signature block, the two split
-   headings, the closer, and the STEPS strip (Audit -> Deploy -> Maintain). Bryce
-   ruled 2026-09-09: "a sheet is a RECIPIENT DOCUMENT, not an AI Integrator
+   headings, the closer, and the STEPS strip (Audit -> Deploy -> Maintain). The
+   operator ruled 2026-09-09: "a sheet is a RECIPIENT DOCUMENT, not an AI Integrator
    document. Structure generic; logo, teal, Archivo, Audit->Deploy->Maintain are
    the INSTANCE layer, swapped per sending company." A hardcoded literal wearing a
    generic builder is the collateral twin of the call guide's finding (b): another
@@ -61,7 +61,7 @@ import base64, json, pathlib, re, sys, asyncio
 #    traceback before this file could say anything, and a ModuleNotFoundError is not
 #    a refusal: it names Python's problem, not the reader's. See load_sheets().
 
-# ⛔ THERE IS NO `HERE`. GENERICIZED 2026-09-09, ruled by Bryce the same day.
+# ⛔ THERE IS NO `HERE`. GENERICIZED 2026-09-09, ruled by the operator the same day.
 #    This program used to read content.py, assets/ and write out/ RELATIVE TO ITSELF, which is
 #    correct for a copy sitting in one delivery's _source/ and impossible for the ONE copy that
 #    ships in the plugin at skills/aii-collateral-sheet/build.py. Shipped that way it died on a
@@ -72,7 +72,7 @@ import base64, json, pathlib, re, sys, asyncio
 WORK = None   # set by require_work(); a default here is what would hide the failure
 OUT  = None
 
-# ⛔ BRAND IS A PARAMETER. RESTORED 2026-09-10 by session slog_solo_20260910_113552_b3e91c.
+# ⛔ BRAND IS A PARAMETER. RESTORED 2026-09-10 by a session that day.
 #    THIS IS A RESTORATION, NOT A NEW DESIGN. The 2026-08-20 copy of this family
 #    (two-sided-sheet-source-20260820.zip) already had BRANDS{} + css_for(brand); its own
 #    README says "BRAND IS A PARAMETER ... so one family serves two registered brands.
@@ -80,8 +80,8 @@ OUT  = None
 #    The 2026-09-09 port moved the sending company's WORDS out to asset_template_body and
 #    correctly refused a default for them -- and in the same move put the sending company's
 #    COLOUR back in as a literal (PRIMARY/ACCENT/BLACK/OFFWHITE/MUTED plus three inline
-#    hexes in the stylesheet). So a VisitorResolve sheet built here came out with
-#    VisitorResolve's logo and AI Integrator's accent.
+#    hexes in the stylesheet). So another product's sheet built here came out with
+#    that product's logo and AI Integrator's accent.
 #
 #    That is the defect this file's own docstring warns about, committed against colour
 #    instead of words: "a hardcoded literal wearing a generic builder ... would have
@@ -165,7 +165,7 @@ def load_palette():
        parameter whose value set is two rows deep is a WALL for every partner, and a wall
        invites shipping without their identity. It was also a SECOND HOME for a fact the
        database already owned — this file's own docstring forbids exactly that for WORDS, and
-       colour is no different. Bryce, naming the root: "I am a tenant of the platform ... we
+       colour is no different. The operator, naming the root: "I am a tenant of the platform ... we
        need to make sure this works for any client." A map compiled into a builder cannot serve
        a client whose partners nobody typed in.
 
@@ -265,7 +265,7 @@ def require_work():
             "  assets/      the SENDING company's fonts and logo (5 files, see BRAND_FILES)\n"
             "and out/ is created inside it. There is no default: the one copy of this program\n"
             "ships in the plugin and does not know whose delivery it is being run for.")
-    # ⛔ RESOLVED TO AN ABSOLUTE PATH — 2026-09-14, Bryce-approved safety fix. A relative --work reached Chrome as
+    # ⛔ RESOLVED TO AN ABSOLUTE PATH — 2026-09-14, operator-approved safety fix. A relative --work reached Chrome as
     #    file://relative/path, Chrome printed its own "This site can't be reached" page, and that PDF looked built.
     WORK = pathlib.Path(w).expanduser().resolve()
     if not WORK.is_dir():
@@ -278,7 +278,7 @@ def require_work():
 #    Until today this program ended by PRINTING a register-delivered-asset.py command with
 #    <angle-bracket> placeholders in it, and a person had to notice, fill them in and run it.
 #    Two acts, and the second one ran without the first — the exact shape the registrar's own
-#    header was written against, quoting Bryce: "I should never have to say register this...
+#    header was written against, quoting the operator: "I should never have to say register this...
 #    I should never have to ask. Ever. No user should."
 #    (dr_registration_is_a_precondition_of_existing_not_a_step_20260824_064500, and
 #     fw_registration_at_build_time_never_on_a_schedule_20260802: "the writer of the state is
@@ -445,7 +445,7 @@ FRAME_REQUIRED_ANCHORS = [
     "frame-ninety-ten", "frame-throughline", "frame-cta-front", "frame-cta-back",
     "frame-signature", "frame-handle-label", "frame-bring-label", "frame-closer",
     "frame-steps",
-    # ⭐ 2026-09-14 (Bryce ruling dr_collateral_sheet_labels_from_stored_words_20260914): the two
+    # ⭐ 2026-09-14 (operator ruling dr_collateral_sheet_labels_from_stored_words_20260914): the two
     #    column/answer labels were typed into this file ("The first 90% — the system" and
     #    "What you are listening for."), so every recipient of every sheet read seller language
     #    no template could remove. They are STORED WORDS now, with no fallback.
@@ -453,7 +453,7 @@ FRAME_REQUIRED_ANCHORS = [
 ]
 
 # ⛔ THE TENANT AND THE TEMPLATE ARE ARGUMENTS, NOT LITERALS — GENERICIZED 2026-09-09.
-#    This file used to hardcode tenant_id = 'bryce' and template_id =
+#    This file used to hardcode tenant_id = <tenant> and template_id =
 #    'tmpl_aii_concept-sheet-two-sided' inside FRAME_SQL. That is the ONE line of this
 #    program a client seat is told to run first, so every seat would have been handed
 #    the BUILDER'S tenant and AI INTEGRATOR'S template, and the SELECT would have
@@ -631,9 +631,9 @@ def load_frame(path):
     return F
 
 
-# ⭐ CO-BRAND VARIABLES — 2026-09-14, Bryce ruling dr_one_variable_cobrand_template_20260914:
-#   "There is just a cobranded template that is variable in nature. So Trackly and CardLogix would
-#    use the same template." Stored words may carry {{name}} tokens. Values come from the PARTNER's
+# ⭐ CO-BRAND VARIABLES — 2026-09-14, operator ruling dr_one_variable_cobrand_template_20260914:
+#   "There is just a cobranded template that is variable in nature. So [two different sending
+#    companies] would use the same template." Stored words may carry {{name}} tokens. Values come from the PARTNER's
 #   brand record (--partner-vars, read from the store) and from the sheet's own "vars" (recipient
 #   values such as the card's name). An unresolved token REFUSES the build: a sheet that ships
 #   "{{partner_name}}" to a recipient is the same class of defect as another company's footer.
@@ -713,7 +713,7 @@ def esc(s):
 def _rep_note():
     """⛔ THE SHEET SAYS SO ON ITS OWN FACE WHEN THE BRANDING IS DERIVED.
 
-    Bryce, 2026-09-10: "It can even have a small little identifier. This is representative,
+    The operator, 2026-09-10: "It can even have a small little identifier. This is representative,
     which we continuously do that inside of the email bodies anyway."
 
     It is NOT a disclaimer and it is not an apology — representative branding is a PASS, and
@@ -742,7 +742,7 @@ def _logos(F):
 def front(s, F):
     rep_note = _rep_note()
     def _leak(row):
-        # 4-tuple = legacy (Waldon sheets, unchanged default label).
+        # 4-tuple = legacy (the original sheets, unchanged default label).
         # 5-tuple = per-item label for the last 10%, so the sheet can say WHO decides.
         if len(row) == 5:
             t, w, ninety, ten, ten_label = row
@@ -834,7 +834,7 @@ def html_for(s, F):
 
 
 # ---------------------------------------------------------------------------
-# RESTORED 2026-08-20. Lines 220-266 of the Waldon original (render + main +
+# RESTORED 2026-08-20. Lines 220-266 of the original (render + main +
 # both asserts) were dropped when the 5-tuple last-10% patch was applied, so
 # this file defined a builder that could not build and could not prove.
 # Restored verbatim, with ONE change: the output filename is now assembled
@@ -846,11 +846,12 @@ def html_for(s, F):
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 # ⛔ GENERIC OR PERSONALIZED — NEVER A MIX. 2026-09-14, ruling
-#    dr_collateral_sheet_generic_or_personalized_never_mixed_20260914. Bryce, on a sheet named
-#    "CardLogix + VisitorResolve & Tribal Casino Marketing" that carried "M Sphere", Randi's name and
-#    miccosukee.com: "A generic piece needs to be completely generic, so that someone at Caesars isn't
-#    reading it and saying 'what the hell is this M Sphere thing?' Otherwise it should have been named
-#    CardLogix + VisitorResolve and M Sphere, or the company name."
+#    dr_collateral_sheet_generic_or_personalized_never_mixed_20260914. The operator, on a sheet named
+#    for a company, a partner and a vertical that nonetheless carried one recipient's loyalty-program
+#    name, a person's name and that recipient's domain: "A generic piece needs to be completely
+#    generic, so that someone at [another company in the vertical] isn't reading it and saying 'what
+#    the hell is this [program] thing?' Otherwise it should have been named for that recipient, or the
+#    company name."
 #    So every sheet DECLARES its kind (no default). A personalized sheet names its recipient company and
 #    every instance-specific noun it uses, and its FILENAME carries the recipient company. A generic sheet
 #    may carry none of: "Prepared for", any recipient noun of a sibling personalized sheet in the same
@@ -859,8 +860,8 @@ def html_for(s, F):
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 KINDS = ("generic", "personalized")
 # A personalized filename may carry ONE short parenthetical after the recipient, to tell two sheets for the
-# same company apart (e.g. "(GM)"). Ruled 2026-09-14 (coordinator relay of Bryce): Brad Rhines' sheet and
-# Randi Duncan's are both for Miccosukee Casino & Resort. Anything longer is a second name, not a suffix.
+# same company apart (e.g. "(GM)"). Ruled 2026-09-14 (coordinator relay of the operator): two people at
+# the same recipient company can each have their own sheet. Anything longer is a second name, not a suffix.
 SUFFIX_OK = re.compile(r"\A\([A-Za-z0-9][A-Za-z0-9 .&'-]{0,23}\)\Z")
 PAGE_MARK = '<div class="page">'
 ERROR_PAGE_NEEDLES = ("This site can\u2019t be reached", "This site can't be reached", "ERR_")
@@ -898,9 +899,8 @@ def validate_kinds(sheets):
                                  "who. No sheet written." % (slug, rc or rt))
 
 
-# ⛔ 2026-09-15 — A PAGE THE RECIPIENT READS CARRIES NO NOTES TO THE SENDER (Bryce's standing rule;
-#    card neon_the_plugin_collateral_builder_prints_seller_coaching_on_the_recipients_page_20260915,
-#    session:slog_solo_20260914_170944_d6a27d). The plugin copy rendered "What you are listening for"
+# ⛔ 2026-09-15 — A PAGE THE RECIPIENT READS CARRIES NO NOTES TO THE SENDER (the operator's standing
+#    rule; an internal card, raised by a session that day). The plugin copy rendered "What you are listening for"
 #    under every question, so each recipient read the seller's coaching. Two walls, both BEFORE a byte
 #    is written: (1) content.py may not carry a sender-facing FIELD on a sheet or a question - the
 #    render prints only (question, why) pairs; (2) the ASSEMBLED page's visible text may not carry a
@@ -1068,7 +1068,7 @@ def verify_pdfs(items, expect):
 
 
 def file_name(s):
-    """Content-Library-Asset-Schema §2 v1.6 (Bryce, 2026-08-20 — the SECOND
+    """Content-Library-Asset-Schema §2 v1.6 (the operator, 2026-08-20 — the SECOND
     ruling that day, superseding the four-slot form quoted below):
         <Company>[ + <Partner>][ & <Vertical>][ <Family>]   slots collapse.
 
@@ -1077,7 +1077,7 @@ def file_name(s):
     Nine files were delivered under v1.5 on 2026-08-20 and are correctly named
     for the rule that was live when they shipped. The four-slot string is not
     lost: canonical_name() computes it and assets.canonical_name stores it.
-    Moved 2026-08-20 by slog_jason_weamer_followup_sheets_20260820 — the spec
+    Moved 2026-08-20 by a session that day — the spec
     was amended the same day it landed and this builder never moved with it."""
     if s.get("kind") == "personalized":
         # A PERSONALIZED filename names the recipient company. The vertical never goes here; it stays in
@@ -1123,7 +1123,7 @@ PROBE_JS = """() => [...document.querySelectorAll('.page')].map(p => {
 
 
 def render_via_chrome(items):
-    """FALLBACK, ADDED 2026-09-10 (session slog_solo_20260910_113552_b3e91c) because
+    """FALLBACK, ADDED 2026-09-10 (a session that day) because
     Playwright is NOT on this operator's Mac and the plugin install shipped no build.py
     either, so the contracted path could not run at all.
 
@@ -1213,8 +1213,8 @@ def selftest_frame_refusal():
     except SystemExit as e:
         print("  pass  unresolved {{partner_name}} REFUSED" if "partner_name" in str(e) else "  FAIL  refusal did not name the token")
         ok = ok and "partner_name" in str(e)
-    R = frame_for_sheet(FT, {"slug": "t"}, {"partner_name": "CardLogix"})
-    if R["frame-closer"] == "Ask CardLogix first.":
+    R = frame_for_sheet(FT, {"slug": "t"}, {"partner_name": "Acme Co"})
+    if R["frame-closer"] == "Ask Acme Co first.":
         print("  pass  token RESOLVED from partner vars (the other direction)")
     else:
         ok = False; print("  FAIL  token resolved wrong: %r" % R["frame-closer"])
@@ -1243,32 +1243,32 @@ def selftest_root_fix():
                 ok = False
                 print("  FAIL  %s refused without naming %r: %s" % (label, needle, str(e)[:120]))
 
-    gen = {"slug": "g", "kind": "generic", "company": "CardLogix", "partner": "VisitorResolve", "vertical": "Casino Marketing"}
-    per = {"slug": "p", "kind": "personalized", "company": "CardLogix", "partner": "VisitorResolve",
-           "vertical": "Tribal Casino Marketing", "recipient_company": "Miccosukee Casino & Resort",
-           "recipient_terms": ["M Sphere", "Randi Duncan", "miccosukee.com"]}
+    gen = {"slug": "g", "kind": "generic", "company": "Acme Co", "partner": "Northwind", "vertical": "Casino Marketing"}
+    per = {"slug": "p", "kind": "personalized", "company": "Acme Co", "partner": "Northwind",
+           "vertical": "Tribal Casino Marketing", "recipient_company": "Riverbend Resort",
+           "recipient_terms": ["Sphere Club", "Pat Doe", "riverbend.example"]}
     expect_refuse("a sheet with no kind", lambda: validate_kinds([{"slug": "x"}]), "no kind")
     expect_refuse("a personalized sheet with no recipient_company", lambda: validate_kinds([dict(per, recipient_company="")]), "recipient_company")
     expect_refuse("a personalized sheet with no recipient_terms", lambda: validate_kinds([dict(per, recipient_terms=[])]), "recipient_terms")
-    expect_refuse("a generic sheet that names a recipient", lambda: validate_kinds([dict(gen, recipient_company="Miccosukee")]), "generic sheet")
+    expect_refuse("a generic sheet that names a recipient", lambda: validate_kinds([dict(gen, recipient_company="Riverbend")]), "generic sheet")
     validate_kinds([gen, per]); print("  pass  a clean generic + personalized pair is ACCEPTED")
-    expect_refuse("a MIXED sheet (generic page carrying a sibling's 'M Sphere')",
-                  lambda: refuse_mixed(gen, "Join M Sphere today", sibling_terms([gen, per]), []), "M Sphere")
-    expect_refuse("a generic page carrying 'Prepared for'", lambda: refuse_mixed(gen, "Prepared for Randi", [], []), "Prepared for")
-    expect_refuse("a generic page carrying its own forbid_terms", lambda: refuse_mixed(dict(gen, forbid_terms=["Caesars"]), "Caesars Rewards", [], []), "Caesars")
-    expect_refuse("a generic page carrying a STORE inheritor's noun", lambda: refuse_mixed(gen, "visit miccosukee.com", [], ["miccosukee.com"]), "miccosukee.com")
-    refuse_mixed(gen, "Your players club", sibling_terms([gen, per]), ["M Sphere"]); print("  pass  a truly generic page is ACCEPTED")
+    expect_refuse("a MIXED sheet (generic page carrying a sibling's 'Sphere Club')",
+                  lambda: refuse_mixed(gen, "Join Sphere Club today", sibling_terms([gen, per]), []), "Sphere Club")
+    expect_refuse("a generic page carrying 'Prepared for'", lambda: refuse_mixed(gen, "Prepared for Pat", [], []), "Prepared for")
+    expect_refuse("a generic page carrying its own forbid_terms", lambda: refuse_mixed(dict(gen, forbid_terms=["Zenith"]), "Zenith Rewards", [], []), "Zenith")
+    expect_refuse("a generic page carrying a STORE inheritor's noun", lambda: refuse_mixed(gen, "visit riverbend.example", [], ["riverbend.example"]), "riverbend.example")
+    refuse_mixed(gen, "Your players club", sibling_terms([gen, per]), ["Sphere Club"]); print("  pass  a truly generic page is ACCEPTED")
     expect_refuse("a personalized filename with no recipient in it",
-                  lambda: check_filename(per, "CardLogix + VisitorResolve & Tribal Casino Marketing"), "does not carry")
+                  lambda: check_filename(per, "Acme Co + Northwind & Tribal Casino Marketing"), "does not carry")
     n = file_name(per)
-    if n == "CardLogix + VisitorResolve & Miccosukee Casino & Resort" and "Tribal Casino" not in n:
+    if n == "Acme Co + Northwind & Riverbend Resort" and "Tribal Casino" not in n:
         check_filename(per, n); print("  pass  a personalized filename is <Company> + <Partner> & <recipient>: %r" % n)
     else:
         ok = False; print("  FAIL  personalized filename came out %r" % n)
     gm = dict(per, filename_suffix="(GM)")
     validate_kinds([gm])
     ngm = file_name(gm)
-    if ngm == "CardLogix + VisitorResolve & Miccosukee Casino & Resort (GM)":
+    if ngm == "Acme Co + Northwind & Riverbend Resort (GM)":
         check_filename(gm, ngm); print("  pass  a short parenthetical suffix is ACCEPTED after the recipient: %r" % ngm)
     else:
         ok = False; print("  FAIL  suffixed filename came out %r" % ngm)
@@ -1276,7 +1276,7 @@ def selftest_root_fix():
                   lambda: validate_kinds([dict(per, filename_suffix="for the General Manager and his team")]), "short parenthetical")
     expect_refuse("a generic sheet carrying a suffix",
                   lambda: validate_kinds([dict(gen, filename_suffix="(GM)")]), "only a personalized")
-    if file_name(gen) != "CardLogix + VisitorResolve & Casino Marketing":
+    if file_name(gen) != "Acme Co + Northwind & Casino Marketing":
         ok = False; print("  FAIL  generic filename changed: %r" % file_name(gen))
     saved_argv = list(sys.argv)
     try:
@@ -1418,7 +1418,7 @@ def main():
     # ══════════════════════════════════════════════════════════════════════════════
     # ⛔ A BUILD IS NOT A DELIVERY. THIS PROGRAM NO LONGER EXITS 0 HERE.
     # ══════════════════════════════════════════════════════════════════════════════
-    # Added 2026-09-10 (session:slog_solo_20260910_183000_a55et2) on Bryce's instruction
+    # Added 2026-09-10 (a session that day) on the operator's instruction
     # to "build the registration into the delivery step".
     #
     # WHY IT IS A REFUSAL AND NOT A REMINDER. Delivery and registration have always been
@@ -1479,8 +1479,7 @@ def main():
            "--body-from", str(WORK / "words")]
     for flag in REGISTRATION_FLAGS:
         cmd += [flag, REG[flag]]
-    # ⭐ 2026-09-15 (card neon_the_collateral_builder_never_passes_brand_to_its_registrar_so_registration_
-    #   always_fails_20260914, session:slog_solo_20260914_170944_d6a27d): --brand and --partner-brand were
+    # ⭐ 2026-09-15 (an internal card, raised by a session that day): --brand and --partner-brand were
     #   REQUIRED by this build (load_palette / load_partner_vars) but never handed on, so the registrar exited 6
     #   ("no --brand given") on every build. --brand is always present by here; --partner-brand only when given.
     cmd += ["--brand", _flag("--brand")]

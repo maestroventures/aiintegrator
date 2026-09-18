@@ -38,13 +38,13 @@ SELECT count(*) AS live_connectors
   > I can't schedule unattended work on this seat — nothing here is registered as able to run a job when nobody is watching. Anything I set up would look scheduled and never fire.
 
   Then stop. Do not improvise a workaround, do not fall back to a different store, and do not do
-  "the part that works." Measured and carded: `neon_cloud_routines_gated_behind_github_20260803`. A job that is created and never runs is worse than no job, because the board says it is handled.
+  "the part that works." Measured and carded on an internal card of 2026-08-03. A job that is created and never runs is worse than no job, because the board says it is handled.
 
 
 > ⚠ **THE CATEGORY IN THIS BLOCK WAS WRONG ONCE, ON THE DAY IT WAS WRITTEN, AND IT WAS CAUGHT BY
 > MEASURING RATHER THAN BY READING.** The first draft resolved `scheduled-jobs` /
 > `create_scheduled_job`. That category exists in the registry and has **ZERO** connectors
-> answering `CAN`, so the guard would have refused on Bryce's OWN seat — while **four scheduled
+> answering `CAN`, so the guard would have refused on the operator's OWN seat — while **four scheduled
 > tasks were live and firing on it** (J-05 warm aim dig, the Warm Relationship Engine daily run,
 > the hide-sweep watchdog, the CC grant-bug watch). That is a REGISTRY gap wearing the costume of
 > a missing capability, and it is the false-red shape that trains a person to skim a check. The
@@ -56,11 +56,11 @@ SELECT count(*) AS live_connectors
 
 **Why this block exists, stated so it does not get tidied away.** Until 2026-08-06 this skill was
 kept OUT of the AI Integrator Blueprint plugin, on the grounds that a client would not have what it
-needs. Bryce retired that test: *"Even if the user is never gonna use the AII adjudicate, doesn't
+needs. The operator retired that test: *"Even if the user is never gonna use the AII adjudicate, doesn't
 mean the user shouldn't have it."* **Non-use is not a reason to withhold.** A skill is withheld only
 if it would MISLEAD or FAIL LOUDLY — **and that guard belongs INSIDE the skill, which is this block,
 not in a packing list where the skill itself can never see it.** Card:
-`neon_seven_builder_only_skills_reach_nobody_including_bryce_20260805`, step F.
+an internal card of 2026-08-05, step F.
 
 ---
 

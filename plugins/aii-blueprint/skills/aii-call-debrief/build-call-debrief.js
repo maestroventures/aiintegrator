@@ -91,6 +91,211 @@ function loadRegistrar() {
 
 const BUILD_STAMP = '2026-07-27-DEBRIEF-CAPTURE';
 
+/* ════════════════════════════════════════════════════════════════════════════════════
+   KEPT STATE — AND UNTIL TODAY A DEBRIEF HAD NONE AT ALL. Added 2026-09-17 (S4).
+
+   Measured on Maestro (cdb_maestro_20260819_unadopted, 2026-09-17): call_guide_state held
+   104 rows and all 104 were GUIDES. 53 registered debriefs had no stored source of any kind,
+   so a stranded debrief could not be re-rendered, re-filed or refreshed — there was nothing
+   to re-render FROM. That absence had no red anywhere, because planRegistration only
+   REQUIRES kept state for kind='guide' and this builder never passed any.
+
+   WHY IT MATTERS NOW. The first live cloud fire (2026-09-17 20:37Z) built a call document,
+   registered it, resolved the folder and minted a ticket — and then the container's egress
+   proxy refused CONNECT to our own door (curl 56, 403 connect_rejected, organization policy).
+   Filing has to happen on OUR infrastructure, from the stored source, and a server-side filer
+   must prove it is filing the recorded document: identical, sha for sha. A debrief with no
+   stored source can never clear that bar.
+
+   THE CONFIG IS STORED, NOT DERIVED. A built page embeds `var CONFIG={...}`; on the guide
+   side four of its eleven keys were recoverable from nowhere and the builder's fallback for
+   the first was `'g' + Date.now()`. The debrief's own id has the identical defect —
+   `'d' + Date.now()` — and company, email, crmName, callRef and apiBase sit on no column
+   either. So kept state now carries the CONFIG THE PAGE ACTUALLY EMBEDS beside the content,
+   plus a `render` block recording WHICH BUILDER made the bytes and WHAT THEY HASHED TO. Every
+   derivation attempt reproduces the defect; a derived id is exactly what broke this.
+
+   ⚠ `sections` IS A STORE REQUIREMENT AND IT IS DERIVED AT WRITE TIME, DELIBERATELY.
+   call_guide_state carries cgs_json_has_sections_ck — a non-empty `sections[]` array — and a
+   debrief's content JSON has no such key: its sections exist only once buildBodyHtml() has
+   laid the page out. Two honest options existed. Migrating the store to admit a sectionless
+   kind is the cleaner one and is NOT taken here (this session writes no DDL). What is taken
+   is the one that is still TRUE: the envelope carries the document's REAL rendered section
+   list, produced BY the renderer that makes the page, in the same call that makes it — never
+   hand-listed and never carried forward from a previous version. It is also exactly what
+   call_guide_segment_ids() would need on the day per-segment refresh reaches debriefs.
+   READ THIS BEFORE "TIDYING" IT: a hand-maintained copy of this list is a second source of
+   truth for the document's shape, and it would go stale silently.
+
+   THE SAME BLOCK SHIPS IN build-call-guide.js. There is no shared module in the plugin format
+   (pack.config.json's own `_bundle_rule`), so it is duplicated on purpose and labelled —
+   IF YOU CHANGE ONE, CHANGE THE OTHER. A sibling three lines away keeping the old behaviour
+   is exactly how the Save button was fixed on the guide in August and left broken here.
+   ════════════════════════════════════════════════════════════════════════════════════ */
+const crypto = require('crypto');
+const KEPT_ENVELOPE = 'call-doc-kept-v1';
+
+function sha256(x) { return crypto.createHash('sha256').update(x).digest('hex'); }
+
+/* THE BUILDER'S OWN REVISION, read off this file's bytes — never a hand-bumped version
+   string. BUILD_STAMP is a label a human maintains; this one hashes what actually ran, so it
+   cannot be forgotten and cannot flatter itself. */
+let _builderSha = null;
+function builderSha256() {
+  if (_builderSha === null) _builderSha = sha256(fs.readFileSync(__filename));
+  return _builderSha;
+}
+
+/* The document's rendered sections, from the labels the renderer just produced. Object key
+   order in JS is insertion order, so this is the page's own order, not a re-sort. */
+function renderedSections(labels) {
+  return Object.keys(labels || {}).map((id) => ({ id, label: labels[id] }));
+}
+
+/* ── AND THE ONE DEBRIEF KEPT STATE CANNOT HOLD IS REFUSED HERE, BY NAME. ───────────────
+   A debrief whose content renders NO sections — a header and nothing else — produces an
+   empty section index, and call_guide_state's cgs_json_has_sections_ck will not take it.
+   Left alone, the store would answer in SQL: register-call-doc's kept_gap refuses the whole
+   registration as a ROW (correctly — the alternative is a RAISE that strands the quarantine
+   file forever), and the operator would read "guide_json carries no non-empty sections[]"
+   about a debrief they never called a guide.
+
+   So the BUILDER says it first, in its own words, before a byte reaches the disk. This is
+   the same placement rule crmRecordGate and captureQuestionGate already follow: a refusal
+   that arrives after the file exists is a cleanup instruction, not a gate.
+
+   ⚠ IT IS A REAL BEHAVIOUR CHANGE AND IT IS DELIBERATE. Before 2026-09-17 a bodyless
+   debrief registered happily, because nothing was asking it for a reproduction source. It
+   cannot now, and that is the point of the card: an unreproducible call document is the
+   thing being ended, not a case to be accommodated. */
+function keptSectionsGate(sections, d) {
+  if (Array.isArray(sections) && sections.length) return;
+  const had = Object.keys(d || {}).filter((k) => k !== 'header').join(', ') || 'nothing but a header';
+  throw new Error(
+    'BUILD REFUSED \u2014 THIS DEBRIEF HAS NO BODY: the content rendered zero sections, so there ' +
+    'is no section index to keep, and kept state (call_guide_state) will not accept a document ' +
+    'without one. Nothing was written and nothing was registered.\n' +
+    '  The debrief JSON carried: ' + had + '\n' +
+    '  A debrief renders a section for each of planVsReality, conflicts, wentWell, toImprove, ' +
+    'prospectRead, nextCallGoal, nextSteps, followups, nextGuideSeed and a non-empty ' +
+    'captureQuestions. At least one has to be there.\n' +
+    '  WHY THIS IS REFUSED RATHER THAN STORED EMPTY: a call document that cannot be ' +
+    're-rendered from its own stored source cannot be re-filed when a run strands it, and it ' +
+    'looks identical to one that can. That is the defect this gate exists to make impossible.');
+}
+
+/* content + the config the page embeds + how it was rendered. Idempotent: re-enveloping an
+   envelope overwrites `config`/`render`/`sections` rather than nesting them. */
+function keptEnvelope(content, cfg, html, sections) {
+  const bytes = Buffer.from(html, 'utf8');
+  return Object.assign({}, content, {
+    sections: sections,
+    config: cfg,
+    render: {
+      envelope: KEPT_ENVELOPE,
+      kind: 'debrief',
+      builder: 'build-call-debrief.js',
+      buildStamp: BUILD_STAMP,
+      builderSha256: builderSha256(),
+      configSha256: sha256(JSON.stringify(cfg)),
+      contentSha256: sha256(JSON.stringify(content)),
+      htmlSha256: sha256(bytes),
+      htmlBytes: bytes.length,
+      /* SAID OUT LOUD on the row itself: this key is the store's shape requirement, and a
+         reader must not mistake it for authored content. */
+      sectionsAre: 'the rendered section index, derived by buildBodyHtml() in the same call ' +
+                   'that produced these bytes — required by cgs_json_has_sections_ck, never ' +
+                   'authored and never read back by the renderer',
+    },
+  });
+}
+
+/* ── THE PURE RENDER ENTRY POINT — kept state in, HTML out. ─────────────────────────────
+   This is the seam aii-site's lib/cc/call-doc-cloud/render-registry.js is waiting for, and
+   its shape is that file's contract, not a new one: it NEVER throws, it writes NO file, it
+   re-registers NOTHING and it mints NO kept state. It is the only thing in this builder that
+   a server may call.
+
+   IT REFUSES BY NAME, one code per cause, because two different failures reported by one
+   guard is the X1 lesson from gate_call_guide_state(). A MISMATCH and a MISSING INPUT must
+   never look alike: bytes that "did their best" would be refused later on the sha and would
+   read as a mismatch defect instead of the missing input it is.
+
+   WHAT IT DELIBERATELY DOES NOT DO: re-run crmRecordGate or captureQuestionGate. Those are
+   AUTHORING rules — they decide whether a debrief may be BORN — and this path authors
+   nothing. The stored config already passed them at build time, and re-judging here could
+   only ever refuse to reproduce a document that legitimately exists. */
+const RENDER_EXIT = {
+  kept_state_absent: 4, kept_state_unusable: 5, render_config_absent: 8,
+  builder_moved: 9, render_not_reproducible: 10, render_threw: 11,
+};
+
+function renderRefuse(code, detail) { return { ok: false, refused: code, detail }; }
+
+function renderFromKeptState(kept, opts) {
+  opts = opts || {};
+  /* A call_guide_state ROW or the guide_json itself — a caller holding either is holding the
+     same fact, and making them unwrap it is a trap with no upside. */
+  const k = (kept && typeof kept === 'object' && !Array.isArray(kept) && kept.guide_json)
+    ? kept.guide_json : kept;
+  const stateId = (kept && kept.state_id) || (opts && opts.stateId) || 'the kept state handed in';
+
+  if (!k || typeof k !== 'object' || Array.isArray(k)) {
+    return renderRefuse('kept_state_absent',
+      'there is no kept-state JSON to re-render. An empty read is "I could not find it", never ' +
+      '"build it fresh" — a re-AUTHORING is a different document and is never filed under a ' +
+      'registered title. Every debrief registered before 2026-09-17 is in this state.');
+  }
+  if (!Array.isArray(k.sections) || k.sections.length === 0) {
+    return renderRefuse('kept_state_unusable',
+      stateId + ' carries no non-empty sections[]. A source with no sections is not a source.');
+  }
+  if (!k.config || typeof k.config !== 'object' || Array.isArray(k.config)) {
+    return renderRefuse('render_config_absent',
+      stateId + ' carries the content but not the render config the page embeds (debriefId, ' +
+      'company, email, crmName, callRef). Those are stored nowhere else, so a re-render would ' +
+      'differ from the original INSIDE the file and could never match a recorded sha256. ' +
+      'Rebuild it with the authoring skill if you need it reproducible.');
+  }
+
+  const r = (k.render && typeof k.render === 'object' && !Array.isArray(k.render)) ? k.render : null;
+  if (!opts.allowBuilderDrift && r && r.builderSha256 && r.builderSha256 !== builderSha256()) {
+    return renderRefuse('builder_moved',
+      'the builder that made these bytes hashed ' + String(r.builderSha256).slice(0, 12) + '… and ' +
+      'this one hashes ' + builderSha256().slice(0, 12) + '…. The renderer has MOVED, so a ' +
+      're-render would be a DIFFERENT document wearing a registered title. Run the builder of ' +
+      'record, or pass allowBuilderDrift when a deliberate re-render at the new revision is ' +
+      'what you mean.');
+  }
+
+  let html;
+  try { html = buildStandaloneHtml(k, k.config); }
+  catch (e) {
+    return renderRefuse('render_threw',
+      'the renderer refused this source: ' + (e && e.message ? e.message.split('\n')[0] : String(e)));
+  }
+
+  const bytes = Buffer.from(html, 'utf8');
+  const htmlSha256 = sha256(bytes);
+  const expect = opts.expectSha256 || (r && r.htmlSha256) || null;
+  if (expect && expect !== htmlSha256) {
+    return renderRefuse('render_not_reproducible',
+      'the re-render is NOT the recorded document: stored sha256 ' + String(expect).slice(0, 12) +
+      '… and this render hashes ' + htmlSha256.slice(0, 12) + '… (' + bytes.length + ' bytes). ' +
+      'Either the stored config was edited or the content and the config disagree. Nothing was ' +
+      'written and nothing was filed — a document that cannot be reproduced must not be filed ' +
+      'under a registered title.');
+  }
+
+  return {
+    ok: true, html, htmlSha256, bytes: bytes.length,
+    config: k.config, render: r,
+    /* TRUE only when a recorded hash was actually compared. With no stored hash this is a
+       render, not a reproduction, and saying so is the difference between the two. */
+    byteIdentical: !!expect,
+  };
+}
+
 /* ── helpers (verbatim from the guide shell) ── */
 function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function stripFences(s) { return String(s || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim(); }
@@ -666,9 +871,17 @@ const CQ_RUNTIME = [
 ].join('');
 
 /* ── assemble ── */
-function buildStandaloneHtml(d, config) {
+function buildStandaloneHtml(d, config, out) {
   const sec = buildBodyHtml(d);
   const cfg = Object.assign({}, config);
+  /* THE CONFIG THE PAGE EMBEDS AND THE SECTIONS IT RENDERED, handed back so kept state can
+     store exactly what shipped rather than a reconstruction of it. An OPTIONAL third argument
+     on purpose: every existing two-argument caller is byte-for-byte unaffected, which is the
+     only way a locked shell may grow a new output. */
+  if (out && typeof out === 'object') {
+    out.cfg = cfg;
+    out.sections = renderedSections(sec.labels);
+  }
   return [
 '<!DOCTYPE html>',
 '<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">',
@@ -799,6 +1012,47 @@ function stopUnresolved(handoff) {
 async function main() {
   const argv = process.argv.slice(2);
 
+  /* ── THE PURE RENDER DOORS — kept state in, HTML out. Added 2026-09-17. ───────────
+     Both write NOTHING, register NOTHING and mint NOTHING, and they answer before any build
+     flag is read so nothing about a build can reach them.
+       --render-state <keptState.json>   HTML on stdout, for a caller that wants the bytes
+       --render-check <keptState.json>   the verdict as JSON, for a caller that wants to know
+                                         whether the bytes are reproducible first
+     A refusal exits on its own code (RENDER_EXIT) and prints its own sentence. A server calls
+     renderFromKeptState() directly instead; see that function's header. */
+  if (argv[0] === '--render-state' || argv[0] === '--render-check') {
+    const door = argv[0];
+    const statePath = argv[1];
+    if (!statePath || statePath.startsWith('--')) {
+      console.error('Usage: node build-call-debrief.js ' + door + ' <keptState.json> ' +
+                    '[--allow-builder-drift]\n' +
+                    '       The file is a call_guide_state row, or its guide_json. Nothing is written.');
+      process.exit(1);
+    }
+    if (argv.indexOf('--cloud') >= 0 || argv.indexOf('--folder') >= 0) {
+      console.error('REFUSED - ' + door + ' is a pure render: it writes no file and registers ' +
+                    'nothing, so a filing flag on it is a misunderstanding, not a mode.');
+      process.exit(1);
+    }
+    const out = renderFromKeptState(JSON.parse(fs.readFileSync(statePath, 'utf8')),
+      { allowBuilderDrift: argv.indexOf('--allow-builder-drift') >= 0 });
+    if (!out.ok) {
+      console.error('\u2717 RENDER REFUSED \u2014 ' + out.refused + ': ' + out.detail);
+      console.error('  NOTHING was rendered, written, registered or filed.');
+      if (door === '--render-check') {
+        console.log(JSON.stringify({ ok: false, refused: out.refused, detail: out.detail }, null, 2));
+      }
+      process.exit(RENDER_EXIT[out.refused] || 1);
+    }
+    if (door === '--render-check') {
+      console.log(JSON.stringify({ ok: true, htmlSha256: out.htmlSha256, bytes: out.bytes,
+        byteIdentical: out.byteIdentical, config: out.config, render: out.render }, null, 2));
+    } else {
+      process.stdout.write(out.html);
+    }
+    return;
+  }
+
   /* PRINT DOOR — pure, writes nothing. The Calls-folder read a cloud build needs first. */
   if (argv[0] === '--print-folder-sql') {
     const val = (n) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : null; };
@@ -816,9 +1070,36 @@ async function main() {
      company with no registered folder never gets a row that can only say "filing pending"
      forever; WITHOUT it the build is exactly the 0.9.36 cloud build. */
   const folderRaw = liftFolder(argv, filing);
+
+  /* ── A CALL WITH NO TRANSCRIPT IS STILL A CALL (2026-09-17). ───────────────────────────
+     This skill's own body says a notes-only debrief is legitimate — "if there's no transcript
+     yet, you can still debrief from the user's notes" — and until today this builder could not
+     produce one: the registrar REFUSES a debrief with no callRef, and this builder never passed
+     the declared exception the registrar offers. Measured on a real call: the operator's 11:00
+     meeting had no recorder, he dictated the whole call, and the build died at the gate.
+     THE EXCEPTION IS DECLARED, NEVER SILENT. --no-transcript takes a REASON, the reason travels
+     onto the row in hostedGap, and a debrief filed this way says so on its own record — the same
+     shape as noLeadReason, for the same purpose: a deliberate absence and an accidental one must
+     never look alike. Pass nothing and the refusal stands. */
+  let noTranscriptReason = null;
+  {
+    const ni = argv.indexOf('--no-transcript');
+    if (ni >= 0) {
+      noTranscriptReason = String(argv[ni + 1] || '').trim();
+      if (noTranscriptReason.length < 25) {
+        console.error('build-call-debrief: --no-transcript needs a REAL reason (25+ chars), ' +
+          'e.g. --no-transcript "notetaker never joined; debrief written from the operator\'s own notes".\n' +
+          'A placeholder is refused on purpose: the whole point is that a stated absence and an ' +
+          'accidental one cannot look the same.');
+        process.exit(1);
+      }
+      argv.splice(ni, 2);
+    }
+  }
   const [debriefPath, configPath, outPath] = argv;
   if (!debriefPath || !configPath || !outPath) {
     console.error('Usage: node build-call-debrief.js <debrief.json> <config.json> <output.html>\n' +
+                  '         [--no-transcript "<why there is no recording>"]\n' +
                   '         [--cloud [--folder <folder.json>] [--run-id <id>]]\n' +
                   '       node build-call-debrief.js --print-folder-sql --channel <c> --company <x> [--partner <p>]');
     process.exit(1);
@@ -836,11 +1117,23 @@ async function main() {
   captureQuestionGate(d);
   const crm = crmRecordGate(config);
 
-  const html = buildStandaloneHtml(d, config);
+  const rendered = {};
+  const html = buildStandaloneHtml(d, config, rendered);
+  /* Nothing is on disk yet. See this gate's own header for why it lives here and not in the
+     store's SQL. */
+  keptSectionsGate(rendered.sections, d);
   const absOut = path.resolve(outPath);
 
   /* PLAN FIRST — every shape refusal happens before a single byte is written. */
   const R = loadRegistrar();
+  /* ── KEPT STATE, AND THE RED THAT MAKES IT REAL. Added 2026-09-17. ─────────────────
+     `requireKept: true` is the whole point of the opt: planRegistration sets the flag from
+     the KIND, and the kind 'debrief' does not demand it (see that function's own note on why
+     widening the kind test would break every debrief's hosted confirm). This builder DOES
+     have the source in hand, so it asks the store to refuse a registration that arrives
+     without it — and settle() to destroy the quarantine file rather than promote a document
+     born unreproducible. A writer with no reader and no red is how call_guide_state reached
+     104 rows without a single debrief among them. */
   const plan = R.planRegistration(absOut, {
     eventId:       config.eventId,
     kind:          'debrief',
@@ -854,8 +1147,9 @@ async function main() {
     // CLOUD MODE (2026-09-17): no operator path at all, and the gap says filing is pending.
     ...(filing.cloud ? { localPath: null } : {}),
     fileId: '', viewUrl: '',
-    hostedGap: filing.cloud ? filing.hostedGap
-      : 'builder writes the local copy only — no Drive upload happens at build time',
+    hostedGap: (noTranscriptReason ? 'NO TRANSCRIPT: ' + noTranscriptReason + ' · ' : '')
+      + (filing.cloud ? filing.hostedGap
+      : 'builder writes the local copy only — no Drive upload happens at build time'),
     /* THE DECLARATION TRAVELS WITH THE ROW, not just the build log — see the same note in
        build-call-guide.js. A build-time check that leaves no trace cannot answer "was this
        missing lead a decision or an accident?" weeks later.
@@ -869,10 +1163,16 @@ async function main() {
        builder already computes; nothing new is being decided here, only carried. */
     leadId:        crm.attached ? crm.leadId : '',
     noLeadReason:  crm.attached ? '' : crm.noLeadReason,
+    /* ⚠ THE ENVELOPE, NOT `d`. The content alone cannot reproduce the page: what a
+       server-side filer needs is the content AND the config the page embeds AND which builder
+       made the bytes. `rendered.cfg` is the config buildStandaloneHtml actually embedded four
+       lines above, handed back rather than rebuilt here — rebuilding it is how it would
+       drift, and the drift would be invisible because both copies would look plausible. */
+    guideJson:  keptEnvelope(d, rendered.cfg, html, rendered.sections),
     changeNote: 'built by ' + (config.builtBy || 'call-debrief')
                 + ' from ' + path.basename(debriefPath)
                 + (crm.attached ? '' : ' — NO CRM RECORD, DECLARED: ' + crm.noLeadReason),
-  });
+  }, { requireKept: true, allowMissingCallRef: noTranscriptReason != null });
 
   /* HOSTED HANDOFF (2026-09-17). Decided BEFORE a byte is written: an unresolved Calls folder
      registers nothing and writes nothing, and exits 4 with the reason on stdout.
@@ -938,15 +1238,23 @@ if (require.main === module) {
 module.exports = { buildStandaloneHtml, buildBodyHtml,
                    /* Exported so the gates can be PROVEN rather than asserted — see the same
                       note in build-call-guide.js. */
-                   __gates: { crmRecordGate, captureQuestionGate, MIN_NO_LEAD_REASON },
+                   __gates: { crmRecordGate, captureQuestionGate, keptSectionsGate, MIN_NO_LEAD_REASON },
                    filingMode, CLOUD_HOSTED_GAP,
                    /* Exported 2026-08-11 so a REPAIR can restore a question panel into a debrief
                       that already exists, without rebuilding the document around it. Three
                       debriefs shipped with their questions silently deleted; their analysis is
-                      good work and in the debrief's case IRRECOVERABLE (no source JSON is kept),
+                      good work and in the debrief's case IRRECOVERABLE (no source JSON WAS kept
+                      — corrected 2026-09-17: this builder now keeps one, so a debrief built
+                      after today IS recoverable and the repair path is a choice rather than the
+                      only option. For every debrief built before today the sentence still
+                      holds),
                       so a "rebuild" would mean re-running the whole read and getting a different
                       document. the operator's standing rule — patch, don't rebuild.
                       The repair GENERATES the panel with this function; it never hand-writes the
                       HTML, which is the same discipline the email-body rule enforces one level
                       over. */
-                   __render: { buildCaptureQuestions } };
+                   __render: { buildCaptureQuestions },
+                   /* THE SEAM aii-site's render-registry.js is waiting for. ONE implementation,
+                      exported — never vendored into a second repository. */
+                   renderFromKeptState, keptEnvelope, renderedSections, builderSha256, sha256,
+                   KEPT_ENVELOPE, RENDER_EXIT };

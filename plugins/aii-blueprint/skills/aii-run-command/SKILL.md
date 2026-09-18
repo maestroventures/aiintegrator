@@ -115,7 +115,7 @@ python3 "[ops folder]/scripts/build-run-file.py" \
   since 2026-08-06 the builder REFUSES to build without it** (pass `--session`, or set
   `$RUNFILE_SESSION`). It used to only warn, on the reasoning that an unstamped build was "safe
   because nothing gets swept" — but safe-for-this-build still left an anonymous file in a folder
-  several chats share, which nobody can then tidy. Bryce ruled it required. Added 2026-08-03,
+  several chats share, which nobody can then tidy. The operator ruled it required. Added 2026-08-03,
   made mandatory 2026-08-06; the design and the six incidents behind it are in the SPEC's
   "THE SLOT IS OWNED" section, not restated here.
 - **`--tenant-zone` is the operator's own clock, and it is REQUIRED.** Resolve it once per session
@@ -143,7 +143,7 @@ python3 "[ops folder]/scripts/build-run-file.py" \
   by the builder on the user's machine and are only passing back through to produce the card. The
   commit strips the exec bit every time, which is why Step 2 re-sets it and proves `test -x`, and why
   Step 0 runs at turn one so that re-set is never a hope. **Three sessions in a row read the sentence
-  above as banning Step 2. It does not, and the cost of that reading was about a day.** Ruled by Bryce
+  above as banning Step 2. It does not, and the cost of that reading was about a day.** Ruled by the operator
   2026-08-07: `dr_OPEN_does_a_mac_built_run_file_still_get_sent_and_bound_20260807`.
 - Step 0 has already proven the shell can write and `chmod` in that folder. If Step 0 was skipped,
   run it now before building — never after.
@@ -192,7 +192,7 @@ not hand a Download-only copy. Never deliver a run file from a cloud/`/tmp` copy
 unbound copy renders as "Download and open," which is the exact failure this step kills. ⚠ **THIS PARENTHESIS USED TO READ: *"(The SendUserFile `display` param does not force the button;
 the id→path binding does.)"* IT IS HALF FALSE, AND IT IS QUOTED RATHER THAN DELETED BECAUSE IT IS THE
 SENTENCE THAT MADE SESSIONS PASS THE PARAMETER WITHOUT QUESTIONING IT.** The bind is NECESSARY and it
-is NOT SUFFICIENT. **FALSIFIED 2026-08-24 (`slog_doc2_t1_s23_20260824`), and the operator is the one
+is NOT SUFFICIENT. **FALSIFIED 2026-08-24 (by a session that day), and the operator is the one
 who reported it after seeing "Download and open" on nearly every file he had ever been handed.**
 Two deliveries, one session, the same run folder path, the bind proven in the same turn both times —
 the ONLY variable changed was the parameter:
@@ -297,7 +297,7 @@ old "write local, not Drive" theory was disproven — the button comes from the 
 write location). The gate: a run file is not handed over until the bind is proven — commit success +
 `test -x` pass in the same turn — turning "usually Show-in-Folder" into "every time"; no proof, no
 delivery, never a Download-only fallback.
-Hardened again 2026-08-07 (Bryce's ruling, pop-up-approved) with **Step 0** and a rewritten Step 1
+Hardened again 2026-08-07 (the operator's ruling, pop-up-approved) with **Step 0** and a rewritten Step 1
 after a session handed over a run file that would not execute and then improvised an archive around
 it. Until then the skill's ONLY failure branch when it could not set the exec bit was *"say so and
 stop"* — which is correct and is not enough, because it leaves the user holding a job they approved

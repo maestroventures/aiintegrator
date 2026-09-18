@@ -5,7 +5,7 @@ home_folder_guard.py — the ONE home of the three-folder rule: ~/Claude, the AI
 workshop, and the text below keeps its original measurements.)
 
 Two things are refused, and both were measured before this file existed (2026-09-11,
-slog_solo_20260911_055344_c1a0d7):
+by a session that day):
 
 1. A SEARCH ROOTED AT THE HOME FOLDER OR ABOVE. `find "$HOME" ...` walks into Mail, Messages,
    Safari and Photos, and macOS answers with the dialog *"claude" would like to access data
@@ -14,9 +14,9 @@ slog_solo_20260911_055344_c1a0d7):
 
 2. A NEW FOLDER DIRECTLY IN THE HOME FOLDER. Run files and sessions made ~30 throwaway copies
    of aii-site at `$HOME/aios-s18-ship`, `$HOME/.aios-proof`, `$HOME/.aios/deploy-stage/...`
-   and never removed them — 1.5 GB, every file already on GitHub. Bryce's ruling: "You have
-   ONE folder outside of the AIOS directory structure" — /Users/bebeling/git-db. A throwaway
-   copy goes in /Users/bebeling/git-db/_scratch/<name> and is removed when the run ends.
+   and never removed them — 1.5 GB, every file already on GitHub. The operator's ruling: "You
+   have ONE folder outside of the AIOS directory structure" — ~/git-db. A throwaway copy goes
+   in ~/git-db/_scratch/<name> and is removed when the run ends.
 
 Used by BOTH doors that can create the problem, so the rule cannot drift between them:
   - build-run-file.py (a run file the operator double-clicks — no hook can see those)
@@ -26,7 +26,7 @@ HONEST LIMITS, stated so nobody reads a green as proof:
   - A path built at run time from pieces (`D=$HOME; W="$D/x"`) is not resolvable here.
   - Dot-folders are only refused by the known scratch names (`.aios-*`, and `.aios/` scratch
     subfolders). `~/.aios` itself holds live services and secrets and is NOT refused — where
-    that folder should live is Bryce's ruling to make, not this file's.
+    that folder should live is the operator's ruling to make, not this file's.
 """
 import os
 import re
@@ -34,11 +34,11 @@ import re
 HOME = os.path.expanduser("~")
 
 # Home-level names a path may legitimately start with. Everything else directly under the
-# home folder is a stray by Bryce's 2026-09-10 ruling.
+# home folder is a stray by the operator's 2026-09-10 ruling.
 #  "Claude" added 2026-09-11 (same session): it is the DESKTOP APP'S own folder — named in
 #  claude_desktop_config.json as coworkUserFilesPath, and Cowork's scheduled tasks run from
 #  ~/Claude/Scheduled. It is not a stray, and refusing to even name it blocked reading it.
-#  "aios-workshop" added 2026-09-11 on Bryce's ruling: THREE folders are allowed — ~/Claude (the
+#  "aios-workshop" added 2026-09-11 on the operator's ruling: THREE folders are allowed — ~/Claude (the
 #  app's), the AIOS folder (the user's), and ~/aios-workshop (granted; git databases, background
 #  programs, keys; needed by anyone who manages a website). git-db and .aios moved INSIDE it.
 #  "git-db" stays allowed ONLY while its forwarding link exists (removal date on the card).

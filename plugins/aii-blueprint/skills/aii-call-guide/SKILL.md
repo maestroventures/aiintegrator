@@ -167,7 +167,7 @@ times whenever possible. And only under extreme circumstances would we send them
   link appears in the Links row.
 
 **⚠ THE `ORDER BY` IS LOAD-BEARING, NOT TIDINESS.** `t.sort_order` carries the deliberate order —
-Background, AI Integrator, VisitorResolve, Differentiation. Drop it and the store returns them
+Background, AI Integrator, `<the sending company's second product>`, Differentiation. Drop it and the store returns them
 ALPHABETICALLY, which silently reshuffles the pitch into a different argument. That order used to
 exist only as line order inside a markdown file; it was nearly lost in the 2026-09-09 migration and
 was caught by a round-trip proof, not by review.
