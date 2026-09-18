@@ -125,10 +125,16 @@ time, and you check each one landed before moving on.** Nothing here is a screen
    `confirm_my_sender_address` before asking the next. Never answer for them; `suggested` is a hint,
    not their answer. No new Google permission is asked for (ruling
    dr_a_clients_sender_addresses_are_captured_in_their_first_onboarding_session_20260915).
-5. **Then every other connector, in the instance's order, the same loop each time:** install it,
-   authorize it, set what it is allowed to do, verify it — then the next. Installing and authorizing are
+5. **Then each tool THIS company uses, and nothing else.** The list is the company's own connectors marked
+   allowed (`client_connector.allowed = true`), never the plugin's manifest and never the connector catalog. A
+   connector the company does not use is not offered, not mentioned and not installed. For each one, the same
+   loop: install it, authorize it, set what it is allowed to do, verify it — then the next. Installing and authorizing are
    **two acts, in that order**; a connector that is installed but not authorized is not connected. Never
    report a later act as done because an earlier one succeeded.
+   A tool that already runs through the Blueprint connector (its sign-in stored in the Command Center) is
+   NOT installed as a connector of its own: sign it in once, in the Command Center, and verify one call.
+   If the company has no allowed connectors recorded, say so and ask which tools they use; never fall
+   back to installing everything.
 6. **Enable the required account-level skills.** These are **not** the framework's own skills and do
    **not** arrive with the plugin — each is enabled per account, one at a time. Which ones are required
    is a property of the JOBS the framework performs for this client, read from the capability floor;
@@ -276,6 +282,13 @@ them; it **runs** them, in order, in the client's own words.
   different answers means the element is unsettled, not that somebody is wrong (option label
   verbatim: *"Don't tick it off — just ask them (Recommended)"*). Then ask only what is genuinely
   still open.
+- **READ THE PLAN BEFORE THE FIRST QUESTION: call `my_interview_plan`.** It says, for each question,
+  whether their own documents already answer it (never ask it), answer part of it (ask only the part
+  that is missing) or leave it open (ask it the ordinary way), and it hands you the opening sentence
+  naming the documents you read. If they say a document is wrong or out of date, its answers stop
+  counting and those questions are asked normally. If the plan cannot be read, **say so plainly** —
+  never fall back to asking everything as if nothing had been read. *(Approved 2026-09-18 by pop-up,
+  option label verbatim: "Yes, after #449 merges (Recommended)".)*
 - **IF THE COMPANY WAS SET UP FROM A CONFIGURED ONBOARDING, ASK ITS BELIEFS AS CONFIRMATIONS, ONE AT A
   TIME.** A configured onboarding is set up in advance by a trade or a partner. Read the confirm
   prompts the store hands you for this company (`interviewPlanFor`). For each one, say the belief in
@@ -345,6 +358,8 @@ Not for a client who is already stood up and running — that is `aii-patch-me-u
 run, once, for a new client.
 
 ---
+
+*v1.9 — 2026-09-18. Pop-up-approved by the operator (question 2 of 2 in "Every Company Gets Its Own Place S5", option label "Yes, after #449 merges (Recommended)"). Adds one Step 4 bullet: read `my_interview_plan` before the first question and never ask what the company's own documents already answer. The tool ships in aii-site PR #449 (merged 2026-09-18, 606b963); it reaches a seat when the plugin is next repacked and shipped. Nothing else changed.*
 
 *v1.8 — 2026-09-17. Pop-up-approved by the operator (`dr_03_onboard_client_asks_configured_beliefs_as_confirmations_20260917`, option label "Yes, add the step (Recommended)"). Adds a Step 4 bullet after "open by saying what you already know": when the company was set up from a configured onboarding (a trade or a partner), ask each belief as a confirmation, one at a time (yes / mostly, in my words / not us), through `interviewPlanFor` and `recordConfirmReply`; nothing saved before they answer; never a goal question. The code ships in aii-site PR #411 (merged 2026-09-17); shipped in plugin 0.9.34. Nothing else changed.*
 

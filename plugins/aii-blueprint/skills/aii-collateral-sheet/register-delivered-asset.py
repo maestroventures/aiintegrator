@@ -437,10 +437,10 @@ def selftest():
     msg = dict(base, dispatch_mode="dispatched", touchpoint_id="tp_x_1", inherited_from="asset_parent")
     msg_sql = sql_for(msg)
     aud = dict(msg, files=[dict(base["files"][0], body="w", body_origin="x.html",
-               audience={"audience_kind": "personalized", "recipient_company": "Miccosukee Casino & Resort",
-                         "recipient_terms": ["M Sphere", "Randi's"], "audience_label": ""})])
+               audience={"audience_kind": "personalized", "recipient_company": "Riverbend Resort & Casino",
+                         "recipient_terms": ["Sphere Club", "Pat's"], "audience_label": ""})])
     aud_sql = sql_for(aud)
-    if "asset_audience_put('t', '02 — Clients/x.pdf', 'personalized', 'Miccosukee Casino & Resort', ARRAY['M Sphere', 'Randi''s']::text[], NULL, 'b')" in aud_sql:
+    if "asset_audience_put('t', '02 — Clients/x.pdf', 'personalized', 'Riverbend Resort & Casino', ARRAY['Sphere Club', 'Pat''s']::text[], NULL, 'b')" in aud_sql:
         print("  pass  a declared audience emits asset_audience_put() after asset_put(), terms as an escaped ARRAY")
     else:
         ok = False; print("  FAIL  audience SQL not emitted as expected: %s" % aud_sql[-220:])

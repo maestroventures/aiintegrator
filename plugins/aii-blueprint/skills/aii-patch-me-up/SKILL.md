@@ -74,6 +74,8 @@ Sort each connector into exactly one bucket:
   Fix = *offer* to remove it. This is a suggestion, never an action (see the remove rule below).
 - **Missing** — a connector the framework expects the user to have (e.g. the AI Integrator connector)
   that isn't installed at all. Fix = install it.
+  A connector this company does not use (not allowed in its own list) is never reported as "missing".
+  It is not theirs to have.
 
 The four fixes map to the three internal modes: **reconnect-one** (one or a few off/needs-reconnect),
 **fresh-install** (a required connector is missing), **full-reconcile** (a mix — walk the whole list).
