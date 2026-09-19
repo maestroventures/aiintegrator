@@ -147,8 +147,8 @@ const BUILD_STAMP = '2026-08-07-COVERAGE-BOARD';
    proxy refused CONNECT to our own door (curl 56, 403 connect_rejected, organization
    policy). Filing therefore has to happen on OUR infrastructure, from the stored source.
 
-   AND THE STORED SOURCE COULD NOT ANSWER. Measured on Maestro
-   (cdb_maestro_20260819_unadopted) and on a real built page the same day: a built guide
+   AND THE STORED SOURCE COULD NOT ANSWER. Measured on the builder's own
+   company database and on a real built page the same day: a built guide
    embeds `var CONFIG={...}` with ELEVEN keys. Six are columns on call_doc (eventId,
    meetingDate, prospect->person, domain, leadId, docId), ONE is derived by the renderer
    (totalSections), and FOUR were stored NOWHERE — guideId, company, email, crmName. The
@@ -775,7 +775,7 @@ function buildAspectsHtml(g) {
 
    ── WHAT THIS IS, AND THE TWO RULINGS IT OBEYS ────────────────────────────────
    SHAPE, from `dr_calls_call_guide_layout_live_mode_20260807` — the operator ruled it from a
-   prototype he CLICKED (`board-v6.html`, 2026-08-07 22:13 Boise), not from an option list:
+   prototype he CLICKED (`board-v6.html`, 2026-08-07 22:13 local), not from an option list:
      1. NUMBERING IS REMOVED. His calls never run 1..N; a step number asserts an order the
         call never follows. Nothing in this module emits an index.
      2. POSITION IS COVERAGE, NOT SEQUENCE. A per-item covered tick, a running count, and a

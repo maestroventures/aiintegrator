@@ -1,11 +1,11 @@
 ---
 name: aii-job-poke
-version: v1.6 (2026-09-19)
+version: v1.8 (2026-09-19)
 description: >
   The ONE recurring task installed on each AI platform a tenant uses. It carries NO job logic and
   NO schedule — it only asks the tenant's queue what is due, claims exactly one job, does it, and
   beats. Identical text on every platform. Install once per platform; never edit again.
-  Installed AI Integrator Blueprint plugin version: 0.9.43.
+  Installed AI Integrator Blueprint plugin version: 0.9.44.
 ---
 
 # Job Poke — install this once per AI platform, then forget it
@@ -169,7 +169,8 @@ This is how the store binds your routine to your seat, and how it knows the sche
 current. It is not optional on a registered routine: an unverified binding goes stale.
 
 ⚠ **If you cannot read your own routine** — the list call is refused, asks for permission, or is not
-there — **do not wait and do not stop.** An unattended run that waits on a permission prompt hangs
+there — **do not wait and do not stop.** (The scheduling tool is in the install's allowed list for exactly
+this reason: a question shown to an unattended run is a hang, not a refusal you can skip.) An unattended run that waits on a permission prompt hangs
 silently. Skip 2a and use the FALLBACK below. **The same if your store answers that
 `seat_shift_verify` does not exist** — your company's store has not received it yet. *(v1.4)*
 
@@ -374,6 +375,56 @@ No one is watching this run. Say nothing beyond the one line the skill's last st
 ```
 
 **Hourly**, at a minute of the hour that no other account of the same person already uses.
+
+### Allow every tool it uses WHEN YOU CREATE IT, or it stops at the first one *(v1.7)*
+
+Nobody is there to answer a run. A run that meets a tool it is not allowed stops at the permission
+question and waits for a click that never comes, and every later run does the same. Measured
+2026-09-19: the company's hourly poke froze from 01:26Z on its first Blueprint tool, `job_poke_check`.
+Nothing about that failure is visible from outside except that no beat arrives.
+
+**Claude desktop / Cowork is different** *(v1.8)*: its scheduled-tasks connector has no allowed-tools
+field, its `update` changes only the fields you send, and a task runs only while the app is open. There
+the install step is the person setting **Always allow** on each Blueprint tool in the block below
+(Settings → Connectors → AI Integrator - Blueprint), in this session, before the first run.
+
+**On a scheduler that takes `allowed_tools` at create, they go in at creation, in the same call.**
+Create the schedule with the scheduling tool's `create` action and pass `allowed_tools` = every name in the block below, in the tool-id
+form this account's runs see (`mcp__<connector name with spaces as _>__<tool>`, e.g.
+`mcp__AI_Integrator_-_Blueprint__job_poke_check`). Never plan to add them later: the scheduling tool's
+`update` REPLACES the schedule's whole setup, so an update that carries only the new text or only the new
+tools silently drops everything else. If you must ever update one, `get` it first and send back the WHOLE
+setup with the one change in it, then `get` it again and compare.
+
+<!-- POKE-ALLOWED-TOOLS:BEGIN — GENERATED at plugin build from aii-site main (lib/board/job-poke-tools.js TOOLS,
+     lib/board/job-run-tools.js TOOLS, and every client-audience Blueprint tool a published house job body names).
+     Never type a name into this block; re-run the generator. -->
+```
+Blueprint connector, every seat:
+  job_poke_check  job_poke_reap  job_poke_verify_routine  job_poke_claim  job_poke_body  job_poke_about  job_poke_beat
+  job_run_contract  job_run_lookup  job_run_step  job_run_report_gap  job_run_contract_sql  job_run_statement
+  file_framework_finding  my_context  ping
+Blueprint connector, an operator (builder) seat only — a client seat never sees it:
+  run_sql
+This platform's own tools the steps above use:
+  Skill  RemoteTrigger  ToolSearch
+```
+<!-- POKE-ALLOWED-TOOLS:END -->
+
+**Then prove it before you call it installed:** `get` the schedule and confirm its allowed tools contain
+every name above (on Claude desktop / Cowork, read back the Always allow settings with the person instead). The first run's beat (a `job_run` row for this company whose detail starts `door=`) is
+the proof that it runs; no beat within the hour means it stopped on a question.
+
+**If the schedule already exists, or a run stopped to ask:** do not update it to add the tools. Ask the
+person to open Settings → Connectors → AI Integrator - Blueprint and set each Blueprint tool in the block to
+**Always allow**. That setting covers every schedule on the account, including ones made before today.
+It is their click, never yours.
+
+**Tools a job's own body reaches outside Blueprint** (email, calendar, CRM, files — resolved by category
+through `job_run_lookup`) are not in this block, because they differ by company. Each one asks the first
+time an unattended run meets it, and until it is allowed that run stops there the same way. They are
+allowed the same way, per tool, on their own connector. At install, tell the person which ones this
+company's scheduled jobs will reach, so they can allow them while they are there.
 
 ⛔ **Never paste this skill's steps into a schedule's text, and never add a step there.** A schedule that
 carries its own copy is frozen at the day it was typed: every later change to this file silently skips it,

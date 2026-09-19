@@ -335,7 +335,7 @@ still correct — a downstream asset gap never outranks a broken gate. The opera
 `dr_what_the_asset_pass_does_with_an_asset_20260911_074423`,
 `dr_locked_03_edit_asset_review_and_entry_20260911_083405`. Lens: Goldratt (rank by what it blocks,
 never by what kind of thing it is), Evans (Patch Me Up measures, Tune-Up ranks).*
-*v1.5 — 2026-09-15 (Boise). Pop-up-approved by the operator (dr_tune_up_skill_reads_the_live_models_and_writes_the_map_20260915,
+*v1.5 — 2026-09-15. Pop-up-approved by the operator (dr_tune_up_skill_reads_the_live_models_and_writes_the_map_20260915,
 option label "Approve all 6 edits (Recommended)"). Brought the skill in line with the live store (card job_4_6_20260810).
 The library is read from the live `experience_model` and `building_block` rows, never a count or
 `model-library.md`, so the stale "6 Building Blocks" is gone with no number put in its place. Step 2.6
@@ -345,5 +345,5 @@ no longer names Model #9 as on hold, because it is live. The confirmed set is st
 through `check_map_coverage`. The Step 1.3 founder collapse is unchanged and still correct
 (`dr_the_tune_up_founder_collapse_is_correct_decided_as_execution_20260813`), but it now folds interviews,
 never map squares. Registers `dr_model_tables_are_the_ideal_and_unconfirmed_parts_are_the_questions_20260911`
-and `dr_bryce_map_coverage_gets_its_own_store_20260818`. Nothing else changed. Lens: Evans (one home for the ideal state).*
+and the operator's ruling of 2026-08-18 that map coverage gets its own store. Nothing else changed. Lens: Evans (one home for the ideal state).*
 *v1.6 — 2026-09-19. Approved by the operator in chat, verbatim "skill lines yes" (`dr_setup_skills_use_the_client_seat_tools_20260919`). Applies the tune-up lines of house file 69 (Part 2) so a client's own seat can write the map now that `run_sql` is builder-only: Step 2's Hard lock stores the set with `record_model_enrolment`; Step 6 item 1 writes lines with `record_model_enrolment_line`, squares with `record_map_square`, reads states with `read_my_tune_up_map` and lands each gap card with `put_tune_up_card`; Step 6 item 4 proves through `read_my_tune_up_map` and stops on a missing-company-names warning. The tools shipped in aii-site PRs #486/#488. Nothing else changed.*

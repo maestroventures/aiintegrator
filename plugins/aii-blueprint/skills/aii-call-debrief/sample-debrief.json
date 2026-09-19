@@ -1,7 +1,7 @@
 {
   "header": {
-    "title": "Call Debrief \u2014 Tim Wilson",
-    "subtitle": "GM, Larson Auto Group \u00b7 Called Fri Jun 12 \u00b7 Outcome: agreed to a 30-day test, terms TBD"
+    "title": "Call Debrief \u2014 Pat Doe",
+    "subtitle": "GM, Riverbend Auto Group \u00b7 Called Fri Jun 12 \u00b7 Outcome: agreed to a 30-day test, terms TBD"
   },
   "contextBar": [
     {
@@ -25,7 +25,7 @@
     {
       "beachhead": "landing_example",
       "questionCode": "reception",
-      "text": "When you said his salespeople were \"like a soccer coach with no roster,\" what did Tim's face do?",
+      "text": "When you said his salespeople were \"like a soccer coach with no roster,\" what did Pat's face do?",
       "why": "The recording catches your words but not his reaction — and his reaction is the whole point.",
       "anchorMs": 762000,
       "anchorQuote": "...it's like a soccer coach showing up with no roster, right?",
@@ -49,8 +49,8 @@
   },
   "conflicts": [
     {
-      "topic": "How committed Tim actually is",
-      "operatorSaid": "Your note says \"Tim's in, just need to send terms.\"",
+      "topic": "How committed Pat actually is",
+      "operatorSaid": "Your note says \"Pat's in, just need to send terms.\"",
       "transcriptSaid": "On the call he said \"let me run it by my GM partner first\" and never gave a start date.",
       "resolve": "Treat this as a soft yes, not a closed test. Before you log it as won, confirm the partner conversation happened. Send terms AND ask for a specific start date in the same email."
     }
@@ -75,16 +75,16 @@
       "fix": "Klaff: answering it twice was fine; the third time you started justifying. Park it once: 'Price is easy and I'll put it in writing \u2014 the real question is whether seeing your own in-market shoppers is worth a 30-day look.'"
     }
   ],
-  "prospectRead": "Tim believes the problem is real \u2014 he knows he's wasting spend on shared leads. He's not blocked on belief, he's blocked on risk and on not being the only decision-maker. The partner mention is real, not a brush-off. Lower his risk (short, cancel-anytime, one rooftop) and arm him to sell it internally and he moves.",
+  "prospectRead": "Pat believes the problem is real \u2014 he knows he's wasting spend on shared leads. He's not blocked on belief, he's blocked on risk and on not being the only decision-maker. The partner mention is real, not a brush-off. Lower his risk (short, cancel-anytime, one rooftop) and arm him to sell it internally and he moves.",
   "nextCallGoal": "Lock a specific rooftop and a start date for the 30-day test \u2014 and confirm the GM partner is a yes, not a veto.",
   "nextSteps": {
     "autoDone": [
-      "Logged the call outcome on Tim's Close lead.",
+      "Logged the call outcome on Pat's Close lead.",
       "Drafted the follow-up email (below) \u2014 sitting in your drafts, not sent."
     ],
     "needsYou": [
       {
-        "action": "Send the terms + start-date email to Tim",
+        "action": "Send the terms + start-date email to Pat",
         "why": "External send \u2014 leaves your inbox, so it's your call to send."
       },
       {
@@ -94,7 +94,7 @@
     ],
     "needsInfo": [
       {
-        "waitingOn": "Tim",
+        "waitingOn": "Pat",
         "for": "Confirmation his GM partner is on board + a start date"
       }
     ]
@@ -102,21 +102,21 @@
   "followups": [
     {
       "channel": "Email",
-      "to": "Tim Wilson",
+      "to": "Pat Doe",
       "subject": "Your 30-day test \u2014 terms + a start date",
-      "draft": "Tim \u2014 great talking today, and thanks for the straight answer on your close rate.\n\nHere's the simple version of the 30-day test: one rooftop, we show you the in-market shoppers already on your own site, no long-term commitment, cancel anytime. I'll put the price in writing so there's no mystery.\n\nTwo quick things so we can start clean: which rooftop do you want to run it on, and can we kick off Monday the 22nd? Happy to hop on a 10-minute call with your GM partner if it helps him get comfortable."
+      "draft": "Pat \u2014 great talking today, and thanks for the straight answer on your close rate.\n\nHere's the simple version of the 30-day test: one rooftop, we show you the in-market shoppers already on your own site, no long-term commitment, cancel anytime. I'll put the price in writing so there's no mystery.\n\nTwo quick things so we can start clean: which rooftop do you want to run it on, and can we kick off Monday the 22nd? Happy to hop on a 10-minute call with your GM partner if it helps him get comfortable."
     }
   ],
   "nextGuideSeed": "Next call goal: lock the rooftop + start date and clear the GM-partner question. He's a soft yes blocked on risk and on not being sole decision-maker. Lead with risk-reduction (short, cancel-anytime, one rooftop) and arm him to sell it internally. Park price after answering once.",
   "crmLog": "Outcome: Soft yes to a 30-day test, no rooftop/date locked. Held the frame well (own-traffic vs shared leads), close left vague. Blocker: GM partner not yet bought in + risk. Next: send terms + ask for rooftop & start date (Mon 6/22), offer 10-min call with partner. Watch: don't log as won until partner confirmed.",
   "links": {
     "person": {
-      "name": "Tim Wilson",
+      "name": "Pat Doe",
       "title": "GM",
       "linkedin": "linkedin.com/in/timwilson-demo"
     },
     "company": {
-      "name": "Larson Auto Group",
+      "name": "Riverbend Auto Group",
       "website": "larsonauto.com"
     }
   }

@@ -289,8 +289,12 @@ Seen 2026-09-11 on an operator's own accounts, and it is the same drift every ac
 only its own account's schedules, so this item is always about THIS account. Find the schedules whose name
 starts `AII Poke`. **Sort** into one bucket:
 
-- **Live** — exactly one, switched on, its text matches the block word for word, and its name is the
-  standard `AII Poke · <platform> · <account email>` with nothing added.
+- **Live** — exactly one, switched on, its text matches the block word for word, its name is the
+  standard `AII Poke · <platform> · <account email>` with nothing added, and its allowed tools contain
+  every name in `aii-job-poke`'s allowed-tools block *(added 2026-09-19)*.
+- **Will stop to ask** — everything above is right except that one or more names in that block are not
+  in its allowed tools. Every run stops at the first one and waits for a click nobody gives. Name the
+  missing tools. If you cannot read the schedule's allowed tools, say **unknown** — never Live.
 - **Not the way you set it** — its text differs (an old poke, a pasted copy of the steps, or extra steps
   added), or its name carries more than those three parts (for example a trailing `· auth <email>`).
   Say what differs in one plain sentence, never the whole prompt.
@@ -392,14 +396,20 @@ is being asked. Nygard — a silent non-answer must never read as a decline.)*
 - **The poke schedule — the ONE thing this skill may change itself, and only on a yes** *(ruled
   `dr_every_account_runs_the_one_poke_install_20260911_100645`)*. For *not the way you set it*, offer:
   "replace this schedule's text with the standard poke text" — say which account and which minute. On
-  the person's explicit yes, replace ONLY the text, with the platform's own update tool, passing the
-  prompt body alone; keep its minute and whether it is on. Then read the schedule
+  the person's explicit yes, replace ONLY the text, with the platform's own update tool; keep its minute,
+  whether it is on, and its allowed tools. ⚠ *(2026-09-19)* On Claude that update REPLACES the schedule's
+  whole setup: `get` it first and send back the whole setup with only the text changed, never the prompt
+  body alone — a text-only update drops its allowed tools and the next run freezes. Then read the schedule
   back and confirm the text now matches — the read-back is the proof. If the NAME carries extra parts,
   offer — as its own yes — to rename it to the standard three parts: the name is what the person reads
   (which of their accounts acts for them), and a system fact such as the Blueprint connector's sign-in
   belongs in the store, never in a name *(`dr_poke_schedule_name_carries_the_connector_20260911_104829`)*.
   Keep the name unchanged when they skip. For *missing*, offer to create
-  it with the name `AII Poke · <platform> · <account email>` at a free minute, the same way, on a yes.
+  it with the name `AII Poke · <platform> · <account email>` at a free minute, the same way, on a yes —
+  and with `aii-job-poke`'s allowed-tools block passed in the create call itself, never added after.
+  For *will stop to ask*, do not update the schedule to add tools: hand the person the fix that is
+  theirs — Settings → Connectors → AI Integrator - Blueprint → **Always allow** on each missing tool,
+  which covers every schedule on the account — then read back a beat within the hour.
   For *more than one*, never delete: say which one to keep and hand the removal step. Why this one is
   allowed: a schedule's text can only be changed by retyping it, and retyping by hand is exactly how
   these schedules drift.

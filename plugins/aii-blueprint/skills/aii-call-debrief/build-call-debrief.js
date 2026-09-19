@@ -94,7 +94,7 @@ const BUILD_STAMP = '2026-07-27-DEBRIEF-CAPTURE';
 /* ════════════════════════════════════════════════════════════════════════════════════
    KEPT STATE — AND UNTIL TODAY A DEBRIEF HAD NONE AT ALL. Added 2026-09-17 (S4).
 
-   Measured on Maestro (cdb_maestro_20260819_unadopted, 2026-09-17): call_guide_state held
+   Measured on the builder's own company database (2026-09-17): call_guide_state held
    104 rows and all 104 were GUIDES. 53 registered debriefs had no stored source of any kind,
    so a stranded debrief could not be re-rendered, re-filed or refreshed — there was nothing
    to re-render FROM. That absence had no red anywhere, because planRegistration only
