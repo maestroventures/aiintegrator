@@ -135,10 +135,12 @@ time, and you check each one landed before moving on.** Nothing here is a screen
    installed as a connector of its own. Sign it in once, in the Command Center, and verify one call.
    If the company has no allowed tools recorded, say so and ask which tools they use; never fall
    back to installing everything.
+   Once `what_can_i_do` shows a tool's acts as `connected`, record it with `record_my_connection_test`: pass the tool and what it answered, word for word. Never record a test that did not answer.
 6. **Enable the required account-level skills.** These are **not** the framework's own skills and do
    **not** arrive with the plugin — each is enabled per account, one at a time. Which ones are required
    is a property of the JOBS the framework performs for this client, read from the capability floor;
    never inferred from what happens to be installed.
+   Read your own skill listing and record what is really on with `record_my_skills_observed`, one call per provider. Say whether the listing is complete. Read any `uncovered` names back to them: those are skills that are on but that the setup does not know about.
 
 **This step ends when the last of these is done and verified.** Nothing that asks the client a question
 about their business belongs here — that is Step 4.
@@ -200,7 +202,7 @@ is the rule; this is the only moment it can be applied for free.
   only what is missing; if there are two, stop and show them both — never pick one. After their yes,
   create the root in the person's own Drive at the
   account root, named "AIOS — <Company>", then each folder under it with `do_action` "Create file" (a folder), keeping every
-  id Drive returns. Then record the whole shape in ONE call to `client_workspace_shape_apply()`. It
+  id Drive returns. Then record the whole shape in ONE call to `record_my_workspace_shape`, with the root's id and every folder's id exactly as Drive returned them. It
   refuses a partial shape or a folder that is not in the template, and records nothing when it refuses
   — so if it refuses, say what Drive already made and stop. `lib/onb/workspace-shape.js` is this same
   flow in code.
@@ -262,6 +264,7 @@ write down.
   client who handed over nothing gives an honest empty result — and that is indistinguishable from a
   step that never ran unless you say which one happened. Then read back the saved record for each
   document you named, with what it answers. Your own summary of a file is not proof it was recorded.
+- **Save each document you read with `register_my_document`, once per document, as you finish reading it.** Pass its name, its kind, where it lives, the whole text you read, and the sha256 of the file bytes you opened. It saves the document and its text into the company's own store in one step. Then read `read_by_interview` and `truncated` back to the person in plain words.
 
 *(Lens: Christensen — the job they hired us for includes taking setup work off them, and asking for
 what they already sent is the opposite. Nygard — the preflight names the real cause instead of
@@ -300,12 +303,13 @@ them; it **runs** them, in order, in the client's own words.
   as below. *(Approved 2026-09-16/17, `dr_third_onboarding_path_is_configured_onboarding_20260916`.)*
 - **Ask them here, one at a time, in plain language.** A form does this badly: it cannot follow up, cannot notice an answer that contradicts an earlier one, and cannot
   tell the difference between *"I do not know"* and *"that does not apply to us."* A conversation can.
-- **Write every answer back to the client's own record, as it is given** — not at the end, not in a
+- **Write every answer back with `record_my_answer`, as it is given**, in their words. On the last answer of each card, pass `section_finished: true` so what they said reaches the company's instructions straight away. If `publish.state` comes back `requested` or `refused`, tell them in plain words that the answer is saved and what is still waiting. Not at the end, not in a
   summary. An answer held in the conversation and never written is lost the moment the chat closes.
 - **A question that belongs to somebody else gets handed to them**, with enough context to answer it,
   and the answer lands beside the client's rather than replacing it. When they say *"I do not know"*,
   never offer a likely answer. Ask who does know, hand the question to that person with
   `hand_off_question`, and read back the delegation row it wrote before moving on.
+- **Before `finish_my_onboarding`, call `publish_my_answers` once.** Only report the interview as done when it answers `published`. `requested` means someone with publish rights still has to approve it: say who. Any refusal: say what `detail` says.
 - **Whose store the answers land in is not a detail.** A client's answers about their own company
   belong in the client's own record. If the write target cannot be resolved, **stop and say so** —
   never fall through to a default store and report success. A wrong write here succeeds silently, and
@@ -328,6 +332,7 @@ reads the company's real stuff through them.
 
 The hand-off is done only when the board shows the ranked gap cards the Tune-Up wrote for this
 company, dated after it ran and naming the goal. Hand-off started is not hand-off done.
+When the tune-up finishes, update the company's first-tune-up card with `put_tune_up_card` (card `hand_off`): what ran, when, and where the ranked gap cards are.
 
 ---
 
@@ -358,6 +363,8 @@ Not for a client who is already stood up and running — that is `aii-patch-me-u
 run, once, for a new client.
 
 ---
+
+*v1.10 — 2026-09-19. Approved by the operator in chat, verbatim "skill lines yes" (`dr_setup_skills_use_the_client_seat_tools_20260919`). Applies the lines of house file 69 (Parts 1 and 2) so a client's own seat can make each store write through a Blueprint tool now that `run_sql` is builder-only: Step 2 items 5 and 6 record the connection test (`record_my_connection_test`) and the observed skills (`record_my_skills_observed`); Step 3b records the shape with `record_my_workspace_shape`; Step 3c saves each document with `register_my_document`; Step 4 writes answers with `record_my_answer` and publishes with `publish_my_answers` before `finish_my_onboarding`; Step 5 updates the hand-off card with `put_tune_up_card`. The tools shipped in aii-site PRs #486/#488. Nothing else changed.*
 
 *v1.9 — 2026-09-18. Pop-up-approved by the operator (question 2 of 2 in "Every Company Gets Its Own Place S5", option label "Yes, after #449 merges (Recommended)"). Adds one Step 4 bullet: read `my_interview_plan` before the first question and never ask what the company's own documents already answer. The tool ships in aii-site PR #449 (merged 2026-09-18, 606b963); it reaches a seat when the plugin is next repacked and shipped. Nothing else changed.*
 

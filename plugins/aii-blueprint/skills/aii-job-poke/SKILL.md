@@ -1,11 +1,11 @@
 ---
 name: aii-job-poke
-version: v1.5 (2026-09-11)
+version: v1.6 (2026-09-19)
 description: >
   The ONE recurring task installed on each AI platform a tenant uses. It carries NO job logic and
   NO schedule — it only asks the tenant's queue what is due, claims exactly one job, does it, and
   beats. Identical text on every platform. Install once per platform; never edit again.
-  Installed AI Integrator Blueprint plugin version: 0.9.42.
+  Installed AI Integrator Blueprint plugin version: 0.9.43.
 ---
 
 # Job Poke — install this once per AI platform, then forget it
@@ -16,14 +16,9 @@ This skill needs something that is **not on every seat**. Before you read anothe
 whether it is on THIS one, and if it is not, **say so plainly and stop.** A half-run is worse than
 a refusal: it looks like the skill worked.
 
-**The check.** Resolve capability **`automation-scheduling` / `create_trigger`** BY CATEGORY per Core §11 rule 4 —
-never by a connector name, never by a table name — and count the connectors that answer `CAN`:
-
-```sql
-SELECT count(*) AS live_connectors
-  FROM capability c JOIN connector_capability cc ON cc.capability_id = c.id
- WHERE c.category = 'automation-scheduling' AND c.action = 'create_trigger' AND cc.verdict = 'CAN'
-```
+**The check.** Call `job_poke_check` on the Blueprint connector. It counts, by category (`automation-scheduling` /
+`create_trigger`), the scheduling connectors your company's registry answers `CAN` for, and returns `live_connectors`.
+If the tool is not there or refuses, count that as zero.
 
 **Then, and only then:**
 
@@ -81,13 +76,15 @@ whichever member is attached here, and make one cheap real call to confirm it an
 **If you cannot resolve a reader: STOP and say so loudly. Never guess a connector name, never
 substitute a similar tool, and never quietly do nothing.**
 
+The reader for every step below is the Blueprint connector's `job_poke_*` tools. They work your own company's queue
+only; you never pass a company.
+
 ---
 
 ## Step 1 — Free any work abandoned by a dead executor
 
-```sql
-SELECT * FROM job_reap('<tenant_id>');
-```
+Call `job_poke_reap`. The rows it returns are your company's own abandoned jobs: mention them. If it answers
+`store_behind`, your company's store has not caught up yet: say so in one line and carry on to the claim.
 
 > ✅ **AMENDED 2026-09-18 — DONE. `job_reap` NOW TAKES YOUR TENANT AND FREES ONLY YOUR TENANT'S WORK. Pass the same `<tenant_id>` you pass to `job_claim_next` in Step 2. The 2026-08-26 amendment this replaces is quoted verbatim at the end of this block and NOT deleted.**
 >
@@ -164,12 +161,9 @@ enabled, its updated_at, and the time zone the cron is evaluated in. Take the ac
 routine's NAME — the part right after the platform in `AII Poke · <platform> · <account>`, and never any
 other email in the name or the text *(v1.5)*. Then:
 
-```sql
-SELECT * FROM seat_shift_verify(
-  '<tenant_id>', '<account named in your routine''s own name or prompt>', '<cron>', '<trigger_id>',
-  '<updated_at>', <enabled true|false>, 'poke:<that account>', '<routine name, verbatim>', '<cron time zone>'
-);
-```
+Call `job_poke_verify_routine` with the values you just read from your own routine: `account` (from the routine's
+name), `cron`, `trigger_id`, `trigger_updated_at`, `enabled`, `routine_name` and `cron_tz`. If it answers
+`store_behind`, skip it and use the FALLBACK below.
 
 This is how the store binds your routine to your seat, and how it knows the schedule it holds is still
 current. It is not optional on a registered routine: an unverified binding goes stale.
@@ -181,17 +175,9 @@ silently. Skip 2a and use the FALLBACK below. **The same if your store answers t
 
 **2b — Claim.**
 
-```sql
-SELECT * FROM job_claim_traced(
-  '<tenant_id>',           -- the tenant, never a person
-  '<trigger_id>',          -- copied exactly from your first message: trig_…
-  '<your platform>',       -- e.g. claude | gemini
-  true,                    -- true if you can do reasoning work; false for a bare platform cron
-  false,                   -- CAN YOU REACH THE OPERATOR'S OWN FILES? See below. Pass it; never omit it.
-  '<link to this run>',    -- ONLY if you were shown your own session link (https://…); otherwise NULL. Never build one.
-  '<your model id>'        -- the model you are running as; NULL if you were not told
-);
-```
+Call `job_poke_claim` with `trigger_id` (copied from your first message), `platform`, `can_do_ai`,
+`can_reach_operator_files` (always pass it: `false` for a cloud run), and `session_url` / `model` only if you were
+given them.
 
 It returns the same columns the old claim did, plus `r_seat` — the account the store resolved from your
 routine. **Use `r_seat` everywhere this file says `<seat>`.**
@@ -203,11 +189,14 @@ account from your routine's NAME — the part right after the platform, never an
 the text *(v1.5: a name that also carried the Blueprint sign-in let a fallback pick the wrong account)* —
 and still never the Blueprint sign-in:
 
-```sql
-SELECT * FROM job_claim_next('<tenant_id>', '<account named in your routine''s own words>', '<your platform>', true, false);
-```
+**FALLBACK**: only when 2a could not run, or the claim answers `store_behind` or `ROUTINE-NOT-REGISTERED`. Call
+`job_poke_claim` again with no `trigger_id` and with `fallback_account` = the account in your routine's own name
+(never the Blueprint sign-in), and put `fallback` in your Step 5 line.
 
-and put `fallback` in your Step 5 line. A fallback claim records no routine id, which is exactly how
+`claimed` gives you `claim.r_run_id`, `claim.r_lease_expires`, `claim.r_body_ref` and `claim.r_seat`. `nothing_due`
+is success: say so in one line and stop.
+
+A fallback claim records no routine id, which is exactly how
 the store sees that this poke could not be traced — so never hide it.
 
 > ⚠ Before v1.3 this step called `job_claim_next` directly with `'<your signed-in seat>'`. It is quoted
@@ -258,6 +247,9 @@ Two forms, and they are not interchangeable:
 | `sql:<object>` | in the tenant's own store — query that object and run what it returns | any executor, including a cloud one |
 | a path, e.g. `Scheduled/<job>/SKILL.md` | a file on the operator's own machine | only an executor with a live file bridge |
 
+For an `sql:` body, call `job_poke_body` with your `run_id`. It reads exactly the object your company's schedule
+registered and hands back `body_ref` verbatim. For a path body it refuses: beat `died-in-gate` and name the path.
+
 **Any other form is REFUSED, never guessed.** Beat `died-in-gate` and quote the value you were given.
 A body you had to infer is not the body the tenant registered.
 
@@ -281,9 +273,7 @@ past that moment another executor may legitimately pick the job up.
 seat. Whether the work was FOR one department or one person is not, and it decides who hears when this
 job breaks. If the work was for one department and/or one person, record it:
 
-```sql
-SELECT * FROM job_run_about_put('<r_run_id>', '<department_path or NULL>', '<person_id or NULL>', 'job:<r_job_name>');
-```
+Call `job_poke_about` with your `run_id` and the `department_path` and/or `person_id` the job's own body names.
 
 Work about the whole company needs no call — NULL says that honestly. Use only a department or person
 the job's own body names or the tenant's store holds; the door refuses anything else. Never guess one.
@@ -292,10 +282,8 @@ the job's own body names or the tenant's store holds; the door refuses anything 
 
 ## Step 4 — Beat, whatever happened
 
-```sql
-SELECT * FROM job_beat_complete('<r_run_id>', '<outcome>',
-                                'door=<r_body_ref verbatim> · <one plain sentence>');
-```
+Call `job_poke_beat` with your `run_id`, the true `outcome` and `detail` = `door=<r_body_ref verbatim> · <one plain
+sentence>`. It refuses a detail that does not start with `door=`.
 
 **THE SENTENCE STARTS WITH THE DOOR, and that is not decoration — same reason Step 5 carries
 `[v2]`.** Begin it with `door=` followed by the `r_body_ref` value the claim handed you, copied
@@ -410,3 +398,5 @@ restored from a chat signed in to that account.
 - Never take your seat from the Blueprint connector (`my_context`'s `seat`), and never type your
   account when your first message hands you a routine id. The connector sign-in is a different
   identity, and a typed account is a claim; a routine id is a lookup. *(v1.3)*
+- Never call `run_sql` from this skill. A client's account cannot, and the `job_poke_*` tools are the same calls,
+  fenced to your own company.

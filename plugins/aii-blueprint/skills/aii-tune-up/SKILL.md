@@ -113,7 +113,7 @@ pick; the client never sees a model name.**
 
 > **Hard lock:** the confirmed model set is a prerequisite. **The Executive Summary and the 90-Day
 > Plan cannot be generated until the set is locked** — both are built against the selected models.
-> Store the confirmed set in the company's own store: one `model_enrolment_put` per company ×
+> Store the confirmed set in the company's own store: one `record_model_enrolment` call per company ×
 > department × model × audience, with its state (`runs` / `awaiting-first-instance` / `not-run`) and
 > its why. That is the one home; no `.md` copy of the set is kept.
 
@@ -254,11 +254,8 @@ that **gates everything upstream** at #1, even if a human would have listed some
    adjudication — not buried.
    **Write the map, in the company's own store and only through its doors, never hand SQL.** Open
    this session's record in that store first, because the doors refuse an actor they cannot find there.
-   (a) Each difference from the model is one line through `model_ref_put(tenant, 'model_enrolment_line', …)`,
-   and its `source_path` names the company's own answer or tool read. (b) Every live model gets one
-   square through `map_assessment_put(tenant, company, model_no, …)`, including the ones you ruled
-   out, so the map shows each was looked at. A founder-level collapse (Step 1.3) folds the interviews,
-   never the squares. (c) Read the Step 4 states back from `reconcile_line_propose(tenant)`.
+   (a) Each difference from the model is one line through `record_model_enrolment_line`, and its `source_path` names the company's own answer or tool read. (b) Every live model gets one square through `record_map_square`, including the ones you ruled out, so the map shows each was looked at. It is stamped with your seat and today's date. A founder-level collapse (Step 1.3) folds the interviews,
+   never the squares. (c) Read the Step 4 states back from `read_my_tune_up_map`. Each gap card is one `put_tune_up_card` call.
 2. **Hold the line: nothing is built until the owner asks.** The engine's job ends at the decided
    punch-list. The construction/build leg is out of scope.
 3. **Set the re-run cadence.** This is a recurring tune-up, not change-detection — the cadence *is*
@@ -270,9 +267,7 @@ that **gates everything upstream** at #1, even if a human would have listed some
 4. **Prove it before you say done** (`aii-prove-it`). On a first run at a company that has a hand-built
    audit, the bar is reproduction: a blind run must surface the same top constraints. Otherwise,
    confirm every job got sorted, the ranking leads with the real constraint, every named gap is
-   flagged (not dropped), and the Board records actually wrote. Then read the store: `reconcile_line_propose`
-   returns this company's lines, and `check_map_coverage` shows no live-model square left
-   unassessed for it. A claim is not proof — the check is
+   flagged (not dropped), and the Board records actually wrote. Then call `read_my_tune_up_map`: `lines` must hold this company's lines and `coverage` must show no live model left unchecked. If it warns that the company has no company names, stop and say so: that is a setup gap, not yours to work around. A claim is not proof — the check is
    the proof. Report the result in a line; don't narrate the steps.
 
 ---
@@ -351,3 +346,4 @@ through `check_map_coverage`. The Step 1.3 founder collapse is unchanged and sti
 (`dr_the_tune_up_founder_collapse_is_correct_decided_as_execution_20260813`), but it now folds interviews,
 never map squares. Registers `dr_model_tables_are_the_ideal_and_unconfirmed_parts_are_the_questions_20260911`
 and `dr_bryce_map_coverage_gets_its_own_store_20260818`. Nothing else changed. Lens: Evans (one home for the ideal state).*
+*v1.6 — 2026-09-19. Approved by the operator in chat, verbatim "skill lines yes" (`dr_setup_skills_use_the_client_seat_tools_20260919`). Applies the tune-up lines of house file 69 (Part 2) so a client's own seat can write the map now that `run_sql` is builder-only: Step 2's Hard lock stores the set with `record_model_enrolment`; Step 6 item 1 writes lines with `record_model_enrolment_line`, squares with `record_map_square`, reads states with `read_my_tune_up_map` and lands each gap card with `put_tune_up_card`; Step 6 item 4 proves through `read_my_tune_up_map` and stops on a missing-company-names warning. The tools shipped in aii-site PRs #486/#488. Nothing else changed.*
