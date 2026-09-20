@@ -445,6 +445,39 @@ bounded contexts, one owner each; the gate lives on the seam between them, not a
 
 ---
 
+## Step 5 — Finish on the company's own platform picture *(added 2026-09-20)*
+
+End the run by opening the company's own **platform picture** — the page that draws their real tools,
+the parts of their business, and what runs on top of them (`/api/cc/my-company?view=picture`).
+Everything this run just fixed shows up there: a tool that now reads connected is drawn, one that does
+not is not. It is the plainest proof a person can see that the patch landed, and looking costs them
+nothing.
+
+**Say what they are looking at in one line, then stop.** *"This is your company, drawn from what you
+actually run."* It is not a report to walk them through and not a checklist.
+
+**The three questions live on the page, and this skill does not ask them.** The page folds them behind
+one button — **Personalize it more** when we already know their systems, **Make it yours** when we do
+not — and they are: *Which part of your business?* / *What should it run?* / *Where does your team
+work?* Ask them in chat **only if the company says they want to change what they are seeing.** Putting
+the survey in front of the picture is the same defect Step 3 names: making a person interpret
+something before they have seen anything. *(Lens: Krug — never make them work it out.)*
+
+**What gets saved, and what does not.** A tool they name that we did not have is a candidate for the
+company's own tool record — reviewed the same way Step 2e reviews an asset, never written straight
+from a page. Their choices ride on the links we send for them and on their campaigns; this skill
+writes neither.
+
+**The honest limit, and it is the check that goes red.** Step 1 of the picture must name at least one
+tool from the company's **own records**. A picture drawn only from the typical list means this run
+never reached their systems — say that in one plain line rather than letting the picture read as
+confirmation. *(Lens: Nygard — fail honest.)*
+
+**Order.** This is the last thing Patch Me Up itself does. Step 4's Tune-Up offer stands either way: a
+yes to the audit does not skip the picture, and a no does not end the run a step early.
+
+---
+
 ## Running at onboarding and on a refresh
 
 This is the deep first run at onboarding (get the new user fully connected) and the routine "bring me
@@ -461,6 +494,8 @@ reconnect, remove, or install anything on its own, even when the right fix looks
 is the user's yes.
 
 ---
+
+*v1.11 — 2026-09-20. New **Step 5 — finish on the company's own platform picture**: open `/api/cc/my-company?view=picture`, say in one line what they are looking at, and leave the page's own three questions (*Which part of your business? / What should it run? / Where does your team work?*, folded behind **Personalize it more** or **Make it yours**) unasked unless the company says it wants to change what it sees. A tool they name is a candidate for the company's tool record, reviewed like any Step 2e asset and never written straight from a page. Carries its own red: step 1 of the picture must name at least one tool from the company's own records, or this run never reached their systems. Additive: no step renumbered, no bucket changed, no behavior removed, detect-and-offer unchanged, Step 4's Tune-Up offer unchanged. The frontmatter description was measured and left alone — it stands at 1,015 of the 1,024-character cap and never enumerated steps. Approved by pop-up 2026-09-20 (`dr_patch_me_up_ends_on_the_platform_picture_20260920_040000`). Sibling: the `blueprint-skills.md` §4 row, which restated the handoff as the ending. Lens: Krug (never make them work it out), Nygard (fail honest).*
 
 *v1.10 — 2026-09-17. New **Step 2j**: record every not-right reading from 2g–2i through the told door, offer remind-me-later, and show what is still due in plain words through `dueLine()`; still never change a setting. Approved by pop-up (`dr_setup_check_records_what_it_told_20260917`). Additive wording only.*
 
