@@ -1,11 +1,11 @@
 ---
 name: aii-job-poke
-version: v1.8 (2026-09-19)
+version: v1.9 (2026-09-20)
 description: >
   The ONE recurring task installed on each AI platform a tenant uses. It carries NO job logic and
   NO schedule — it only asks the tenant's queue what is due, claims exactly one job, does it, and
   beats. Identical text on every platform. Install once per platform; never edit again.
-  Installed AI Integrator Blueprint plugin version: 0.9.45.
+  Installed AI Integrator Blueprint plugin version: 0.9.46.
 ---
 
 # Job Poke — install this once per AI platform, then forget it
@@ -285,6 +285,24 @@ the job's own body names or the tenant's store holds; the door refuses anything 
 
 Call `job_poke_beat` with your `run_id`, the true `outcome` and `detail` = `door=<r_body_ref verbatim> · <one plain
 sentence>`. It refuses a detail that does not start with `door=`.
+
+**Also say what you SAW and what you DID — `items_seen` and `items_acted`.** *(v1.9, 2026-09-20)* Pass
+them on every beat. They are two integers, and they are the difference between a run somebody can
+explain later and one nobody can. **This is the only moment they exist:** you are still running, you
+still know what you looked at, and nothing afterwards can work these numbers out. Measured 2026-09-20 on
+the operator's own fleet: **569 of 774 runs in fourteen days recorded neither**, and every one of those
+is now permanently unexplainable. `items_acted` is also the ONLY field that can tell a working job from
+one that **succeeds at doing nothing** — a standing check watches exactly that, and on the day it was
+built it caught a job reporting `ok` across 24 clean runs while acting on zero of the 128 items it had
+looked at. A job that genuinely found nothing to do passes `items_seen: 0`: that is an answer, and it is
+not the same as saying nothing.
+
+**And `tokens_in`, `tokens_out`, `cost_usd` — only if you can actually SEE them** — with `usage_source`
+saying how you learned them (`response.usage`, `counted in the body`, `estimated`). The beat **refuses**
+usage numbers that arrive with no `usage_source`, because a measured number and a guess must never be
+read as one series. **Omit rather than guess:** an absent number means NOT MEASURED, which is honest, and
+a zero means this run cost nothing, which is false. These are the numbers a client's hand-over statement
+is built from — what their fleet takes to run, so they can judge it against what they already own.
 
 **THE SENTENCE STARTS WITH THE DOOR, and that is not decoration — same reason Step 5 carries
 `[v2]`.** Begin it with `door=` followed by the `r_body_ref` value the claim handed you, copied
