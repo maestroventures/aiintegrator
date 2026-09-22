@@ -88,6 +88,11 @@ handoff — **open the desktop app, start a new task (not a chat), and say they 
 The words for the app and the kind of task come from the person's own setup, never typed as a vendor
 name into the copy.
 
+That description also says what KIND of conversation is coming: the steps are ordered to make it easy
+to follow, not a form to get through, and questions are welcome at any point and are never
+interruptions. A person who arrives believing it is a script will behave like one — and will not tell
+you when something is off, because nothing will feel wrong enough to mention.
+
 **It does NOT carry anything a session can do instead** — no tool sign-ins, no permissions step, no
 link to a setup page, and nothing about what happens after they are connected. An email can instruct
 and can never check; a session can do both. Every step moved out of the email is a step that can be
@@ -106,6 +111,20 @@ see whether it actually happened.
 The person is now in a task with you. **They do the clicking; you tell them the next click, one at a
 time, and you check each one landed before moving on.** Nothing here is a screen or a form.
 
+**Say first that this is a conversation, not a script.** Before the first instruction, tell them in
+your own words: the steps are ordered to make this easy to follow, not to hold them to a track; they
+can talk or type at any point; a question is never a side question and never an interruption — it is
+part of the setup; and if an answer does not work, or does not match what is on their screen, say so
+and make you work it out rather than letting *"I cannot see that from here"* be the end of it. Say it
+once, plainly, at the start — never as a written list they are meant to read.
+
+**The failure this prevents is not confusion, it is politeness.** Measured 2026-09-22: a walker sent
+every screenshot to his sponsor instead of to the session, saved his questions up as *"side questions
+that are separate from the process we are doing,"* and said afterwards *"I haven't really been 'stuck'
+completely."* He was not lost and would never have said he was — he had read the walk as a script and
+himself as someone following it. A line that only invites people to speak up when they are stuck does
+not reach that person.
+
 1. **Confirm their setup — never ask it cold.** Call `my_seat_env`, show them its `confirm_question`
    word for word, and ask only "is this right?". If they correct a field, call `correct_my_seat_env`
    with just that field. Everything you tell them to click branches on it, and getting it wrong
@@ -114,8 +133,32 @@ time, and you check each one landed before moving on.** Nothing here is a screen
    state; a person who followed the email is not proof that it worked. The framework's own skills
    **arrive with the plugin** — there is no separate step for them, and telling a client to install
    them individually sends them hunting for something that is already there.
-3. **Check their permissions with them.** Call `what_can_i_do` and walk the settings it returns; any
-   change is theirs to make in the Command Center, never the session's.
+   **And confirm the plugin is CURRENT, not merely present.** `ping` proves the connector answers; it
+   says nothing about which plugin the seat is running. Run `aii-patch-me-up` Step 2g here — read the
+   installed version off the `aii-job-poke` stamp and compare it with the plugin door — and if the seat
+   is behind, stop and have them update before anything else (Cowork: ⋮ → Check for updates, then
+   Update). Say which version they have and which is current. A plugin installed weeks ago does not
+   update itself, and every step after this one is written against the current one.
+   **THEN TURN AUTO-UPDATE ON FOR THE MARKETPLACE, ONCE, WHILE YOU ARE BOTH LOOKING AT IT.** A
+   marketplace a person added themselves has auto-update **OFF by default** — that default is only ON
+   for Anthropic's own marketplaces, so every client of ours starts frozen. It is one toggle, in the
+   plugin screen under the marketplace's own entry, and it is the ONLY thing that stops this person
+   freezing again the moment we ship. Do it here, with them, and never leave it as something to do
+   later. Two honest limits to say out loud rather than hide: a running session keeps the version it
+   started with, so a new task is what picks an update up; and if "Check for updates" ever answers
+   "Failed to update marketplace" and leaves Update greyed out, that is a known desktop bug and the
+   fix is to remove the marketplace and add it back from the same link.
+3. **Check their permissions with them — and GET THEM INTO THE COMMAND CENTER FIRST.** It is a
+   separate site from Claude and from Google. It lives at **`app.aiintegratorhq.com`**, and sign-in is
+   by email: they type their address there and the system emails them a link back. **Say the address
+   out loud before the first step that needs it.** It is not linked from the public homepage, and no
+   tool a session can reach knows it — so naming "the Command Center" without giving the address
+   strands the person completely. Measured 2026-09-22: a walker asked *"I have to be in the AI
+   Integrator Command Center. Where is that exactly?"*, his own AI answered that it did not know and
+   that only the person who set him up knew it, and his walk stopped dead until a human handed the
+   address over. Then
+   call `what_can_i_do` and walk the settings it returns; any change is theirs to make in the Command
+   Center, never the session's.
 4. **Capture their sender addresses, then let them confirm each one.** Once Google is signed in (Me →
    Connections, #settings/connections), call `do_action` for "See sending identity" on their own account and pass the addresses
    unchanged to `capture_my_sender_addresses` with source "connector". If that read fails, ask them to
@@ -375,6 +418,18 @@ Not for a client who is already stood up and running — that is `aii-patch-me-u
 run, once, for a new client.
 
 ---
+
+*v1.14 — 2026-09-22. Instructed by the operator in chat, verbatim and complete: "we do not want anyone to freeze -- we ant the plugin to auto update ALWAYS with no human intervention whenever possible" (typo his). Recorded as an in-chat instruction, not a pop-up label. Extends Step 2 item 2: after the version check, turn AUTO-UPDATE ON for the marketplace, once, with the person watching.
+
+WHY THIS IS THE WHOLE FIX AND ALSO WHY THE GOAL AS STATED CANNOT BE MET. Researched against the Claude Code docs and the help centre on 2026-09-22. (a) Auto-update for a marketplace a person added themselves is OFF BY DEFAULT; it defaults ON only for Anthropic's own marketplaces. So every client we onboard starts frozen, by default, and no change we make to our own repo alters that. (b) "Shared with you" distribution, which DOES auto-update for recipients, is Team/Enterprise and ORGANISATION-ONLY — there is no documented way to share a plugin with someone on a separate account, so it is unavailable for external clients however convenient it sounds. (c) There is no settings, CLI or marketplace.json field that reaches an account we do not manage; managed settings (enabledPlugins, extraKnownMarketplaces) stop at the organisation boundary. (d) Even with auto-update on, a RUNNING session keeps the version it launched with (updates land after start, with a random delay of up to ten minutes), so a new task is what activates one. CONCLUSION: zero-human-intervention is not achievable for external accounts today. ONE toggle, done once during onboarding while somebody is on the line, is the closest reachable state and it converts "frozen forever" into "current from the next task onward". That is why it belongs in the walk and not in a document nobody opens. Known bug named in the step: anthropics/claude-code #72089, unfixed on desktop for git-backed marketplaces. MEASURED THE SAME DAY: a seat added from our marketplace sat on 0.9.36 against a 0.9.47 shelf for a week with nothing telling anyone. Lens: Nygard (name the default that is against you), Krug (one toggle, done for them, beats a instruction they will not follow), Christensen (the job they hired us for does not include version admin).*
+
+*v1.13 — 2026-09-22. Instructed by the operator in chat, verbatim and complete: "fix this before we repack and submit" — recorded as an in-chat instruction rather than a pop-up label, because that is what actually happened and a fabricated option label would be worse than an honest note. Adds the Command Center's ADDRESS and sign-in method to Step 2 item 3, the first step that needs it. No step renumbered; the sentence is folded into the existing item.
+
+WHY IT WAS MISSING AND WHY THAT IS THE WHOLE POINT: this skill names the Command Center in items 3 and 5 and hands out hash routes (#settings/tools, #settings/connections) — routes that are useless without a host. It never said the host. Nothing else fills the gap: the mint door's invitation email carries no Command Center link, the address is not linked from the public homepage, `app_surface` is empty, and no store this session could read holds it. MEASURED 2026-09-22 on the first real second seat: the walker asked where it was, his AI told him truthfully that it could not find it and that only the operator knew, and the walk halted for six minutes until the operator typed "App.aiintegratorhq.com" into a chat by hand. Two people onboard within the hour on the same sequence and would have hit the identical wall. Lens: Krug (the one obvious next action is not obvious if its address is a secret), Nygard (a route with no host is not a route), Norman (an instrument the person cannot locate cannot be operated).*
+
+*v1.12 — 2026-09-22. Pop-up-approved by the operator, twice on the same day: first "Write both as drafted (Recommended)", then "both" on the reframe below. THREE additive edits, no renumbering. (1) Step 2 opens by saying this is a CONVERSATION, NOT A SCRIPT — the steps are ordered to make it easy to follow, not to hold anyone to a track; a question is never a side question; and an answer that does not match their screen gets pushed back on rather than accepted. (2) Step 1's existing "short, plain description" clause now also says what KIND of conversation is coming, so the person does not arrive believing it is a script. This does NOT breach the minimise-the-email principle: it adds nothing the email must DO, only what its already-required description must SAY. (3) Step 2 item 2 gains the plugin-currency check: `ping` proves the connector, not the plugin, so run `aii-patch-me-up` Step 2g HERE and stop if the seat is behind. Edit 3 is a MOVE, not a new rule — the check stays homed in patch-me-up Step 2g; onboarding simply reaches it at Step 2 instead of at Step 3, where an old plugin has already broken the steps in between.
+
+MEASURED, 2026-09-22, one walker, three findings. He ran a seat at plugin 0.9.36 against a 0.9.47 shelf, added from a marketplace (which never self-updates) on the email's own instructions, and carried a second, retired `aii-onboarding` plugin alongside it. His walk called See permission at 13:07 local time, got `not-found`, and at 13:15 fell back to reciting the RETIRED per-connector permissions procedure — naming the Workspace connector, which `dr_one_blueprint_connector_is_the_target_20260917_141400` had already replaced. He stalled in Step 2 item 3 and so never reached the Step 3 hand-off that carries 2g. And the reason nobody heard about any of it for hours is edit 1's: he was not confused and did not consider himself stuck. His words, verbatim: "I haven't really been 'stuck' completely." Lens: Krug (say the one thing they need before they need it), Norman (the person must know the instrument accepts input), Nygard (a check that runs behind the failure it detects is not a check), Carnegie (tell them what kind of room they walked into).*
 
 *v1.11 — 2026-09-19. Approved by the operator (`dr_onboard_client_raises_setup_failure_20260919_055433`). Adds one "Fail loud" bullet: a step that fails and cannot be fixed in the session is told to the person and raised with `raise_setup_problem`, an owned alert the operator is sent (ruling `dr_a_break_during_a_clients_stand_up_routes_to_the_proctor_20260825_113800`). The tool `raise_setup_problem` is in aii-site PR #515. Nothing else changed.*
 
