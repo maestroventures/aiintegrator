@@ -1,0 +1,77 @@
+{
+  "_what_this_is": "Fixtures for prove-open-loop-refusal.js (added 2026-09-24). Each case is a guide overlay plus a gate file. 'refuse' cases must exit with the named code and write nothing; 'build' cases must build. The dates reproduce the 2026-09-24 failure: a guide said an NDA was not countersigned, citing a 9/18 email, three days after the signed copy was logged in the CRM on 9/21.",
+  "refuse": {
+    "uncited-claim": {
+      "expectExit": 12,
+      "loops": { "sections[0]": [ { "claim": "Their NDA countersignature is still with legal", "sources": [] } ] },
+      "newestEmail": { "addresses": ["pat@acme.com"], "checkedAt": "2026-09-24T02:00:00Z", "crm": null, "mailbox": null }
+    },
+    "note-is-not-a-source": {
+      "expectExit": 12,
+      "loops": { "sections[0]": [ { "claim": "Their NDA countersignature is still with legal",
+        "sources": [ { "kind": "note", "id": "note_abc", "date": "2026-09-18T15:00:00Z" } ] } ] },
+      "newestEmail": { "addresses": ["pat@acme.com"], "checkedAt": "2026-09-24T02:00:00Z", "crm": null, "mailbox": null }
+    },
+    "newer-email-than-cited": {
+      "expectExit": 13,
+      "loops": { "sections[0]": [ { "claim": "Their NDA countersignature is still with legal",
+        "sources": [ { "kind": "email", "message_id": "<nda-sent@acme.com>", "date": "2026-09-18T15:00:00Z", "account": "me@example.com" } ] } ] },
+      "newestEmail": { "addresses": ["pat@acme.com"], "checkedAt": "2026-09-24T02:00:00Z",
+        "crm": { "id": "acti_signed_nda", "date": "2026-09-21T17:30:00Z" },
+        "mailbox": { "message_id": "<nda-sent@acme.com>", "date": "2026-09-18T15:00:00Z", "account": "me@example.com" } }
+    },
+    "stale-claim-beside-a-fresh-one": {
+      "expectExit": 13,
+      "loops": {
+        "sections[0]": [ { "claim": "Pat owes us the pilot dates",
+          "sources": [ { "kind": "crm_email_activity", "id": "acti_signed_nda", "date": "2026-09-21T17:30:00Z" } ] } ],
+        "glance[0]": [ { "claim": "Their NDA countersignature is still with legal",
+          "sources": [ { "kind": "email", "message_id": "<nda-sent@acme.com>", "date": "2026-09-18T15:00:00Z", "account": "me@example.com" } ] } ]
+      },
+      "newestEmail": { "addresses": ["pat@acme.com"], "checkedAt": "2026-09-24T02:00:00Z",
+        "crm": { "id": "acti_signed_nda", "date": "2026-09-21T17:30:00Z" }, "mailbox": null }
+    },
+    "lookup-older-than-its-citation": {
+      "expectExit": 13,
+      "loops": { "sections[0]": [ { "claim": "Pat owes us the pilot dates",
+        "sources": [ { "kind": "email", "message_id": "<dates@acme.com>", "date": "2026-09-22T09:00:00Z", "account": "me@example.com" } ] } ] },
+      "newestEmail": { "addresses": ["pat@acme.com"], "checkedAt": "2026-09-24T02:00:00Z",
+        "crm": { "id": "acti_signed_nda", "date": "2026-09-21T17:30:00Z" }, "mailbox": null }
+    },
+    "no-email-lookup": {
+      "expectExit": 14,
+      "loops": {},
+      "newestEmail": "__ABSENT__"
+    },
+    "lookup-skipped-the-mailbox": {
+      "expectExit": 14,
+      "loops": {},
+      "newestEmail": { "addresses": ["pat@acme.com"], "checkedAt": "2026-09-24T02:00:00Z", "crm": null }
+    },
+    "marker-is-not-a-list": {
+      "expectExit": 15,
+      "loops": { "sections[0]": "yes, the NDA is open" },
+      "newestEmail": { "addresses": ["pat@acme.com"], "checkedAt": "2026-09-24T02:00:00Z", "crm": null, "mailbox": null }
+    }
+  },
+  "build": {
+    "no-open-loop-claims": {
+      "loops": {},
+      "newestEmail": { "addresses": ["pat@acme.com"], "checkedAt": "2026-09-24T02:00:00Z",
+        "crm": { "id": "acti_signed_nda", "date": "2026-09-21T17:30:00Z" },
+        "mailbox": { "message_id": "<nda-signed@acme.com>", "date": "2026-09-21T17:29:40Z", "account": "me@example.com" } }
+    },
+    "claim-cites-the-newest-email": {
+      "loops": {
+        "sections[0]": [ { "claim": "Pat owes us the pilot dates (asked in the email that returned the signed NDA)",
+          "sources": [ { "kind": "crm_email_activity", "id": "acti_signed_nda", "date": "2026-09-21T17:30:00Z" } ] } ],
+        "glance[0]": [ { "claim": "Last said: Pat sent the countersigned NDA",
+          "sources": [ { "kind": "email", "message_id": "<nda-signed@acme.com>", "date": "2026-09-21T17:29:40Z", "account": "me@example.com" },
+                       { "kind": "crm_email_activity", "id": "acti_signed_nda", "date": "2026-09-21T17:30:00Z" } ] } ]
+      },
+      "newestEmail": { "addresses": ["pat@acme.com"], "checkedAt": "2026-09-24T02:00:00Z",
+        "crm": { "id": "acti_signed_nda", "date": "2026-09-21T17:30:00Z" },
+        "mailbox": { "message_id": "<nda-signed@acme.com>", "date": "2026-09-21T17:29:40Z", "account": "me@example.com" } }
+    }
+  }
+}
