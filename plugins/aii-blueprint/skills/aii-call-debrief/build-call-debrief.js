@@ -279,7 +279,7 @@ function renderFromKeptState(kept, opts) {
   }
 
   let html;
-  try { html = buildStandaloneHtml(k, k.config); }
+  try { html = buildStandaloneHtml(k, k.config, opts.rendered); }
   catch (e) {
     return renderRefuse('render_threw',
       'the renderer refused this source: ' + (e && e.message ? e.message.split('\n')[0] : String(e)));
@@ -288,7 +288,10 @@ function renderFromKeptState(kept, opts) {
   const bytes = Buffer.from(html, 'utf8');
   const htmlSha256 = sha256(bytes);
   const expect = opts.expectSha256 || (r && r.htmlSha256) || null;
-  if (expect && expect !== htmlSha256) {
+  /* opts.reportMismatch (0.9.50, --regen only): a deliberate re-render at a NEW builder revision
+     is allowed to differ; it is then REPORTED (reproducedStored:false), never refused and never
+     hidden. Every other caller keeps the refusal. */
+  if (expect && expect !== htmlSha256 && !opts.reportMismatch) {
     return renderRefuse('render_not_reproducible',
       'the re-render is NOT the recorded document: stored sha256 ' + String(expect).slice(0, 12) +
       '… and this render hashes ' + htmlSha256.slice(0, 12) + '… (' + bytes.length + ' bytes). ' +
@@ -302,7 +305,8 @@ function renderFromKeptState(kept, opts) {
     config: k.config, render: r,
     /* TRUE only when a recorded hash was actually compared. With no stored hash this is a
        render, not a reproduction, and saying so is the difference between the two. */
-    byteIdentical: !!expect,
+    byteIdentical: !!expect && expect === htmlSha256,
+    storedHtmlSha256: expect,
   };
 }
 
@@ -979,11 +983,10 @@ function liftFolder(argv, filing) {
   const fi = argv.indexOf('--folder');
   let folderPath = null;
   if (fi >= 0) { folderPath = argv[fi + 1] || null; argv.splice(fi, folderPath ? 2 : 1); }
-  if (fi >= 0 && !filing.cloud) {
-    throw new Error('FILING MODE REFUSED - --folder only means something in cloud mode. Nothing was built.');
-  }
-  if (!filing.cloud) return undefined;
-  if (fi < 0) return undefined;   /* cloud without --folder: the 0.9.36 path, unchanged */
+  /* 0.9.50: --folder is no longer cloud-only (mirrors build-call-guide.js). A DISK build with
+     --folder gets the same hosted handoff with its local path kept. Without --folder, disk or
+     cloud, the build is NOT OPENABLE (exit 20). */
+  if (fi < 0) return undefined;
   if (!folderPath) {
     throw new Error('FILING MODE REFUSED - --folder needs a file: the saved answer of\n' +
       '  node register-call-doc.js --folder-sql --channel <c> --company <x> [--partner <p>]\n' +
@@ -1008,6 +1011,150 @@ function cloudHandoff(R, plan, html, folderRaw, filing, config, absOut) {
     planPath: absOut + '.plan.json', resultPath: absOut + '.result.json',
     runId: filing.runId, company: config.company || '', skillDir: __dirname,
   });
+}
+
+/* ── NOT OPENABLE — added 2026-09-24 (v0.9.50, Call Record fix B4). Mirrors build-call-guide.js;
+   IF YOU CHANGE ONE, CHANGE THE OTHER. A debrief is done only when the operator can OPEN it
+   (call_doc.file_id + view_url, hosted_gap empty) — blueprint-core v1.210, Call-Record-Lifecycle
+   stage 8. Without a hosted handoff (--folder) this builder can only land a local copy, so it
+   exits NOT_OPENABLE_EXIT with openable:false instead of 0, and a sweep treats it as not-done. */
+const NOT_OPENABLE_EXIT = 20;
+function notOpenable(out, why) {
+  out.hostedHalf = 'missing';
+  out.openable = false;
+  out.notOpenable = why;
+  console.error('');
+  console.error('✗ NOT OPENABLE — ' + why);
+  console.error('  Exit ' + NOT_OPENABLE_EXIT + '. This build is NOT done: nobody can open a document with no hosted copy.');
+  console.error('  Resolve the Calls folder (--print-folder-sql), rebuild with --folder <folder.json>,');
+  console.error('  and run the hosted steps it prints; `register-call-doc.js --openable` is the only "done".');
+  process.exitCode = NOT_OPENABLE_EXIT;
+}
+function hostedPlanned(out, handoff) {
+  out.hosted = handoff;
+  out.hostedHalf = 'planned';
+  out.openable = false;   /* not yet: step 7's --openable verdict is what flips it */
+}
+
+/* ── REGENERATION — added 2026-09-24 (v0.9.50). A debrief re-rendered from its KEPT STATE, so a
+   run that stranded one (built, registered, never filed) can be re-filed from ANY seat, cloud
+   included, without re-authoring it. It mirrors build-call-guide.js --regen:
+     1. node build-call-debrief.js --regen-plan <docId>        -> {sql, params}
+     2. run it through the board connector, save the FULL result
+     3. node build-call-debrief.js --regen <readplan.json> --rows <rows.json>
+          [--cloud [--out-dir <dir>] [--run-id <id>]] [--folder <folder.json>]
+   It REFUSES rather than re-author: no kept state (every debrief built before 2026-09-17), or
+   kept state without its render config, stops with its own code and nothing written. */
+const REGEN_EXIT = { NO_SUCH_DOC: 3, NO_KEPT_STATE: 4, UNUSABLE_KEPT_STATE: 5, PROVENANCE: 6, PATH_UNRESOLVED: 7 };
+const REGEN_READ_SQL = [
+  'SELECT d.doc_id, d.tenant_id, d.event_id, d.kind, d.call_ref, d.meeting_date, d.person,',
+  '       d.domain, d.channel, d.file_title, d.local_path, d.built_by, d.event_id_source,',
+  '       d.update_count, d.lead_id, d.no_lead_reason, d.hosted_gap,',
+  '       s.state_id, s.version AS kept_version, s.guide_json',
+  '  FROM call_doc d',
+  '  LEFT JOIN call_guide_state_current_v s',
+  '         ON s.tenant_id = d.tenant_id AND s.doc_id = d.doc_id',
+  " WHERE d.tenant_id = $1 AND d.doc_id = $2 AND d.kind = 'debrief'",
+].join('\n');
+
+function regenRefuse(code, label, sentence) {
+  const e = new Error('REGEN REFUSED — ' + label + ': ' + sentence);
+  e.exitCode = code; e.regenCode = label;
+  return e;
+}
+
+function planRegenRead(docId) {
+  if (!docId || typeof docId !== 'string' || docId.startsWith('--')) {
+    throw regenRefuse(1, 'NO DOC ID', 'a regeneration is addressed by call_doc.doc_id. ' +
+      'Usage: node build-call-debrief.js --regen-plan <docId>');
+  }
+  const R = loadRegistrar();
+  return {
+    _what_this_is: 'A call-debrief REGENERATION read plan. Run its sql with its params through the board ' +
+      'connector, save the FULL result, then: build-call-debrief.js --regen <thisFile> --rows <result.json>',
+    docId, tenant: R.TENANT, sql: REGEN_READ_SQL, params: [R.TENANT, docId],
+  };
+}
+
+function regenerate(readPlan, rowsIn, opts) {
+  opts = opts || {};
+  const R = loadRegistrar();
+  const filing = opts.filing || { cloud: false, runId: null, hostedGap: null };
+  const want = readPlan && readPlan.docId;
+  const tenant = (readPlan && readPlan.tenant) || R.TENANT;
+  if (!want) throw regenRefuse(REGEN_EXIT.PROVENANCE, 'PROVENANCE', 'the read plan carries no docId.');
+  const rows = Array.isArray(rowsIn) ? rowsIn : (rowsIn && Array.isArray(rowsIn.rows) ? rowsIn.rows : null);
+  if (!rows) throw regenRefuse(REGEN_EXIT.PROVENANCE, 'PROVENANCE', 'the rows file is not a connector result. Hand it the FULL result, unedited.');
+  if (rows.length === 0) throw regenRefuse(REGEN_EXIT.NO_SUCH_DOC, 'NO SUCH DOC', 'call_doc has no debrief row for ' + want + '. Nothing was regenerated.');
+  if (rows.length > 1) throw regenRefuse(REGEN_EXIT.PROVENANCE, 'PROVENANCE', rows.length + ' rows for one doc_id — not the query this plan emitted.');
+  const row = rows[0];
+  if (row.doc_id !== want || row.tenant_id !== tenant) {
+    throw regenRefuse(REGEN_EXIT.PROVENANCE, 'PROVENANCE', 'the row is for ' + row.tenant_id + '/' + row.doc_id +
+      ' and the plan asked for ' + tenant + '/' + want + '.');
+  }
+  if (!row.state_id) {
+    throw regenRefuse(REGEN_EXIT.NO_KEPT_STATE, 'NO KEPT STATE', 'debrief ' + want + ' has no kept state (debriefs ' +
+      'keep one only since 2026-09-17), so there is no source to re-render. Nothing was written. File the ' +
+      'existing local copy through the hosted steps from the seat that holds it, or re-author it with the skill.');
+  }
+  const rendered = {};
+  const r = renderFromKeptState(row, { allowBuilderDrift: true, reportMismatch: true, rendered });
+  if (!r.ok) {
+    throw regenRefuse(REGEN_EXIT.UNUSABLE_KEPT_STATE, 'UNUSABLE KEPT STATE (' + r.refused + ')', r.detail);
+  }
+  const k = row.guide_json;
+  const config = k.config;
+
+  let where;
+  if (filing.cloud) {
+    if (!row.file_title) throw regenRefuse(REGEN_EXIT.PATH_UNRESOLVED, 'PATH UNRESOLVED', 'the row carries no file_title.');
+    const dir = opts.outDir ? path.resolve(opts.outDir) : fs.mkdtempSync(path.join(require('os').tmpdir(), 'aii-regen-'));
+    if (!fs.existsSync(dir)) throw regenRefuse(REGEN_EXIT.PATH_UNRESOLVED, 'PATH UNRESOLVED', '--out-dir ' + dir + ' does not exist.');
+    where = { absPath: path.join(dir, row.file_title), via: 'cloud regeneration onto this disk (' + dir + ')' };
+  } else {
+    if (!row.local_path || !fs.existsSync(path.dirname(row.local_path))) {
+      throw regenRefuse(REGEN_EXIT.PATH_UNRESOLVED, 'PATH UNRESOLVED', 'the stored local_path ' +
+        JSON.stringify(row.local_path) + ' does not resolve on this filesystem. Run it with --cloud (the bytes ' +
+        'land on this disk under the row\'s own title) — never under some other path.');
+    }
+    where = { absPath: row.local_path, via: 'the stored local_path resolves on this filesystem' };
+  }
+
+  /* The NO TRANSCRIPT declaration, if the row carried one, stays on the row. */
+  const noTx = /^NO TRANSCRIPT: /.test(String(row.hosted_gap || '')) ? String(row.hosted_gap).split(' · ')[0] + ' · ' : '';
+  const changeNote = 'regenerated from kept state ' + row.state_id + ' (v' + row.kept_version + ') by build ' +
+    BUILD_STAMP + ' — ' + (r.storedHtmlSha256 ? (r.byteIdentical ? 'byte-identical to the recorded render'
+      : 'NOT byte-identical to the recorded render (the builder moved since)') : 'no recorded render hash to compare');
+  const plan = R.planRegistration(where.absPath, {
+    eventId: row.event_id, kind: 'debrief', builtBy: row.built_by, eventIdSource: row.event_id_source,
+    meetingDate: row.meeting_date, person: row.person || '', domain: row.domain || '',
+    channel: row.channel || 'call', callRef: row.call_ref || null,
+    localPath: row.local_path, fileTitle: row.file_title,
+    fileId: '', viewUrl: '',
+    hostedGap: noTx + (filing.cloud ? filing.hostedGap : 'regeneration writes the local copy only — no Drive upload happens here'),
+    guideJson: keptEnvelope(contentOf(k), config, r.html, rendered.sections),
+    leadId: config.leadId || row.lead_id || '', noLeadReason: config.leadId ? '' : (config.noLeadReason || row.no_lead_reason || ''),
+    changeNote,
+  }, { requireKept: true, allowMissingCallRef: !row.call_ref });
+
+  let handoff = null;
+  if (opts.folderRaw !== undefined) {
+    handoff = cloudHandoff(R, plan, r.html, opts.folderRaw, filing, config, where.absPath);
+    if (handoff.status !== 'ready') return { status: 'folder_address_unresolved', docId: row.doc_id, hosted: handoff };
+  }
+  fs.writeFileSync(plan.quarantinePath, r.html, 'utf8');
+  const planPath = where.absPath + '.plan.json';
+  fs.writeFileSync(planPath, JSON.stringify(plan, null, 2), 'utf8');
+  const out = {
+    status: 'regenerated', docId: row.doc_id, fromKeptState: row.state_id, fromVersion: row.kept_version,
+    changeNote, htmlSha256: r.htmlSha256, storedHtmlSha256: r.storedHtmlSha256 || null,
+    reproducedStored: r.storedHtmlSha256 ? r.byteIdentical : null, pathVia: where.via,
+    planPath, resultPath: where.absPath + '.result.json', quarantinePath: plan.quarantinePath,
+    finalPath: plan.finalPath, htmlChars: r.html.length, sql: plan.sql, params: plan.params,
+  };
+  if (filing.cloud) { out.filing = 'cloud'; out.hostedGap = filing.hostedGap; out.settledPath = plan.finalPath; }
+  if (handoff) hostedPlanned(out, handoff);
+  return out;
 }
 
 function stopUnresolved(handoff) {
@@ -1081,6 +1228,31 @@ async function main() {
      forever; WITHOUT it the build is exactly the 0.9.36 cloud build. */
   const folderRaw = liftFolder(argv, filing);
 
+  if (argv[0] === '--regen-plan') {
+    console.log(JSON.stringify(planRegenRead(argv[1]), null, 2));
+    return;
+  }
+  if (argv[0] === '--regen') {
+    const ri = argv.indexOf('--rows');
+    const oi = argv.indexOf('--out-dir');
+    if (!argv[1] || ri < 0 || !argv[ri + 1] || (oi >= 0 && !argv[oi + 1])) {
+      console.error('Usage: node build-call-debrief.js --regen <readplan.json> --rows <rows.json>\n' +
+                    '         [--cloud [--out-dir <dir>] [--run-id <id>]] [--folder <folder.json>]');
+      process.exit(1);
+    }
+    const out = regenerate(JSON.parse(fs.readFileSync(argv[1], 'utf8')), JSON.parse(fs.readFileSync(argv[ri + 1], 'utf8')),
+      { filing, folderRaw, outDir: oi >= 0 ? argv[oi + 1] : null });
+    if (out.status === 'folder_address_unresolved') { stopUnresolved(out.hosted); return; }
+    console.error('✓ Regenerated ' + out.htmlChars + ' chars from kept state ' + out.fromKeptState + ' (v' + out.fromVersion + ')');
+    console.error('✓ QUARANTINED at ' + out.quarantinePath + '   (' + out.pathVia + ')');
+    console.error('NEXT: run plan.sql through the board connector, save the FULL result to ' + out.resultPath +
+                  ', then register-call-doc.js --settle "' + out.planPath + '" --result "' + out.resultPath + '"');
+    if (out.hosted) console.error('  Then follow stdout `hosted.steps` 3-7 IN ORDER.');
+    else notOpenable(out, 'this regeneration has no hosted handoff (no --folder), so it can only land a local copy.');
+    console.log(JSON.stringify(out, null, 2));
+    return;
+  }
+
   /* ── A CALL WITH NO TRANSCRIPT IS STILL A CALL (2026-09-17). ───────────────────────────
      This skill's own body says a notes-only debrief is legitimate — "if there's no transcript
      yet, you can still debrief from the user's notes" — and until today this builder could not
@@ -1111,7 +1283,8 @@ async function main() {
     console.error('Usage: node build-call-debrief.js <debrief.json> <config.json> <output.html>\n' +
                   '         [--no-transcript "<why there is no recording>"]\n' +
                   '         [--cloud [--folder <folder.json>] [--run-id <id>]]\n' +
-                  '       node build-call-debrief.js --print-folder-sql --channel <c> --company <x> [--partner <p>]');
+                  '       node build-call-debrief.js --print-folder-sql --channel <c> --company <x> [--partner <p>]\n' +
+                  '       node build-call-debrief.js --regen-plan <docId>  |  --regen <readplan.json> --rows <rows.json> [...]');
     process.exit(1);
   }
   const d = JSON.parse(stripFences(fs.readFileSync(debriefPath, 'utf8')));
@@ -1188,7 +1361,7 @@ async function main() {
      registers nothing and writes nothing, and exits 4 with the reason on stdout.
      Only when --folder was given (0.9.37, option (a)); without it this is the 0.9.36 cloud build. */
   let handoff = null;
-  if (filing.cloud && folderRaw !== undefined) {
+  if (folderRaw !== undefined) {   /* 0.9.50: disk too — see liftFolder */
     handoff = cloudHandoff(R, plan, html, folderRaw, filing, config, absOut);
     if (handoff.status !== 'ready') { stopUnresolved(handoff); return; }
   }
@@ -1219,9 +1392,10 @@ async function main() {
     console.error('  4. mint ONE ticket with call_doc_upload_ticket_mint, then --upload that same file');
     console.error('  5. register-call-doc.js --confirm with the {fileId, viewUrl} the door returned');
   }
-  if (filing.cloud && handoff) {
+  if (handoff) {
     console.error('');
-    console.error('CLOUD MODE — registered with NO local path, into Calls folder ' + handoff.folder.driveFolderId +
+    console.error((filing.cloud ? 'CLOUD MODE — registered with NO local path' : 'HOSTED FILING — registered with its local path') +
+                  ', into Calls folder ' + handoff.folder.driveFolderId +
                   (handoff.folder.pathLabel ? ' (' + handoff.folder.pathLabel + ')' : '') + '.');
     console.error('  Follow stdout `hosted.steps` 1-7 IN ORDER, in this fire: register, settle, mint,');
     console.error('  upload the bytes (' + handoff.bytes + ', sha256 ' + handoff.sha256.slice(0, 12) + '…), read the row,');
@@ -1237,19 +1411,25 @@ async function main() {
     out.filing = 'cloud';
     out.hostedGap = filing.hostedGap;
     out.settledPath = plan.finalPath;   // the file upload-call-doc.js --hash / --upload takes
-    if (handoff) out.hosted = handoff;  // 2026-09-17: every remaining step, machine-readable (only with --folder)
   }
+  /* 0.9.50: the hosted half is either PLANNED (exit 0 — a complete filing plan) or MISSING (exit 20). */
+  if (handoff) hostedPlanned(out, handoff);
+  else notOpenable(out, filing.cloud
+    ? 'cloud build without --folder: the row can only say "filing pending", and nothing here can file it.'
+    : 'disk build without --folder: it lands a local copy only, and a local copy is not openable.');
   console.log(JSON.stringify(out, null, 2));
 }
 
 if (require.main === module) {
-  main().catch((e) => { console.error(e.message); process.exit(1); });
+  /* Regeneration refusals exit on their own code (REGEN_EXIT); every other refusal keeps exit 1. */
+  main().catch((e) => { console.error(e.message); process.exit(e.regenCode ? (e.exitCode || 1) : 1); });
 }
 module.exports = { buildStandaloneHtml, buildBodyHtml,
                    /* Exported so the gates can be PROVEN rather than asserted — see the same
                       note in build-call-guide.js. */
                    __gates: { crmRecordGate, captureQuestionGate, keptSectionsGate, MIN_NO_LEAD_REASON },
-                   filingMode, CLOUD_HOSTED_GAP,
+                   filingMode, CLOUD_HOSTED_GAP, NOT_OPENABLE_EXIT,
+                   planRegenRead, regenerate, REGEN_READ_SQL, REGEN_EXIT,
                    /* Exported 2026-08-11 so a REPAIR can restore a question panel into a debrief
                       that already exists, without rebuilding the document around it. Three
                       debriefs shipped with their questions silently deleted; their analysis is

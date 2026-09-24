@@ -72,12 +72,16 @@ const config = { guideId: 'pat-doe-20260918', eventId: '4p9e9u82qq2au5hl31o7tsq2
   prospect: 'Pat Doe', company: 'Acme Co', domain: 'acme.com', leadId: 'lead_abc', crmName: 'Close' };
 const configPath = w('config.json', config);
 
+/* Since 0.9.50 a build is SUCCESS (exit 0) only when it carries its hosted handoff, so every build
+   here is given a resolved Calls folder. Without it a build exits 20 NOT OPENABLE — that contract is
+   proven in prove-hosted-handoff.js; this file proves the open-loop gate, which runs first. */
+const FOLDER = w('folder.json', [{ drive_folder_id: '1AbCdEfGhIjKlMnOpQrStUvWxYz012345', path_label: 'Acme Co/Calls' }]);
 let n = 0;
 function build(builder, guide, gate) {
   const dir = path.join(tmp, 'run' + (++n));
   fs.mkdirSync(dir);
   const out = path.join(dir, '20260918_callguide_pat-doe_intro.html');
-  const r = spawnSync(process.execPath, [builder, w('g' + n + '.json', guide), configPath, out, '--gate', w('gate' + n + '.json', gate)],
+  const r = spawnSync(process.execPath, [builder, w('g' + n + '.json', guide), configPath, out, '--gate', w('gate' + n + '.json', gate), '--folder', FOLDER],
     { encoding: 'utf8', env: Object.assign({}, process.env, { AII_FILING: '' }) });
   let json = null; try { json = JSON.parse(r.stdout); } catch (_) { /* refused: no stdout JSON */ }
   return { rc: r.status, stderr: r.stderr, json, files: fs.readdirSync(dir) };

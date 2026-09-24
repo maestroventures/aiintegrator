@@ -1468,6 +1468,49 @@ function selfTest() {
         && /UNION ALL SELECT reason FROM path_gap\)/.test(s);
   });
 
+  /* ── OPENABLE + STAGED + DISK HANDOFF (0.9.50). The verdict is the thing a sweep will trust
+     to say "done", so every NOT-done shape is a RED case here, beside its one positive control. */
+  const OK_ROW = { doc_id: 'cd_guide_x', file_id: '1abcDEFghiJKL', view_url: 'https://drive.google.com/file/d/1abcDEFghiJKL/view', hosted_gap: '' };
+  chk('O1 CONTROL — a row with file_id + view_url and no gap is OPENABLE (exit 0)', () => {
+    const v = openableVerdict([OK_ROW]); return v.openable === true && v.exit === 0;
+  });
+  chk('O2 RED — a stated gap is NOT OPENABLE even with ids present', () => {
+    const v = openableVerdict([Object.assign({}, OK_ROW, { hosted_gap: 'no local copy - filing pending' })]);
+    return v.openable === false && v.exit === OPENABLE_EXIT && /hosted_gap/.test(v.reason);
+  });
+  chk('O3 RED — a local-only row (empty file_id, the build-time gap) is NOT OPENABLE', () => {
+    const v = openableVerdict({ rows: [{ doc_id: 'd', file_id: '', view_url: '', hosted_gap: 'builder writes the local copy only' }] });
+    return v.openable === false && v.exit === OPENABLE_EXIT;
+  });
+  chk('O4 RED — no gap but no ids (a blank) is NOT OPENABLE', () => {
+    return openableVerdict([{ doc_id: 'd', file_id: '', view_url: '', hosted_gap: '' }]).openable === false;
+  });
+  chk('O5 RED — zero rows, two rows, or no rows key is NOT OPENABLE', () => {
+    return !openableVerdict([]).openable && !openableVerdict([OK_ROW, OK_ROW]).openable && !openableVerdict({}).openable;
+  });
+  chk('O6 the stage plan round-trips: chunks rejoin and gunzip to the exact bytes, each chunk within the store CHECK', () => {
+    const bytes = Buffer.from('<html>' + 'x\u00e9\u2014'.repeat(40000) + require('crypto').randomBytes(30000).toString('hex') + '</html>', 'utf8');
+    const t = 'cdt.' + TENANT + '.' + 'a'.repeat(48);
+    const sp = stagePlan(bytes, t, 'run_self_test');
+    const joined = sp.statements.map((x) => x.params[5]).join('');
+    const back = require('zlib').gunzipSync(Buffer.from(joined, 'base64'));
+    return sp.n_chunks > 1 && sp.statements.length === sp.n_chunks && back.equals(bytes) &&
+      sp.statements.every((x, i) => x.params[2] === i + 1 && x.params[3] === sp.n_chunks && x.params[5].length <= 16000 && x.params[1] === t) &&
+      /call_doc_upload_status/.test(sp.status.sql);
+  });
+  chk('O7 RED — the stage plan refuses a placeholder ticket or a missing writer', () => {
+    const b = Buffer.from('x');
+    const threw = (f) => { try { f(); return false; } catch (_) { return true; } };
+    return threw(() => stagePlan(b, '{{TICKET}}', 'r')) && threw(() => stagePlan(b, 'cdt.' + TENANT + '.' + 'a'.repeat(48), ''));
+  });
+  chk('O8 a DISK plan gets the same seven-step handoff and keeps its absolute local path in step 1', () => {
+    const plan = planRegistration('/Users/x/Calls/20260805_callguide_pat-doe_reconnect.html', base);
+    const h = hostedHandoff(plan, Buffer.from('<html></html>'), { resolved: true, driveFolderId: '1AbCdEfGhIjKlMn', pathLabel: 'x' },
+      { planPath: '/tmp/p.json', resultPath: '/tmp/r.json', runId: 'run_1' });
+    return h.status === 'ready' && h.steps.length === 7 && h.steps[0].params[10] === base.localPath &&
+      /--stage-sql/.test(h.steps[3].staged.run) && /--openable/.test(h.steps[6].judge);
+  });
+
   console.log(`\n  ${pass} passed, ${fail} failed`);
   console.log('  This proves the SHAPE refusals and every SETTLE outcome, offline.');
   console.log('  The VOCABULARY and CAPABILITY refusals live in the SQL now, not in this');
@@ -1550,8 +1593,12 @@ function readFolderAddress(raw) {
    o       { planPath, resultPath, runId, company, skillDir } */
 function hostedHandoff(plan, bytes, folder, o) {
   const opt = o || {};
-  if (!plan || plan.cloud !== true) {
-    throw new Error('hosted-handoff: refused — only a CLOUD plan (localPath null) has a hosted handoff.');
+  /* 0.9.50: a DISK plan gets the same handoff. The sessions that filed every openable
+     document on 2026-09-24 built on disk and then ran exactly these steps (register, settle,
+     mint, upload, confirm); a disk plan simply keeps its local_path while the hosted half is
+     filled. What is refused is a plan that is not a registration plan at all. */
+  if (!plan || !Array.isArray(plan.params) || !plan.finalPath || plan.confirm === true) {
+    throw new Error('hosted-handoff: refused — needs the registration plan the builder just made.');
   }
   if (!Buffer.isBuffer(bytes) || !bytes.length) {
     throw new Error('hosted-handoff: refused — needs the exact bytes that were written.');
@@ -1590,8 +1637,8 @@ function hostedHandoff(plan, bytes, folder, o) {
       '{{RUN_OR_SESSION_ID}}': opt.runId ? 'filled: --run-id' : 'your job_run id, or this session id',
       '{{TICKET}}': 'step 3 result: ticket',
       '{{DOOR_URL}}': 'step 3 result: door_url',
-      '{{FILE_ID}}': 'step 4 result: file_id',
-      '{{VIEW_URL}}': 'step 4 result: view_url',
+      '{{FILE_ID}}': 'step 4 result: file_id (the door\'s JSON, or call_doc_upload_status when staged)',
+      '{{VIEW_URL}}': 'step 4 result: view_url (the door\'s JSON, or call_doc_upload_status when staged)',
     },
     steps: [
       { n: 1, do: 'register', via: 'board connector', sql: plan.sql, params: plan.params,
@@ -1603,7 +1650,20 @@ function hostedHandoff(plan, bytes, folder, o) {
         expect: 'one row: ticket, door_url (15 minutes, one use)' },
       { n: 4, do: 'upload the bytes', run: 'node ' + q(upload) + ' --upload ' + q(plan.finalPath) +
         ' --ticket {{TICKET}} --door {{DOOR_URL}}',
-        expect: 'exit 0 and {file_id, view_url}. Exit 3 (lost response): run --status with the same ticket; never upload twice.' },
+        expect: 'exit 0 and {file_id, view_url}. Exit 3 (lost response): run --status with the same ticket; never upload twice.',
+        /* 0.9.50 — THE NO-EGRESS ROUTE. A cloud container whose egress proxy refuses our host
+           (measured 2026-09-17: curl 56, 403 connect_rejected) never reaches the door, so the
+           ticket is still unused. The same bytes go through the BOARD CONNECTOR instead, as
+           chunks the server-side filer (every 5 minutes) reassembles, re-hashes and files with
+           this same ticket. No local disk on anybody's machine, no HTTP from the container. */
+        staged: {
+          when: 'upload exits 3 with door_unreachable, or the container cannot reach the door at all',
+          run: 'node ' + q(registrar) + ' --stage-sql ' + q(plan.finalPath) + ' --ticket {{TICKET}} --by ' + q(by),
+          then: 'run EVERY statement it prints, in order, through the board connector, straight after the mint ' +
+            '(a ticket with under 6 minutes left is refused). Then run its `status` read every ~2 minutes until ' +
+            "state is 'filed' (about 5 minutes): its file_id and view_url are {{FILE_ID}} and {{VIEW_URL}}. " +
+            "State 'refused' or 'expired': mint a NEW ticket and stage again; never guess an id.",
+        } },
       { n: 5, do: 'read the row back', via: 'board connector', sql: LOOKUP, params: [TENANT, eventId, kind],
         save: 'row.json (the one row, whole)' },
       { n: 6, do: 'plan the hosted half', run: 'node ' + q(registrar) + ' --confirm row.json ' +
@@ -1611,8 +1671,79 @@ function hostedHandoff(plan, bytes, folder, o) {
         then: 'run its sql with its params through the board connector, save the FULL result, then ' +
           'node ' + q(registrar) + ' --confirm-settle <confirm-plan.json> --result <confirm-result.json>' },
       { n: 7, do: 'prove it', via: 'board connector', sql: READBACK_SQL, params: [TENANT, plan.docId],
-        expect: "file_id = {{FILE_ID}}, view_url = {{VIEW_URL}}, hosted_gap = ''. Anything else is INCOMPLETE, not built." },
+        expect: "file_id = {{FILE_ID}}, view_url = {{VIEW_URL}}, hosted_gap = ''. Anything else is INCOMPLETE, not built.",
+        /* 0.9.50: the verdict is a command with an exit code, not a sentence to eyeball. */
+        judge: 'save the row to readback.json, then: node ' + q(registrar) + ' --openable readback.json ' +
+          '(exit 0 = OPENABLE, the only "done"; exit ' + OPENABLE_EXIT + ' = NOT OPENABLE, the run is not done)' },
     ],
+    /* 0.9.50: what a finished document still owes after step 7 (SKILL.md Step 4.5 / Step 6). */
+    after: 'write the pointer with the file_id and view_url from step 7 (localPath null when the row has none)',
+  };
+}
+
+/* ── OPENABLE — added 2026-09-24 (v0.9.50, fix B4 of the Call Record fix list). ───────────
+   The rule (blueprint-core v1.210, Call-Record-Lifecycle-SPEC stages 4 and 8): a guide or a
+   debrief is DONE only when the operator can OPEN it — call_doc.file_id and view_url set,
+   hosted_gap empty. A local copy, a registered row with a stated gap, a minted ticket or a
+   "filing pending" sentence are all NOT done. This is the one place that verdict is computed,
+   so the builders, the sweep and a person all read the same answer:
+     exit 0              OPENABLE — the read-back row carries a hosted copy and no gap;
+     exit OPENABLE_EXIT  NOT OPENABLE — with the reason. A sweep treats this as not-done. */
+const OPENABLE_EXIT = 20;
+
+function openableVerdict(raw) {
+  const rows = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.rows) ? raw.rows
+    : (raw && typeof raw === 'object' && raw.doc_id ? [raw] : null));
+  const no = (reason, row) => ({ openable: false, exit: OPENABLE_EXIT, reason,
+    docId: row && row.doc_id ? row.doc_id : null });
+  if (!rows) return no('the read-back carries no call_doc row — nothing was read, so nothing is proven');
+  if (rows.length !== 1) return no('the read-back returned ' + rows.length + ' rows; one document is one row');
+  const r = rows[0] || {};
+  const fileId = r.file_id == null ? '' : String(r.file_id).trim();
+  const viewUrl = r.view_url == null ? '' : String(r.view_url).trim();
+  const gap = r.hosted_gap == null ? '' : String(r.hosted_gap).trim();
+  if (gap) return no('hosted_gap is stated: ' + gap.slice(0, 200), r);
+  if (!fileId || !viewUrl) return no('no hosted copy: file_id=' + JSON.stringify(fileId) + ' view_url=' + JSON.stringify(viewUrl), r);
+  return { openable: true, exit: 0, docId: r.doc_id || null, fileId, viewUrl };
+}
+
+/* ── STAGED UPLOAD — the no-egress route for step 4 (0.9.50). ─────────────────────────────
+   Emits one call_doc_upload_stage() statement per chunk, for the board connector to run.
+   gzip-base64, chunks of at most STAGE_CHUNK characters (the store's own CHECK is 16,000),
+   at most 400 chunks. The filer decodes, re-hashes against the ticket and files; this file
+   never touches the network. */
+const STAGE_SQL = 'SELECT doc_id, staged, n_chunks, complete, expires_at\n' +
+  '  FROM call_doc_upload_stage($1, $2, $3, $4, $5, $6, $7)';
+const STAGE_STATUS_SQL = 'SELECT doc_id, state, staged, n_chunks, file_id, view_url, detail, expires_at\n' +
+  '  FROM call_doc_upload_status($1, $2)';
+const STAGE_CHUNK = 15000;
+
+function stagePlan(bytes, ticket, by) {
+  if (!Buffer.isBuffer(bytes) || !bytes.length) throw new Error('stage-sql: refused — needs the settled file\'s bytes.');
+  if (!/^cdt\.[A-Za-z0-9_-]+\.[0-9a-f]{48}$/.test(String(ticket || ''))) {
+    throw new Error('stage-sql: refused — --ticket must be the ticket step 3 minted (cdt.<tenant>.<48 hex>), not a placeholder.');
+  }
+  if (!by || !String(by).trim() || /\{\{/.test(String(by))) {
+    throw new Error('stage-sql: refused — --by needs your job_run id or session id.');
+  }
+  const b64 = require('zlib').gzipSync(bytes).toString('base64');
+  const n = Math.ceil(b64.length / STAGE_CHUNK);
+  if (n > 400) throw new Error('stage-sql: refused — ' + n + ' chunks; the store takes at most 400.');
+  const statements = [];
+  for (let i = 0; i < n; i++) {
+    statements.push({ seq: i + 1, sql: STAGE_SQL,
+      params: [TENANT, ticket, i + 1, n, 'gzip-base64', b64.slice(i * STAGE_CHUNK, (i + 1) * STAGE_CHUNK), String(by)] });
+  }
+  return {
+    _what_this_is: 'Run every statement in order through the board connector. The last one must return ' +
+      'complete=true. Then run `status` until state is filed and take file_id / view_url from it.',
+    bytes: bytes.length,
+    sha256: require('crypto').createHash('sha256').update(bytes).digest('hex'),
+    encoding: 'gzip-base64',
+    n_chunks: n,
+    statements,
+    status: { sql: STAGE_STATUS_SQL, params: [TENANT, ticket],
+      expect: "state 'filed' with file_id and view_url (the filer runs every 5 minutes)" },
   };
 }
 
@@ -1624,7 +1755,9 @@ module.exports = { planRegistration, settleRegistration, quarantinePathFor, look
                       everywhere else; build-call-guide.js --regen reads it from here. */
                    TENANT,
                    /* HOSTED HANDOFF (2026-09-17) — see the block above module.exports. */
-                   folderSql, readFolderAddress, hostedHandoff, HOSTED_EXIT_UNRESOLVED };
+                   folderSql, readFolderAddress, hostedHandoff, HOSTED_EXIT_UNRESOLVED,
+                   /* OPENABLE + STAGED UPLOAD (0.9.50) — see the blocks above module.exports. */
+                   openableVerdict, OPENABLE_EXIT, stagePlan, STAGE_SQL, STAGE_STATUS_SQL };
 
 if (require.main === module) {
   const argv = process.argv.slice(2);
@@ -1690,6 +1823,23 @@ if (require.main === module) {
       process.exit(0);
     }
 
+    if (cmd === '--openable') {
+      // --openable <readback.json>   exit 0 OPENABLE, exit 20 NOT OPENABLE (0.9.50)
+      if (!argv[1]) { console.error('--openable needs <readback.json> — the call_doc row read back by doc_id.'); process.exit(64); }
+      const v = openableVerdict(readJson(argv[1]));
+      if (!v.openable) console.error('✗ NOT OPENABLE — ' + v.reason + '. The run is NOT done.');
+      console.log(JSON.stringify(v, null, 2));
+      process.exit(v.exit);
+    }
+
+    if (cmd === '--stage-sql') {
+      // --stage-sql <settledFile> --ticket <cdt...> --by <run or session id>   (0.9.50)
+      const val = (n) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : null; };
+      if (!argv[1] || argv[1].startsWith('--')) { console.error('--stage-sql needs the settled file first.'); process.exit(64); }
+      console.log(JSON.stringify(stagePlan(fs.readFileSync(argv[1]), val('--ticket'), val('--by')), null, 2));
+      process.exit(0);
+    }
+
     if (cmd === '--lookup-sql') {
       console.log(JSON.stringify(lookupSql(argv[1], argv[2]), null, 2));
       process.exit(0);
@@ -1710,6 +1860,11 @@ if (require.main === module) {
       '  --lookup-sql <eventId> [kind]            emit the read SQL\n' +
       '  --folder-sql --channel <c> --company <x> [--partner <p>]\n' +
       '                                           emit the Calls-folder read a cloud build needs\n' +
+      '  --openable <readback.json>               exit 0 OPENABLE (file_id + view_url, no gap),\n' +
+      '                                           exit 20 NOT OPENABLE — the only "done" test\n' +
+      '  --stage-sql <settledFile> --ticket <t> --by <id>\n' +
+      '                                           the no-egress upload: chunk statements for the\n' +
+      '                                           board connector, then the status read\n' +
       '\nThere is no flag that opens a database. The session is the wire: run plan.sql through\n' +
       'the board connector, resolved BY CATEGORY (Core §11 rule 4), and hand the result back.'
     );

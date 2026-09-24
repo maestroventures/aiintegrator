@@ -205,6 +205,30 @@ node "<skill-folder>/build-call-debrief.js" debrief.json config.json out.html
    disk right now is **not** a call document — its name deliberately does not match the
    `<YYYYMMDD>_debrief_` convention, so nothing downstream can mistake it for one.
 
+   ⛔ **A BUILD IS DONE ONLY WHEN IT CAN BE OPENED — ADDED 2026-09-24, v0.9.50.** Done means `call_doc.file_id`
+   and `view_url` are set and `hosted_gap` is empty (blueprint-core v1.210; Call-Record-Lifecycle-SPEC stages 4
+   and 8). A local copy is not done, and neither is a row that says "filing pending". So **always build with
+   `--folder`**:
+   - Get the Calls folder first: `node "<skill-folder>/build-call-debrief.js" --print-folder-sql --channel <c> --company <x> [--partner <p>]`.
+     Run that SQL through the board connector and save the rows to `folder.json`. If the resolver raised, save
+     `{"error": "<message>"}` instead.
+   - Add `--folder folder.json` to the build. On a desktop that's all you add. On a cloud seat, or anywhere with
+     no operator folder, also add `--cloud --run-id <job_run id>`: the row then registers with no local path,
+     and the bytes sit on this disk only until they're uploaded.
+   - **Exit 0** means stdout carries `hosted` (`status: "ready"`, `hostedHalf: "planned"`). Run `hosted.steps`
+     1–7 **in order, in this same run**: register, settle, mint one ticket, upload, read the row, confirm, then
+     prove. Step 4 uploads through `upload-call-doc.js`. If that exits 3 with `door_unreachable` (a cloud
+     container whose network blocks our host), take `steps[3].staged`: run `register-call-doc.js --stage-sql`
+     and push every chunk it prints through the board connector, then read `call_doc_upload_status` until the
+     state is `filed`. Never send the HTML through the storage connector's create call.
+   - **Exit 20 = NOT OPENABLE.** No `--folder` was given, so the build could only land a local copy
+     (`openable: false`, with the reason in `notOpenable`). The files and plan are still written, but **this is
+     not done, and a sweep must count it as not-done.** Resolve the folder and rebuild.
+   - **Exit 4 = `folder_address_unresolved`.** Nothing was registered and nothing was written. Raise
+     `hosted.marker` and move on to the next call.
+   - **The only "done" is step 7's judge:** save the read-back row to `readback.json`, then run
+     `node "<skill-folder>/register-call-doc.js" --openable readback.json`. **Exit 0 = OPENABLE. Exit 20 = NOT
+     OPENABLE**, with the reason. Then write the pointer (Step 4.5) from that row's `file_id` / `view_url`.
    **(b) Run the plan's `sql` with its `params`** through the board connector, resolved BY
    CATEGORY (Core §11 rule 4) — never by a connector name. **Save the FULL result** to the
    `resultPath` the plan gave you. The statement returns exactly one row: `outcome='registered'`
@@ -244,6 +268,13 @@ The debrief isn't just a document — it should leave the workspace better than 
 
 If a notes-only debrief already exists and the transcript now arrives: read the existing debrief, fold in the transcript (this is where the conflict gate earns its keep — notes vs transcript), and **overwrite the same filename** so the call's debrief stays one file. Don't spawn a second file for the same call.
 
+**Re-file a debrief that was built but never filed, and don't re-author it (v0.9.50).** Every debrief built since 2026-09-17 keeps its content as kept state. To re-file one from any seat, cloud included:
+```
+node "<skill-folder>/build-call-debrief.js" --regen-plan <docId>
+node "<skill-folder>/build-call-debrief.js" --regen <readplan.json> --rows <result.json> --folder folder.json [--cloud --run-id <id> [--out-dir <dir>]]
+```
+Run the first command's SQL through the board connector and save the FULL result for `--rows`. The regen renders from kept state under the row's own `file_title`, keeps its `local_path` and any `NO TRANSCRIPT:` declaration, and prints the same `hosted.steps` as Step 6. It says whether the bytes match the recorded render (`reproducedStored`). Exit 0 means it produced a ready handoff. **Exit 20 = NOT OPENABLE** (no `--folder`). Exit 4 = the folder is unresolved. Exit 4 with **NO KEPT STATE** (a debrief from before 2026-09-17) means there is nothing to re-render: file the existing local copy through the hosted steps from the seat that holds it, or re-author it.
+
 ---
 
 ## Step 9 — Prove it, then report (output-verified — a claim is not proof)
@@ -252,6 +283,7 @@ A debrief is NOT done when the HTML saves. It is done only when **every REQUIRED
 
 For each required output the state is either **CONFIRMED** (you captured the id the create call returned, or you re-read / re-listed and found it) or **N/A — `<reason>`** (a stated reason it doesn't apply, e.g. "no lead in the CRM → note skipped"). **"Attempted but unconfirmed" is a FAILURE, not a pass.**
 
+0. **Openable (v0.9.50): check this first, and there is no N/A.** `register-call-doc.js --openable readback.json` exits 0 on the row read back by `doc_id`. Exit 20 = the debrief is **NOT done** (done means the operator can open it within 24h of the call). A build that exited 20 is not done either.
 1. **Debrief HTML** — exists at the saved path and is non-trivial in size (re-read or stat it). Confirm the conflict gate rendered if there were conflicts.
 2. **Email draft** — for every Email item in `followups`, a real draft exists (the id the create-draft call returned, or re-list drafts and find it). N/A only if there were no Email follow-ups.
 3. **CRM note** — the `crmLog` note exists on the lead (its note id). N/A only if there's no lead.

@@ -2081,7 +2081,25 @@ function regenerate(readPlan, rowsIn, opts) {
       ', sections=' + (g && Array.isArray(g.sections) ? g.sections.length : 'ABSENT') + '.');
   }
 
-  const where = resolveDocPath(row.local_path, opts.workspaceRoot);
+  const filing = opts.filing || { cloud: false, runId: null, hostedGap: null };
+  /* 0.9.50 CLOUD REGEN: no operator path is looked for. The bytes land on THIS disk under the
+     row's own file_title; the registry keeps whatever local_path the row already had (NULL for a
+     cloud-born row). A disk regen resolves the stored home exactly as before. */
+  let where;
+  if (filing.cloud) {
+    if (!row.file_title) {
+      throw regenRefuse(REGEN_EXIT.PATH_UNRESOLVED, 'PATH UNRESOLVED',
+        'the call_doc row carries no file_title, so a cloud regeneration has no name to file under.');
+    }
+    const dir = opts.outDir ? path.resolve(opts.outDir)
+      : fs.mkdtempSync(path.join(require('os').tmpdir(), 'aii-regen-'));
+    if (!fs.existsSync(dir)) {
+      throw regenRefuse(REGEN_EXIT.PATH_UNRESOLVED, 'PATH UNRESOLVED', '--out-dir ' + dir + ' does not exist.');
+    }
+    where = { absPath: path.join(dir, row.file_title), via: 'cloud regeneration onto this disk (' + dir + ')' };
+  } else {
+    where = resolveDocPath(row.local_path, opts.workspaceRoot);
+  }
 
   /* The config the renderer needs is reconstructed from the call_doc row — the same
      columns the original build wrote. guideId is derived so two regenerations of the
@@ -2240,7 +2258,8 @@ function regenerate(readPlan, rowsIn, opts) {
        through two doors, and only one of them is worth recording. */
     localPath:     row.local_path,
     fileId: '', viewUrl: '',
-    hostedGap: 'regeneration writes the local copy only — no Drive upload happens here',
+    hostedGap: filing.cloud ? filing.hostedGap
+      : 'regeneration writes the local copy only — no Drive upload happens here',
     /* The SAME JSON goes back in. A regeneration mints a new kept-state version whose
        source is byte-identical to the one it read. Whether that content changed since its
        LAST RENDER is measured above (contentChange) and said in the change note — never
@@ -2256,11 +2275,20 @@ function regenerate(readPlan, rowsIn, opts) {
     changeNote,
   });
 
+  /* HOSTED HANDOFF (0.9.50) — decided before a byte is written, exactly as a build does. */
+  let handoff = null;
+  if (opts.folderRaw !== undefined) {
+    handoff = cloudHandoff(R, plan, html, opts.folderRaw, filing, { company: config.company || '' }, where.absPath);
+    if (handoff.status !== 'ready') {
+      return { status: 'folder_address_unresolved', docId: row.doc_id, hosted: handoff };
+    }
+  }
+
   fs.writeFileSync(plan.quarantinePath, html, 'utf8');
   const planPath = where.absPath + '.plan.json';
   fs.writeFileSync(planPath, JSON.stringify(plan, null, 2), 'utf8');
 
-  return {
+  const result = {
     status: 'regenerated',
     docId: row.doc_id,
     fromKeptState: row.state_id,
@@ -2283,6 +2311,9 @@ function regenerate(readPlan, rowsIn, opts) {
     sql: plan.sql,
     params: plan.params,
   };
+  if (filing.cloud) { result.filing = 'cloud'; result.hostedGap = filing.hostedGap; result.settledPath = plan.finalPath; }
+  if (handoff) hostedPlanned(result, handoff);
+  return result;
 }
 
 /* ── FILING MODE — added 2026-09-17 (card
@@ -2341,11 +2372,10 @@ function liftFolder(argv, filing) {
   const fi = argv.indexOf('--folder');
   let folderPath = null;
   if (fi >= 0) { folderPath = argv[fi + 1] || null; argv.splice(fi, folderPath ? 2 : 1); }
-  if (fi >= 0 && !filing.cloud) {
-    throw new Error('FILING MODE REFUSED - --folder only means something in cloud mode. Nothing was built.');
-  }
-  if (!filing.cloud) return undefined;
-  if (fi < 0) return undefined;   /* cloud without --folder: the 0.9.36 path, unchanged */
+  /* 0.9.50: --folder is no longer cloud-only. A DISK build with --folder gets the same hosted
+     handoff (its local path is kept) — which is exactly how every document that became openable
+     on 2026-09-24 was filed. Without --folder, disk or cloud, the build is NOT OPENABLE (exit 20). */
+  if (fi < 0) return undefined;
   if (!folderPath) {
     throw new Error('FILING MODE REFUSED - --folder needs a file: the saved answer of\n' +
       '  node register-call-doc.js --folder-sql --channel <c> --company <x> [--partner <p>]\n' +
@@ -2370,6 +2400,33 @@ function cloudHandoff(R, plan, html, folderRaw, filing, config, absOut) {
     planPath: absOut + '.plan.json', resultPath: absOut + '.result.json',
     runId: filing.runId, company: config.company || '', skillDir: __dirname,
   });
+}
+
+/* ── NOT OPENABLE — added 2026-09-24 (v0.9.50, Call Record fix B4). ──────────────────────
+   The rule (blueprint-core v1.210; Call-Record-Lifecycle-SPEC stages 4 and 8): a call document
+   is done only when the operator can OPEN it — call_doc.file_id and view_url set, hosted_gap
+   empty. This builder cannot upload (it has no network and no credential, on purpose), so the
+   most it can honestly report as SUCCESS is a COMPLETE filing plan: the hosted handoff, which
+   only exists when the Calls folder was resolved (--folder). A build WITHOUT it still writes the
+   quarantined HTML and the plan (the local copy is not worthless), but it may no longer say
+   "done": it exits NOT_OPENABLE_EXIT with openable:false and the reason, and a sweep must treat
+   it as not-done. Before 0.9.50 this exited 0, and six stranded rows are what that bought. */
+const NOT_OPENABLE_EXIT = 20;
+function notOpenable(out, why) {
+  out.hostedHalf = 'missing';
+  out.openable = false;
+  out.notOpenable = why;
+  console.error('');
+  console.error('✗ NOT OPENABLE — ' + why);
+  console.error('  Exit ' + NOT_OPENABLE_EXIT + '. This build is NOT done: nobody can open a document with no hosted copy.');
+  console.error('  Resolve the Calls folder (--print-folder-sql), rebuild with --folder <folder.json>,');
+  console.error('  and run the hosted steps it prints; `register-call-doc.js --openable` is the only "done".');
+  process.exitCode = NOT_OPENABLE_EXIT;
+}
+function hostedPlanned(out, handoff) {
+  out.hosted = handoff;
+  out.hostedHalf = 'planned';
+  out.openable = false;   /* not yet: step 7's --openable verdict is what flips it */
 }
 
 function stopUnresolved(handoff) {
@@ -2461,15 +2518,17 @@ async function main() {
     return;
   }
   if (argv[0] === '--regen') {
-    if (filing.cloud) {
-      throw new Error('FILING MODE REFUSED - --regen has no cloud mode yet: it re-renders onto the stored '
-        + 'local path, and a cloud-filed row has none. Nothing was built.');
-    }
+    /* 0.9.50: --regen HAS a cloud mode. With --cloud it never looks for the stored local path:
+       the bytes are rendered from kept state onto THIS disk (--out-dir, default a fresh temp
+       folder) under the row's own file_title, and --folder turns that into the same hosted
+       handoff a build gets. --folder on a disk regen does the same with the stored path. */
     const ri = argv.indexOf('--rows');
     const wi = argv.indexOf('--workspace-root');
     const gi = argv.indexOf('--gate');
-    if (!argv[1] || ri < 0 || !argv[ri + 1] || (gi >= 0 && !argv[gi + 1])) {
+    const oi = argv.indexOf('--out-dir');
+    if (!argv[1] || ri < 0 || !argv[ri + 1] || (gi >= 0 && !argv[gi + 1]) || (oi >= 0 && !argv[oi + 1])) {
       console.error('Usage: node build-call-guide.js --regen <readplan.json> --rows <rows.json> [--gate <gate.json>] [--workspace-root <path>]\n' +
+                    '         [--cloud [--out-dir <dir>] [--run-id <id>]] [--folder <folder.json>]\n' +
                     '       --gate carries the newestEmail lookup; it is REQUIRED whenever the kept content changed since its last render.');
       process.exit(1);
     }
@@ -2477,7 +2536,9 @@ async function main() {
     const rows = JSON.parse(fs.readFileSync(argv[ri + 1], 'utf8'));
     const out = regenerate(readPlan, rows,
       { workspaceRoot: wi >= 0 ? argv[wi + 1] : null,
-        gateRaw: gi >= 0 ? JSON.parse(fs.readFileSync(argv[gi + 1], 'utf8')) : undefined });
+        gateRaw: gi >= 0 ? JSON.parse(fs.readFileSync(argv[gi + 1], 'utf8')) : undefined,
+        filing, folderRaw, outDir: oi >= 0 ? argv[oi + 1] : null });
+    if (out.status === 'folder_address_unresolved') { stopUnresolved(out.hosted); return; }
     console.error('✓ Regenerated ' + out.htmlChars + ' chars from kept state ' +
                   out.fromKeptState + ' (v' + out.fromVersion + ')');
     console.error('✓ Content since its last render: ' + out.contentChange);
@@ -2490,6 +2551,11 @@ async function main() {
     console.error('     CATEGORY (Core §11 rule 4). Save the FULL result to ' + out.resultPath);
     console.error('  2. node register-call-doc.js --settle "' + out.planPath + '" \\');
     console.error('       --result "' + out.resultPath + '"');
+    if (out.hosted) {
+      console.error('  Then follow stdout `hosted.steps` 3-7 IN ORDER (steps 1-2 are the two moves above).');
+    } else {
+      notOpenable(out, 'this regeneration has no hosted handoff (no --folder), so it can only land a local copy.');
+    }
     console.log(JSON.stringify(out, null, 2));
     return;
   }
@@ -2610,7 +2676,7 @@ async function main() {
      registers nothing and writes nothing, and exits 4 with the reason on stdout.
      Only when --folder was given (0.9.37, option (a)); without it this is the 0.9.36 cloud build. */
   let handoff = null;
-  if (filing.cloud && folderRaw !== undefined) {
+  if (folderRaw !== undefined) {   /* 0.9.50: disk too — see liftFolder */
     handoff = cloudHandoff(R, plan, html, folderRaw, filing, config, absOut);
     if (handoff.status !== 'ready') { stopUnresolved(handoff); return; }
   }
@@ -2642,9 +2708,10 @@ async function main() {
     console.error('  4. mint ONE ticket with call_doc_upload_ticket_mint, then --upload that same file');
     console.error('  5. register-call-doc.js --confirm with the {fileId, viewUrl} the door returned');
   }
-  if (filing.cloud && handoff) {
+  if (handoff) {
     console.error('');
-    console.error('CLOUD MODE — registered with NO local path, into Calls folder ' + handoff.folder.driveFolderId +
+    console.error((filing.cloud ? 'CLOUD MODE — registered with NO local path' : 'HOSTED FILING — registered with its local path') +
+                  ', into Calls folder ' + handoff.folder.driveFolderId +
                   (handoff.folder.pathLabel ? ' (' + handoff.folder.pathLabel + ')' : '') + '.');
     console.error('  Follow stdout `hosted.steps` 1-7 IN ORDER, in this fire: register, settle, mint,');
     console.error('  upload the bytes (' + handoff.bytes + ', sha256 ' + handoff.sha256.slice(0, 12) + '…), read the row,');
@@ -2660,8 +2727,12 @@ async function main() {
     out.filing = 'cloud';
     out.hostedGap = filing.hostedGap;
     out.settledPath = plan.finalPath;   // the file upload-call-doc.js --hash / --upload takes
-    if (handoff) out.hosted = handoff;  // 2026-09-17: every remaining step, machine-readable (only with --folder)
   }
+  /* 0.9.50: the hosted half is either PLANNED (exit 0 — a complete filing plan) or MISSING (exit 20). */
+  if (handoff) hostedPlanned(out, handoff);
+  else notOpenable(out, filing.cloud
+    ? 'cloud build without --folder: the row can only say "filing pending", and nothing here can file it.'
+    : 'disk build without --folder: it lands a local copy only, and a local copy is not openable.');
   console.log(JSON.stringify(out, null, 2));
 }
 
@@ -2677,7 +2748,7 @@ module.exports = { buildStandaloneHtml, buildSectionsHtml, buildLiveBoardHtml, c
                    __gates: { crmRecordGate, MIN_NO_LEAD_REASON,
                               openLoopGate, collectOpenLoops, readEmailRecord, OPEN_LOOP_EXIT },
                    __links: { buildLinksHtml, cgDocsBar },
-                   filingMode, CLOUD_HOSTED_GAP,
+                   filingMode, CLOUD_HOSTED_GAP, NOT_OPENABLE_EXIT,
                    /* THE SEAM aii-site's render-registry.js is waiting for. ONE implementation,
                       exported — never vendored into a second repository. */
                    renderFromKeptState, keptEnvelope, builderSha256, sha256,
