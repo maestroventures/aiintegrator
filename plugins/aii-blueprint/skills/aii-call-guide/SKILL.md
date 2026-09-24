@@ -273,6 +273,30 @@ node "<skill-folder>/build-call-guide.js" guide.json config.json out.html --gate
    disk right now is **not** a call document — its name deliberately does not match the
    `<YYYYMMDD>_callguide_` convention, so nothing downstream can mistake it for one.
 
+   ⛔ **A BUILD IS DONE ONLY WHEN IT CAN BE OPENED — ADDED 2026-09-24, v0.9.50.** Done means `call_doc.file_id`
+   and `view_url` are set and `hosted_gap` is empty (blueprint-core v1.210; Call-Record-Lifecycle-SPEC stages 4
+   and 8). A local copy is not done, and neither is a row that says "filing pending". So **always build with
+   `--folder`**:
+   - Get the Calls folder first: `node "<skill-folder>/build-call-guide.js" --print-folder-sql --channel <c> --company <x> [--partner <p>]`.
+     Run that SQL through the board connector and save the rows to `folder.json`. If the resolver raised, save
+     `{"error": "<message>"}` instead.
+   - Add `--folder folder.json` to the build. On a desktop that's all you add. On a cloud seat, or anywhere with
+     no operator folder, also add `--cloud --run-id <job_run id>`: the row then registers with no local path,
+     and the bytes sit on this disk only until they're uploaded.
+   - **Exit 0** means stdout carries `hosted` (`status: "ready"`, `hostedHalf: "planned"`). Run `hosted.steps`
+     1–7 **in order, in this same run**: register, settle, mint one ticket, upload, read the row, confirm, then
+     prove. Step 4 uploads through `upload-call-doc.js`. If that exits 3 with `door_unreachable` (a cloud
+     container whose network blocks our host), take `steps[3].staged`: run `register-call-doc.js --stage-sql`
+     and push every chunk it prints through the board connector, then read `call_doc_upload_status` until the
+     state is `filed`. Never send the HTML through the storage connector's create call.
+   - **Exit 20 = NOT OPENABLE.** No `--folder` was given, so the build could only land a local copy
+     (`openable: false`, with the reason in `notOpenable`). The files and plan are still written, but **this is
+     not done, and a sweep must count it as not-done.** Resolve the folder and rebuild.
+   - **Exit 4 = `folder_address_unresolved`.** Nothing was registered and nothing was written. Raise
+     `hosted.marker` and move on to the next call.
+   - **The only "done" is step 7's judge:** save the read-back row to `readback.json`, then run
+     `node "<skill-folder>/register-call-doc.js" --openable readback.json`. **Exit 0 = OPENABLE. Exit 20 = NOT
+     OPENABLE**, with the reason. Then write the pointer (Step 4.5) from that row's `file_id` / `view_url`.
    **(b) Run the plan's `sql` with its `params`** through the board connector, resolved BY
    CATEGORY (Core §11 rule 4) — never by a connector name. **Save the FULL result** to the
    `resultPath` the plan gave you. The statement returns exactly one row: `outcome='registered'`
@@ -362,6 +386,8 @@ node "<skill-folder>/build-call-guide.js" --regen <readplan.json> --rows <result
 ```
 It re-renders from the stored content, bumps the kept version, and stamps the change note `regenerated from kept state`, saying whether the content CHANGED since its last render (measured by content hash — `unchanged`, `changed`, or `unknown` for rows that predate the hash). **Unless the content is proven `unchanged`, add `--gate <gate.json>` carrying a fresh `newestEmail` (Step 4):** edited (or unprovable) content gets the same open-loop gate as a new build and is refused the same way without it. Content proven unchanged is judged on its citations only. Then file it exactly as Step 4 does — **register → settle → file → confirm is still ONE unit of work**, and Step 4.5's pointer still gets written.
 
+**Regenerate with `--folder` too (v0.9.50), and `--cloud` on a seat with no operator folder:** `--regen <readplan.json> --rows <result.json> [--gate <gate.json>] --folder folder.json [--cloud --run-id <id> [--out-dir <dir>]]`. In cloud mode it never looks for the stored local path. It renders the kept state onto this disk (`--out-dir`, or a fresh temp folder by default) under the row's own `file_title`, keeps the row's `local_path` as it is (NULL for a cloud-born row), and prints the same `hosted.steps`. That's how a row stranded with "filing pending" or "NO DEVICE BRIDGE" gets re-filed from any seat. The exit codes are the same as a build: 0 with a ready handoff, **20 NOT OPENABLE** without `--folder`, and 4 when the folder is unresolved. The refusals also stay: 3–7 when kept state is missing or unusable, 12–15 for the open-loop gate.
+
 **FOLD THE NEW DETAILS IN PER SEGMENT — never by rewriting the guide.** Change only the segments the operator's notes actually touch, carry every untouched segment through unchanged, and mark what changed. A regeneration that rewrites a segment nobody commented on has thrown away authored work and called it an update. (Ruling D1, same 2026-08-05 card: auto-fix anything the note touches, and every auto-changed segment is VISIBLY MARKED with one-click revert.)
 
 ⛔ **WHEN THERE IS NO KEPT STATE — SAY SO OUT LOUD AND NEVER FALL BACK SILENTLY.** 39 of the 82 guides on this estate were built before 2026-08-07 and have no stored JSON; for those the full re-derivation in Steps 1–4 is the only option and it is correct. Tell the operator in one line that this guide predates kept state and is being rebuilt from scratch — so a twenty-minute rebuild is never mistaken for the normal cost of an update.
@@ -376,6 +402,8 @@ A guide is NOT done when the HTML saves. It is done only when **both REQUIRED OU
 
 1. **Guide HTML** — exists at the saved path and is non-trivial in size (re-read or stat it).
 2. **Pointer** — the `guideptr_*.json` landed in `Artifacts/_indexes/` (capture the fileId on write AND re-find it by title). **A missing pointer is a build FAILURE, not a footnote** — retry the write once; if it still fails, report the guide as INCOMPLETE, not done.
+
+0. **Openable (v0.9.50): check this first.** `register-call-doc.js --openable readback.json` exits 0 on the row read back by `doc_id`. Exit 20 means the guide is **NOT done**, whatever else landed. A build that exited 20 is not done either.
 
 Each output is either CONFIRMED (id captured / re-found) or a FAILURE — "attempted but unconfirmed" is a failure. Then report the path in one line **plus a one-line proof checklist** (HTML ✓, pointer ✓ + id), and offer to open it. Don't narrate the steps. (This is the `aii-prove-it` discipline — a claim is not proof; the check is the proof.)
 

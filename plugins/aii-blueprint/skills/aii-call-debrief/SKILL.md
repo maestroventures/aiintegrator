@@ -69,6 +69,8 @@ Compare the three sources pairwise (notes vs transcript, pre-call vs live, etc.)
 
 **Take the user's own send-promises from the TRANSCRIPT, never the transcriber's summary.** A summary lists what each side owes and drops what the user said in passing they would send ("I'll send an invite for..."); every such line becomes a `followups` item or a staged invite.
 
+**Every promise the user makes on the call is also one `promises` item (v0.9.50), on top of its `followups` or `needsYou` line.** Each one becomes a row in the company's promise store, and a row is kept only when a SENT message carries it (Call-Record-Lifecycle stage 11). Write who it was promised to, what, the user's own words copied verbatim from the transcript (`sourceLine`), and the due date only if one was said out loud (`spokenDue` plus `spokenDueAt`). Never put a date nobody said: leave both null and the store sets 2 business days. A promise the OTHER side makes is `needsInfo`, not a promise row. If the transcript has a send-promise line that is not the user's promise (theirs, or one already kept on the call), name it in `notPromises` with the reason. The builder reads the transcript and **refuses the build (exit 21)** when a send-promise line is in neither list.
+
 Sort every follow-up into three buckets:
 - **autoDone** — internal things you (the system) already did or can do now: logged the outcome, **created the follow-up email as a real draft in the user's email (say it's in their drafts)**, set a build to-do. State where it landed.
 - **needsYou** — anything that leaves the user's name on it (an external send) or is their judgment call (pricing, packaging). These are theirs to approve.
@@ -167,9 +169,13 @@ Output ONE valid JSON object in exactly this shape. All keys present; arrays may
   },
   "followups": [ {"channel":"Email|Text|Call","to":"<name>","subject":"<if email>","draft":"the full draft text (this becomes the real Gmail/email draft body in Step 7), use \\n\\n for breaks"} ],
   "nextGuideSeed": "one tight paragraph seeding the next call guide — goal + where they're stuck + the play",
-  "crmLog": "the clean summary to log to the CRM — outcome, what held/slipped, blocker, next, any watch-out"
+  "crmLog": "the clean summary to log to the CRM — outcome, what held/slipped, blocker, next, any watch-out",
+  "promises": [ {"to":{"name":"<who it was promised to>","email":"<their address, or empty when the lead is attached>"},"what":"<the thing promised, short, one per row>","sourceLine":"<the user's own words, VERBATIM from the transcript>","sourceKind":"transcript | recap","spokenDue":"<the words said, e.g. 'by Friday'> | null","spokenDueAt":"<ISO time with offset, only when a date was said> | null"} ],
+  "notPromises": [ {"line":"<a send-promise line from the transcript that is not the user's promise>","why":"<why: the other side's promise, or already kept on the call>"} ]
 }
 ```
+
+`promises` is REQUIRED (v0.9.50). Write `"promises": []` only when the user promised nothing; an absent key is refused. Two items can't share one `what` (one row per item). `notPromises` is optional.
 
 Write the JSON to a temp file, e.g. `debrief.json`.
 
@@ -179,8 +185,9 @@ Write the JSON to a temp file, e.g. `debrief.json`.
 
 1. Write `config.json`:
 ```json
-{ "debriefId":"<person-slug>-<YYYYMMDD>", "eventId":"<calendar event id>", "meetingDate":"<YYYYMMDD>", "callRef":"<the call/transcript id>", "prospect":"<Name>", "company":"<Company>", "domain":"<their email domain>", "leadId":"<crm lead id — REQUIRED, see below>", "noLeadReason":"<omit entirely unless leadId is empty>", "email":"<their email or empty>", "crmName":"<your CRM>" }
+{ "debriefId":"<person-slug>-<YYYYMMDD>", "eventId":"<calendar event id>", "meetingDate":"<YYYYMMDD>", "callRef":"<the call/transcript id>", "prospect":"<Name>", "company":"<Company>", "domain":"<their email domain>", "leadId":"<crm lead id — REQUIRED, see below>", "noLeadReason":"<omit entirely unless leadId is empty>", "email":"<their email or empty>", "crmName":"<your CRM>", "callEndedAt":"<ISO time with offset — REQUIRED when there are promises>", "operatorSpeaker":"<the user's name as the transcript labels them — optional>" }
 ```
+`callEndedAt` is when the call ended; the promise store counts the default due date from it. With `operatorSpeaker` set, the builder scans only the user's own turns for send-promises.
 **The link keys are REQUIRED (2026-08-05, L3).** `eventId` and `meetingDate` are not optional
 extras — they are what the finished document is filed under, and **a document that cannot be filed
 does not get to exist.** That is deliberate: an unregistered call document is invisible to the
@@ -199,12 +206,47 @@ them in the config. `meetingDate` must equal the `YYYYMMDD` slot in the filename
 
    **(a) Build.** This writes the HTML under a QUARANTINE name and prints a plan on stdout:
 ```
-node "<skill-folder>/build-call-debrief.js" debrief.json config.json out.html
+node "<skill-folder>/build-call-debrief.js" debrief.json config.json out.html --folder folder.json --transcript transcript.txt --promise-by session:<this session id>
 ```
+   `--transcript` is the transcript section itself, never the assistant's summary. A notes-only debrief passes
+   `--no-transcript "<why>"` instead. A scheduled job leaves off `--promise-by`: its `builtBy` writes the rows as `job:<builtBy>`.
    The plan carries `sql`, `params`, `planPath`, `resultPath` and `quarantinePath`. The file on
    disk right now is **not** a call document — its name deliberately does not match the
    `<YYYYMMDD>_debrief_` convention, so nothing downstream can mistake it for one.
 
+   ⛔ **A BUILD IS DONE ONLY WHEN IT CAN BE OPENED — ADDED 2026-09-24, v0.9.50.** Done means `call_doc.file_id`
+   and `view_url` are set and `hosted_gap` is empty (blueprint-core v1.210; Call-Record-Lifecycle-SPEC stages 4
+   and 8). A local copy is not done, and neither is a row that says "filing pending". So **always build with
+   `--folder`**:
+   - Get the Calls folder first: `node "<skill-folder>/build-call-debrief.js" --print-folder-sql --channel <c> --company <x> [--partner <p>]`.
+     Run that SQL through the board connector and save the rows to `folder.json`. If the resolver raised, save
+     `{"error": "<message>"}` instead.
+   - Add `--folder folder.json` to the build. On a desktop that's all you add. On a cloud seat, or anywhere with
+     no operator folder, also add `--cloud --run-id <job_run id>`: the row then registers with no local path,
+     and the bytes sit on this disk only until they're uploaded.
+   - **Exit 0** means stdout carries `hosted` (`status: "ready"`, `hostedHalf: "planned"`). Run `hosted.steps`
+     1–7 **in order, in this same run**: register, settle, mint one ticket, upload, read the row, confirm, then
+     prove. Step 4 uploads through `upload-call-doc.js`. If that exits 3 with `door_unreachable` (a cloud
+     container whose network blocks our host), take `steps[3].staged`: run `register-call-doc.js --stage-sql`
+     and push every chunk it prints through the board connector, then read `call_doc_upload_status` until the
+     state is `filed`. Never send the HTML through the storage connector's create call.
+   - **Exit 20 = NOT OPENABLE.** No `--folder` was given, so the build could only land a local copy
+     (`openable: false`, with the reason in `notOpenable`). The files and plan are still written, but **this is
+     not done, and a sweep must count it as not-done.** Resolve the folder and rebuild.
+   - **Exit 4 = `folder_address_unresolved`.** Nothing was registered and nothing was written. Raise
+     `hosted.marker` and move on to the next call.
+   - **Exit 21 = PROMISE UNRECORDED (v0.9.50).** The transcript shows a send-promise with no `promises` item, or an
+     item the promise store would refuse (no writer, no `callEndedAt`, a date with no spoken words, a `sourceLine`
+     that is not in the transcript). Nothing was written. Fix the JSON from what the refusal names and build again.
+   - **The promise rows (v0.9.50).** Stdout `promises` (also saved as `out.html.promises.json`) holds one
+     `promise_put` call per promise. Run them through the board connector **after hosted step 2 (settle)**, since the
+     row has to exist first, and in the same run. Then run `promises.check`, save the rows to `promise-rows.json`, and run
+     `node "<skill-folder>/build-call-debrief.js" --promises-check out.html.promises.json --rows promise-rows.json`.
+     **Exit 0 = every promise has its row. Exit 22 = PROMISE ROWS SHORT**: the debrief is not done. Re-running the
+     calls is safe, because the same `what` returns the existing row.
+   - **The only "done" is step 7's judge:** save the read-back row to `readback.json`, then run
+     `node "<skill-folder>/register-call-doc.js" --openable readback.json`. **Exit 0 = OPENABLE. Exit 20 = NOT
+     OPENABLE**, with the reason. Then write the pointer (Step 4.5) from that row's `file_id` / `view_url`.
    **(b) Run the plan's `sql` with its `params`** through the board connector, resolved BY
    CATEGORY (Core §11 rule 4) — never by a connector name. **Save the FULL result** to the
    `resultPath` the plan gave you. The statement returns exactly one row: `outcome='registered'`
@@ -236,6 +278,7 @@ The debrief isn't just a document — it should leave the workspace better than 
   - This is the same rule for every drafter in the fleet, not a debrief special case. If you are reading this in a skill that drafts email and it is absent there, that skill is out of date — it is not evidence the rule changed.
 - **Stage calendar invites, don't fire them.** Through Blueprint, `do_action` "Create appointment" (always-ask by default, so it lands as a card in the Command Center). Any follow-up call invite is pre-seeded for one-click OK and always includes the meeting-transcript bot — created with notifications OFF so the other party isn't emailed until the user sends it. Never fired silently.
 - **A promised DOCUMENT is not a follow-up email — route it.** If any next action promises the other side something they will READ that does not exist yet — a sheet, a one-pager, "I'll write something up for you" — that is collateral owed, and an email saying it is coming does not discharge it. Hand it to `aii-collateral-sheet`, which owns building it. If this run cannot reach the files, brand assets and renderer that builder needs, RAISE it as a named ⚑ flag naming what was promised and stop — **never report a document as produced when no file exists.** A promise to send an EXISTING file is not this; a promise to MAKE one is.
+- **Never mark a promise delivered from here.** A staged draft is not a delivery, and the store refuses one. A promise is delivered only by a SENT message to that person carrying it: the `promise-due-watch` job matches it, or a session that has read the sent message calls `promise_mark_delivered` with its message id, account and sent time.
 - **Surface the review + any missing source.** If the deal has a real lead, drop a `⚑ NEEDS [USER] — Review call debrief: <Name>` task on the lead so it shows up where the user already looks. If the source-completeness check (Step 1) found a missing transcript or missing notes, drop the `⚑ NEEDS [USER]` flag naming it here too. Skip gracefully if there's no lead.
 
 ---
@@ -243,6 +286,13 @@ The debrief isn't just a document — it should leave the workspace better than 
 ## Step 8 — Regenerate (transcript landed after a notes-only debrief)
 
 If a notes-only debrief already exists and the transcript now arrives: read the existing debrief, fold in the transcript (this is where the conflict gate earns its keep — notes vs transcript), and **overwrite the same filename** so the call's debrief stays one file. Don't spawn a second file for the same call.
+
+**Re-file a debrief that was built but never filed, and don't re-author it (v0.9.50).** Every debrief built since 2026-09-17 keeps its content as kept state. To re-file one from any seat, cloud included:
+```
+node "<skill-folder>/build-call-debrief.js" --regen-plan <docId>
+node "<skill-folder>/build-call-debrief.js" --regen <readplan.json> --rows <result.json> --folder folder.json [--cloud --run-id <id> [--out-dir <dir>]]
+```
+Run the first command's SQL through the board connector and save the FULL result for `--rows`. When the kept content carries `promises`, the regen prints the same `promises` plan as a build. Run it after settle: it is idempotent, so it also writes any row an earlier run missed. A cloud job's rows write as `job:<built_by>`; a session passes `--promise-by session:<id>`. A promise that was reworded makes a new row, and the old row stays until it is delivered or waived. Never delete one. The regen renders from kept state under the row's own `file_title`, keeps its `local_path` and any `NO TRANSCRIPT:` declaration, and prints the same `hosted.steps` as Step 6. It says whether the bytes match the recorded render (`reproducedStored`). Exit 0 means it produced a ready handoff. **Exit 20 = NOT OPENABLE** (no `--folder`). Exit 4 = the folder is unresolved. Exit 4 with **NO KEPT STATE** (a debrief from before 2026-09-17) means there is nothing to re-render: file the existing local copy through the hosted steps from the seat that holds it, or re-author it.
 
 ---
 
@@ -252,6 +302,7 @@ A debrief is NOT done when the HTML saves. It is done only when **every REQUIRED
 
 For each required output the state is either **CONFIRMED** (you captured the id the create call returned, or you re-read / re-listed and found it) or **N/A — `<reason>`** (a stated reason it doesn't apply, e.g. "no lead in the CRM → note skipped"). **"Attempted but unconfirmed" is a FAILURE, not a pass.**
 
+0. **Openable (v0.9.50): check this first, and there is no N/A.** `register-call-doc.js --openable readback.json` exits 0 on the row read back by `doc_id`. Exit 20 = the debrief is **NOT done** (done means the operator can open it within 24h of the call). A build that exited 20 is not done either.
 1. **Debrief HTML** — exists at the saved path and is non-trivial in size (re-read or stat it). Confirm the conflict gate rendered if there were conflicts.
 2. **Email draft** — for every Email item in `followups`, a real draft exists (the id the create-draft call returned, or re-list drafts and find it). N/A only if there were no Email follow-ups.
 3. **CRM note** — the `crmLog` note exists on the lead (its note id). N/A only if there's no lead.
@@ -260,6 +311,7 @@ For each required output the state is either **CONFIRMED** (you captured the id 
 6. **Capture questions** — if `captureQuestions` is non-empty, the built HTML actually contains the panel AND it renders **above** the analysis (Core §8). N/A only if the array is empty. **Since 2026-08-11 the builder enforces the first half itself** (it refuses when a non-empty array renders zero questions), so this step is now a *confirmation* rather than the only thing standing between you and a silently empty debrief. **That change is the lesson, not a footnote:** this check was written correctly, would have caught the defect every time, and caught it zero times in three occurrences — because a check that runs only when a session remembers to run it is not a gate. When a self-check here proves load-bearing, move it into the builder and leave the confirmation behind.
 7. **`toImprove` in-the-moment test** — read every `fix` back, one at a time, and answer: *could the user have done this while the call was still live?* Report how many you tested (e.g. "4/4 name an in-room move"). An item that fails is rewritten, never shipped. N/A only if `toImprove` is empty.
 8. **Voice sightings** — the number of traits written from this call, plus the total number of calls the profile now runs on. Zero traits for a call that had a transcript is a **FAILURE**, not an N/A.
+9. **Promise rows (v0.9.50)** — the `promise_id` for every `promises` item, from `--promises-check` exit 0. N/A only when `promises` is empty. Exit 22, or rows you tried to write and could not confirm, is a **FAILURE**.
 
 If any required output is a FAILURE: do NOT report done. Retry that one output once; if it still fails, say plainly which output did not land (the saved file is still useful — keep it). Then report the saved path in one line **plus a one-line proof checklist** — what landed with ids, what's N/A and why — and offer to open it. Don't narrate the steps. (This is the `aii-prove-it` discipline — a claim is not proof; the check is the proof.)
 
