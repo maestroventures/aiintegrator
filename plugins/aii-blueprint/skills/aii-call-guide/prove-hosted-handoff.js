@@ -36,6 +36,9 @@
      R   --regen --cloud --folder re-renders from kept state onto THIS disk under the row's own
          file_title, registers the row's own local_path (NULL for a cloud row), carries a ready
          handoff and exits 0; --regen with no --folder exits 20 NOT OPENABLE;
+     P   (debrief only, 0.9.50 B9) a build prints its promise plan as stdout `promises`
+         (count 0 for this fixture's `promises: []`); the promise gate itself is proven by
+         prove-promise-writer.js;
      M   MUTATE-TO-PROVE. A copy of the builder whose NOT-OPENABLE exit is switched off, and a
          copy of the registrar whose verdict ignores the gap, must each turn the local-only
          openable test RED. A test that passes against a mutant proves nothing.
@@ -90,8 +93,14 @@ if (IS_GUIDE) {
   /* nextCallGoal is not decoration: a debrief that renders NO sections has no section index
      to keep, and since 2026-09-17 keptSectionsGate refuses it before a byte is written (kept
      state will not hold a bodyless document). The old fixture built exactly that page. */
-  docPath = w('doc.json', { header: { title: 'Debrief — Pat Doe' }, captureQuestions: [],
+  /* Since 0.9.50 (B9) `promises` is a required key and a build names its transcript: this
+     fixture's call held no send-promise, so `[]` is the deliberate zero. prove-promise-writer.js
+     proves the promise gate itself. */
+  docPath = w('doc.json', { header: { title: 'Debrief — Pat Doe' }, captureQuestions: [], promises: [],
     nextCallGoal: 'Lock the rooftop and the start date.' });
+  const txPath = path.join(tmp, 'transcript.txt');
+  fs.writeFileSync(txPath, 'Pat Doe: Thanks for the time.\nBryce Ebeling: Glad to. Talk Monday.\n');
+  extra = ['--transcript', txPath];
   config.debriefId = 'pat-doe-20260918';
   config.callRef = 'ff_abc123';
 }
@@ -121,7 +130,7 @@ try {
   /* H1 */
   const d = build([]);
   const OLD_KEYS = 'status,planPath,resultPath,quarantinePath,finalPath,docId,sql,params';
-  const NOT_OPEN_KEYS = ',hostedHalf,openable,notOpenable';
+  const NOT_OPEN_KEYS = (IS_GUIDE ? '' : ',promises') + ',hostedHalf,openable,notOpenable';   /* 0.9.50: a debrief prints its promise plan */
   check('H1a disk build without --folder exits 20 NOT OPENABLE (0.9.50; it used to exit 0)',
     d.rc === NOT_OPENABLE && /NOT OPENABLE/.test(d.stderr), d.rc + ' ' + d.stderr);
   check('H1b disk stdout keys are the old set plus hostedHalf/openable/notOpenable, openable:false',
@@ -195,6 +204,14 @@ try {
   check('H7 --folder on a DISK build: ready handoff, absolute local path in step 1, exit 0 (0.9.50)',
     diskFolder.rc === 0 && dh && dh.status === 'ready' && dh.steps[0].params[10] === diskFolder.out &&
     diskFolder.json.hostedHalf === 'planned' && diskFolder.json.openable === false, diskFolder.rc + ' ' + diskFolder.stderr);
+
+  /* P (debrief only, 0.9.50 B9) */
+  if (!IS_GUIDE) {
+    const pp = diskFolder.json && diskFolder.json.promises;
+    check('P1 a debrief build prints its promise plan (count 0 for promises: []) and saves it beside the plan',
+      pp && pp.count === 0 && Array.isArray(pp.calls) && pp.calls.length === 0 && pp.docId === diskFolder.json.docId &&
+      fs.existsSync(diskFolder.out + '.promises.json'), diskFolder.stdout);
+  }
 
   /* H8 */
   const envCloud = build(['--folder', FOLDER_OK], { AII_FILING: 'cloud' });

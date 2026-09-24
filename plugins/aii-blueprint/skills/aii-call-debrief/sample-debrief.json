@@ -119,5 +119,19 @@
       "name": "Riverbend Auto Group",
       "website": "larsonauto.com"
     }
-  }
+  },
+  "promises": [
+    {
+      "to": {
+        "name": "Pat Doe",
+        "email": "pat@riverbend.example"
+      },
+      "what": "Terms for the 30-day test, in writing",
+      "sourceLine": "Price is easy and I'll put it in writing",
+      "sourceKind": "transcript",
+      "spokenDue": null,
+      "spokenDueAt": null
+    }
+  ],
+  "notPromises": []
 }

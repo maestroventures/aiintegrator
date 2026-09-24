@@ -11,6 +11,13 @@
 
    USAGE:
      node build-call-debrief.js <debrief.json> <config.json> <output.html>
+          --transcript <file> | --no-transcript "<reason>"   (0.9.50: the promise gate reads it)
+          [--promise-by session:<id>] [--folder <folder.json>] [--cloud --run-id <id>]
+     node build-call-debrief.js --promises-check <output.html.promises.json> --rows <rows.json>
+     EXIT CODES (build): 0 hosted plan ready · 1 refused (named) · 4 Calls folder unresolved ·
+       20 NOT OPENABLE (no --folder) · 21 PROMISE UNRECORDED (the transcript shows a send-promise
+       with no `promises` item, or an item the store would refuse). --promises-check: 0 every
+       promise has its row · 22 PROMISE ROWS SHORT.
 
    debrief.json = the debrief CONTENT (schema documented in the skill)
    config.json  = { debriefId, prospect, company, leadId, email,
@@ -21,8 +28,14 @@
                     meetingDate,    <- REQUIRED. YYYYMMDD. Must equal the date slot in the filename.
                     domain,            optional — falls back to the domain half of `email`
                     eventIdSource,     optional — defaults to 'build' (the builder had the id)
-                    builtBy }          optional — defaults to 'call-debrief'; the scheduled sweep
+                    builtBy,           optional — defaults to 'call-debrief'; the scheduled sweep
                                        passes 'auto-guide-debrief-sweep'
+                    callEndedAt,    <- REQUIRED when `promises` is non-empty (0.9.50). ISO with an
+                                       offset; the store counts the default due date from it.
+                    promiseBy,         optional — 'session:<id>'; --promise-by wins. A job passes
+                                       builtBy and writes as 'job:<builtBy>'.
+                    operatorSpeaker }  optional — the user's name as the transcript labels them;
+                                       when set, only their turns are scanned for send-promises.
                   callRef was ALREADY required by this skill for the capture panel. It is now
                   load-bearing twice: call_doc refuses a debrief without it, because it is the
                   only id that joins this file to the feedback captured from the same call.
@@ -927,6 +940,198 @@ function buildStandaloneHtml(d, config, out) {
   ].join('\n');
 }
 
+/* ════════════════════════════════════════════════════════════════
+   THE PROMISE WRITER — added 2026-09-24 (v0.9.50, Call Record fix B9;
+   Call-Record-Lifecycle-SPEC-v1.0 stage 11; rulings dr_call_record_three_rulings_and_self_healing_20260924
+   answer 3 and dr_track_every_promise_from_a_call_until_it_is_sent_20260924).
+
+   Every promise the user makes on a call is ONE row in the company's call_promise store: who,
+   what, the words said, and a due date (the date spoken, else 2 business days, computed by the
+   store). This builder has no database, so it does two things and the session does the third:
+     1. PROMISE GATE (before a byte is rendered). `promises` is a required key — `[]` is a legal,
+        deliberate zero, the same rule captureQuestions learned the hard way. Each item is checked
+        against the store's own constraints so a row cannot be refused later. And the TRANSCRIPT is
+        read: every send-promise line in it ("I'll send you…") must be a `promises` item, or be
+        named in `notPromises` with a reason (the other side's promise, a promise already kept on
+        the call). A transcript-kind sourceLine must be found in the transcript, verbatim.
+        Refused → exit PROMISE_EXIT.UNRECORDED (21), nothing written.
+     2. PROMISE PLAN. One promise_put statement per item, printed as stdout `promises` and saved
+        to <out>.promises.json. The session runs them through the board connector once the
+        call_doc row exists (after hosted step 2, settle), then runs `promises.check` and hands
+        the rows to:
+     3. --promises-check <promises.json> --rows <rows.json> — exit 0 when every item has its row,
+        exit PROMISE_EXIT.ROWS_SHORT (22) naming each item with no row. A debrief whose promises
+        have no rows is not done, whatever the openable verdict says.
+   It is not possible to write the JSON and skip the rows: the gate refuses JSON that drops a
+   promise, and the check refuses a finish with fewer rows than items.
+   ════════════════════════════════════════════════════════════════ */
+const PROMISE_EXIT = { UNRECORDED: 21, ROWS_SHORT: 22 };
+const PROMISE_SOURCE_KINDS = ['transcript', 'recap'];
+const MIN_NOT_A_PROMISE_WHY = 12;
+const ISO_WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/;
+const EMAIL_RX = /^[^@\s]+@[^@\s]+$/;
+const PROMISE_BY_RX = /^(?:session|job):\S+$/;
+/* A first-person commitment to send or make something. Deliberately broad: a false hit costs the
+   author one `notPromises` line with a reason; a miss costs a promise nobody tracks. */
+const SEND_PROMISE_RX = /\b(?:i'll|i will|i'm going to|i am going to|i'm gonna|let me|we'll|we will)\s+(?:[a-z]+\s+){0,2}?(?:send|email|e-mail|shoot|forward|share|get you|put together|write up|pass along|drop you)\b/i;
+const PROMISE_PUT_SQL = [
+  'SELECT promise_id, what, status, due_at, due_basis',
+  '  FROM promise_put($1, $2, $3, $4, $5, $6, $7, $8, $9::timestamptz, $10, $11::timestamptz, $12,',
+  '       (SELECT s.state_id FROM call_guide_state_current_v s WHERE s.tenant_id = $1 AND s.doc_id = $2))',
+].join('\n');
+const PROMISE_CHECK_SQL = [
+  'SELECT promise_id, source_doc_id, what, status, due_at',
+  '  FROM call_promise',
+  ' WHERE tenant_id = $1 AND source_doc_id = $2',
+  ' ORDER BY what',
+].join('\n');
+
+function promiseRefuse(sentence) {
+  const e = new Error('BUILD REFUSED — PROMISE UNRECORDED (exit ' + PROMISE_EXIT.UNRECORDED + '): ' + sentence +
+    '\nNothing was rendered, written or registered. Every promise the user makes on a call is one `promises` item ' +
+    '(SKILL.md Step 4); write `promises: []` only when the call held none.');
+  e.exitCode = PROMISE_EXIT.UNRECORDED; e.promiseCode = 'PROMISE UNRECORDED';
+  return e;
+}
+function normLine(s) {
+  return String(s == null ? '' : s).replace(/[\u2018\u2019\u02bc]/g, "'").replace(/[\u201c\u201d]/g, '"')
+    .replace(/\s+/g, ' ').trim().toLowerCase().replace(/^["'\-\s.,…]+|["'\-\s.,…]+$/g, '');
+}
+/* "Bryce Ebeling: I'll send it" / "[00:12:03] Pat: …" → {speaker, text}; a line with no label → speaker null. */
+function transcriptTurns(text) {
+  return String(text || '').split(/\r?\n/).map(function (raw) {
+    const m = raw.match(/^\s*(?:\[?\d{1,2}:\d{2}(?::\d{2})?\]?\s*)?([^:\n]{1,60}?):\s+(.+)$/);
+    return m && !/^https?$/i.test(m[1].trim()) ? { speaker: m[1].trim(), text: m[2] } : { speaker: null, text: raw };
+  }).filter(function (t) { return t.text && t.text.trim(); });
+}
+function overlaps(a, b) { a = normLine(a); b = normLine(b); return !!a && !!b && (a.indexOf(b) >= 0 || b.indexOf(a) >= 0); }
+
+/* The send-promise lines the transcript shows that no `promises` item and no `notPromises` entry covers. */
+function uncoveredSendPromises(transcriptText, promises, notPromises, operatorSpeaker) {
+  const ops = [].concat(operatorSpeaker || []).map(normLine).filter(Boolean);
+  const covers = promises.filter(function (p) { return p && p.sourceKind === 'transcript'; })
+    .map(function (p) { return p.sourceLine; })
+    .concat(notPromises.map(function (x) { return x && x.line; }));
+  return transcriptTurns(transcriptText).filter(function (t) {
+    if (ops.length && t.speaker && ops.indexOf(normLine(t.speaker)) < 0) return false;
+    if (!SEND_PROMISE_RX.test(normLine(t.text))) return false;
+    return !covers.some(function (c) { return overlaps(t.text, c); });
+  }).map(function (t) { return (t.speaker ? t.speaker + ': ' : '') + t.text.trim(); });
+}
+
+function resolvePromiseBy(argBy, config) {
+  const by = argBy || config.promiseBy ||
+    (config.builtBy && config.builtBy !== 'call-debrief' ? 'job:' + config.builtBy : null);
+  return by ? String(by).trim() : null;
+}
+
+/* tx = { text } when a transcript was handed in, { none: '<reason>' } for --no-transcript. */
+function promiseGate(d, config, tx, crm, argBy) {
+  if (!d || !Array.isArray(d.promises)) {
+    throw promiseRefuse('the debrief JSON has no `promises` array. It is a required key: an absent key and a call ' +
+      'with no promises must never look alike.');
+  }
+  const notPromises = Array.isArray(d.notPromises) ? d.notPromises : [];
+  const errs = [];
+  const seen = {};
+  d.promises.forEach(function (p, i) {
+    const n = 'promises[' + i + ']';
+    if (!p || typeof p !== 'object') { errs.push(n + ' is not an object'); return; }
+    const to = p.to || {};
+    if (!String(to.name || '').trim()) errs.push(n + '.to.name is empty (who it was promised to)');
+    const email = String(to.email || '').trim();
+    if (email && !EMAIL_RX.test(email)) errs.push(n + '.to.email "' + email + '" is not an address');
+    if (!email && !crm.attached) errs.push(n + ' has no to.email and the debrief has no CRM lead: the store needs one of the two');
+    const what = String(p.what || '').trim();
+    if (!what) errs.push(n + '.what is empty');
+    else if (seen[what.toLowerCase()]) errs.push(n + '.what repeats promises[' + seen[what.toLowerCase()] + '] — one row per item, so two items with one `what` would collapse into one row');
+    else seen[what.toLowerCase()] = String(i);
+    if (!String(p.sourceLine || '').trim()) errs.push(n + '.sourceLine is empty (the user\'s own words, verbatim)');
+    if (PROMISE_SOURCE_KINDS.indexOf(p.sourceKind) < 0) errs.push(n + '.sourceKind must be one of ' + PROMISE_SOURCE_KINDS.join('|'));
+    const words = p.spokenDue == null ? '' : String(p.spokenDue).trim();
+    const at = p.spokenDueAt == null ? '' : String(p.spokenDueAt).trim();
+    if (at && !ISO_WITH_OFFSET.test(at)) errs.push(n + '.spokenDueAt "' + at + '" is not an ISO time with an offset');
+    if (at && !words) errs.push(n + ' has spokenDueAt but no spokenDue: a date nobody said is not a spoken date');
+    if (words && !at) errs.push(n + ' has spokenDue "' + words + '" but no spokenDueAt: resolve it, or leave both null for the 2-business-day default');
+    if (tx && tx.none && p.sourceKind === 'transcript') errs.push(n + ' cites the transcript, but this debrief was declared --no-transcript');
+    if (tx && tx.text && p.sourceKind === 'transcript' && String(p.sourceLine || '').trim() &&
+        normLine(tx.text.replace(/\s+/g, ' ')).indexOf(normLine(p.sourceLine)) < 0) {
+      errs.push(n + '.sourceLine is not in the transcript, verbatim: "' + String(p.sourceLine).slice(0, 90) + '"');
+    }
+  });
+  notPromises.forEach(function (x, i) {
+    if (!x || !String(x.line || '').trim()) errs.push('notPromises[' + i + '].line is empty');
+    else if (String(x.why || '').trim().length < MIN_NOT_A_PROMISE_WHY) errs.push('notPromises[' + i + '].why is missing or too short to be a reason');
+  });
+  let promisedAt = null, by = null;
+  if (d.promises.length) {
+    promisedAt = String(config.callEndedAt || d.callEndedAt || '').trim();
+    if (!ISO_WITH_OFFSET.test(promisedAt)) {
+      errs.push('config.callEndedAt (when the call ended, ISO with an offset) is ' + (promisedAt ? '"' + promisedAt + '", not a time' : 'missing') +
+        ': the default due date is counted from it');
+    }
+    by = resolvePromiseBy(argBy, config);
+    if (!by || !PROMISE_BY_RX.test(by)) {
+      errs.push('no writer for the promise rows: pass --promise-by session:<id> (or config.promiseBy); a scheduled job ' +
+        'passes builtBy and writes as job:<builtBy>' + (by ? ' — got "' + by + '"' : ''));
+    }
+  }
+  if (errs.length) throw promiseRefuse(errs.length + ' problem' + (errs.length === 1 ? '' : 's') + ':\n  · ' + errs.join('\n  · '));
+  if (tx && tx.text) {
+    const missed = uncoveredSendPromises(tx.text, d.promises, notPromises, config.operatorSpeaker);
+    if (missed.length) {
+      throw promiseRefuse('the transcript shows ' + missed.length + ' send-promise' + (missed.length === 1 ? '' : 's') +
+        ' with no `promises` item:\n' + missed.map(function (l) { return '  · "' + l.slice(0, 160) + '"'; }).join('\n') +
+        '\nAdd each one the user made as a promise. If a line is not the user\'s promise (the other side\'s, or one ' +
+        'already kept on the call), name it in `notPromises: [{"line", "why"}]`.');
+    }
+  }
+  return { items: d.promises, promisedAt, by };
+}
+
+/* One promise_put per item. Nothing here touches a database. */
+function promisePlan(docId, gate, leadId, paths) {
+  const q = (s) => '"' + String(s).replace(/(["\\$`])/g, '\\$1') + '"';
+  const R = loadRegistrar();
+  return {
+    _what_this_is: 'The promise rows for this debrief (Call-Record-Lifecycle stage 11). Run every call in order through ' +
+      'the board connector AFTER the call_doc row exists (hosted step 2, settle) and in the same fire. Then run `check`, ' +
+      'save its FULL result, and run `judge`. Exit 0 = every promise has its row; exit ' + PROMISE_EXIT.ROWS_SHORT +
+      ' = the debrief is NOT done. Never mark a promise delivered here: delivery is a SENT message, never a draft.',
+    docId, tenant: R.TENANT, count: gate.items.length, by: gate.by, promisedAt: gate.promisedAt,
+    whats: gate.items.map(function (p) { return String(p.what).trim(); }),
+    calls: gate.items.map(function (p, i) {
+      return { n: i + 1, what: String(p.what).trim(), sql: PROMISE_PUT_SQL,
+        params: [R.TENANT, docId, String(p.to.name).trim(), String(p.to.email || '').trim(), leadId || '',
+          String(p.what).trim(), String(p.sourceLine), p.sourceKind, gate.promisedAt,
+          p.spokenDue == null || String(p.spokenDue).trim() === '' ? null : String(p.spokenDue).trim(),
+          p.spokenDueAt == null || String(p.spokenDueAt).trim() === '' ? null : String(p.spokenDueAt).trim(),
+          gate.by] };
+    }),
+    check: { sql: PROMISE_CHECK_SQL, params: [R.TENANT, docId], save: 'promise-rows.json (the FULL result)' },
+    judge: 'node ' + q(path.join(__dirname, 'build-call-debrief.js')) + ' --promises-check ' + q(paths.promisesPath) +
+      ' --rows promise-rows.json',
+  };
+}
+
+/* The finish verdict: every planned item has its row, for THIS doc. */
+function promisesVerdict(plan, raw) {
+  const rows = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.rows) ? raw.rows : null);
+  const whats = plan && Array.isArray(plan.whats) ? plan.whats : null;
+  const no = (reason, missing) => ({ ok: false, exit: PROMISE_EXIT.ROWS_SHORT, reason, missing: missing || [],
+    docId: plan && plan.docId || null });
+  if (!plan || !plan.docId || !whats) return no('this is not a promise plan the builder printed');
+  if (!rows) return no('the rows file is not a connector result; hand it the FULL result of `check`');
+  const foreign = rows.filter(function (r) { return !r || r.source_doc_id !== plan.docId; });
+  if (foreign.length) return no(foreign.length + ' row(s) are not for ' + plan.docId + ' — not the read this plan printed');
+  const have = {};
+  rows.forEach(function (r) { have[String(r.what || '').trim()] = r.promise_id || true; });
+  const missing = whats.filter(function (w) { return !have[w]; });
+  if (missing.length) return no(missing.length + ' of ' + whats.length + ' promise(s) have no row', missing);
+  return { ok: true, exit: 0, docId: plan.docId, count: whats.length,
+    promiseIds: whats.map(function (w) { return have[w]; }) };
+}
+
 /* ── FILING MODE — added 2026-09-17 (card
    an internal card). ────────────────
    DISK (the default, no flag, AII_FILING unset/'' or 'disk'): exactly what this builder did
@@ -1137,6 +1342,21 @@ function regenerate(readPlan, rowsIn, opts) {
     changeNote,
   }, { requireKept: true, allowMissingCallRef: !row.call_ref });
 
+  /* 0.9.50 (B9): the kept content carries its promises (debriefs built since the promise writer).
+     Re-emit their promise_put plan — idempotent, so a re-file also back-fills a row an earlier
+     fire never wrote. Kept state from before B9 has no `promises` key: no plan, and no refusal. */
+  const kc = contentOf(k);
+  let pGate = null;
+  if (Array.isArray(kc.promises) && kc.promises.length) {
+    const by = resolvePromiseBy(opts.promiseBy, { builtBy: row.built_by, promiseBy: config.promiseBy });
+    const at = String(config.callEndedAt || kc.callEndedAt || '').trim();
+    if (!by || !PROMISE_BY_RX.test(by) || !ISO_WITH_OFFSET.test(at)) {
+      throw promiseRefuse('kept state ' + row.state_id + ' carries ' + kc.promises.length + ' promise(s) but ' +
+        (!ISO_WITH_OFFSET.test(at) ? 'no call end time (config.callEndedAt)' : 'no writer: pass --promise-by session:<id>') + '.');
+    }
+    pGate = { items: kc.promises, promisedAt: at, by };
+  }
+
   let handoff = null;
   if (opts.folderRaw !== undefined) {
     handoff = cloudHandoff(R, plan, r.html, opts.folderRaw, filing, config, where.absPath);
@@ -1145,6 +1365,10 @@ function regenerate(readPlan, rowsIn, opts) {
   fs.writeFileSync(plan.quarantinePath, r.html, 'utf8');
   const planPath = where.absPath + '.plan.json';
   fs.writeFileSync(planPath, JSON.stringify(plan, null, 2), 'utf8');
+  const promisesPath = where.absPath + '.promises.json';
+  const promises = pGate ? promisePlan(row.doc_id, pGate, config.leadId || row.lead_id || '', { promisesPath })
+    : { docId: row.doc_id, count: 0, keptStateHasPromises: Array.isArray(kc.promises), whats: [], calls: [] };
+  if (pGate) fs.writeFileSync(promisesPath, JSON.stringify(promises, null, 2), 'utf8');
   const out = {
     status: 'regenerated', docId: row.doc_id, fromKeptState: row.state_id, fromVersion: row.kept_version,
     changeNote, htmlSha256: r.htmlSha256, storedHtmlSha256: r.storedHtmlSha256 || null,
@@ -1153,6 +1377,7 @@ function regenerate(readPlan, rowsIn, opts) {
     finalPath: plan.finalPath, htmlChars: r.html.length, sql: plan.sql, params: plan.params,
   };
   if (filing.cloud) { out.filing = 'cloud'; out.hostedGap = filing.hostedGap; out.settledPath = plan.finalPath; }
+  out.promises = promises;
   if (handoff) hostedPlanned(out, handoff);
   return out;
 }
@@ -1218,8 +1443,38 @@ async function main() {
     return;
   }
 
+  /* PROMISE CHECK DOOR (0.9.50, B9) — pure, writes nothing. The finish verdict on the promise rows. */
+  if (argv[0] === '--promises-check') {
+    const ri = argv.indexOf('--rows');
+    if (!argv[1] || argv[1].startsWith('--') || ri < 0 || !argv[ri + 1]) {
+      console.error('Usage: node build-call-debrief.js --promises-check <out.html.promises.json> --rows <promise-rows.json>');
+      process.exit(64);
+    }
+    const v = promisesVerdict(JSON.parse(fs.readFileSync(argv[1], 'utf8')), JSON.parse(fs.readFileSync(argv[ri + 1], 'utf8')));
+    if (!v.ok) console.error('✗ PROMISE ROWS SHORT — ' + v.reason + '. This debrief is NOT done.' +
+      (v.missing.length ? '\n  No row for: ' + v.missing.map(function (m) { return '"' + m + '"'; }).join(', ') +
+        '\n  Run the plan\'s promise_put calls again (they are idempotent), then check again.' : ''));
+    console.log(JSON.stringify(v, null, 2));
+    process.exit(v.exit);
+  }
+
   /* FILING MODE is lifted out FIRST so the positionals never shift. */
   const filing = filingMode(argv, process.env);
+  /* 0.9.50 (B9): the transcript the promise gate reads, and who writes the promise rows. Lifted
+     here, beside --cloud and --folder, so the positionals never shift and --regen ignores them. */
+  const liftVal = (flag) => {
+    const i = argv.indexOf(flag);
+    if (i < 0) return undefined;
+    const v = argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : null;
+    argv.splice(i, v ? 2 : 1);
+    return v;
+  };
+  const transcriptPath = liftVal('--transcript');
+  const promiseByArg = liftVal('--promise-by');
+  if (transcriptPath === null || promiseByArg === null) {
+    console.error('build-call-debrief: ' + (transcriptPath === null ? '--transcript needs <file>' : '--promise-by needs session:<id> or job:<name>'));
+    process.exit(1);
+  }
 
   /* --folder is lifted out here, beside --cloud, for the same reason: the positionals must
      never shift. Added 2026-09-17 (hosted handoff — see register-call-doc.js). OPTIONAL in cloud
@@ -1241,7 +1496,7 @@ async function main() {
       process.exit(1);
     }
     const out = regenerate(JSON.parse(fs.readFileSync(argv[1], 'utf8')), JSON.parse(fs.readFileSync(argv[ri + 1], 'utf8')),
-      { filing, folderRaw, outDir: oi >= 0 ? argv[oi + 1] : null });
+      { filing, folderRaw, outDir: oi >= 0 ? argv[oi + 1] : null, promiseBy: promiseByArg });
     if (out.status === 'folder_address_unresolved') { stopUnresolved(out.hosted); return; }
     console.error('✓ Regenerated ' + out.htmlChars + ' chars from kept state ' + out.fromKeptState + ' (v' + out.fromVersion + ')');
     console.error('✓ QUARANTINED at ' + out.quarantinePath + '   (' + out.pathVia + ')');
@@ -1281,10 +1536,12 @@ async function main() {
   const [debriefPath, configPath, outPath] = argv;
   if (!debriefPath || !configPath || !outPath) {
     console.error('Usage: node build-call-debrief.js <debrief.json> <config.json> <output.html>\n' +
-                  '         [--no-transcript "<why there is no recording>"]\n' +
+                  '         --transcript <transcript.txt> | --no-transcript "<why there is no recording>"\n' +
+                  '         [--promise-by session:<id>]   (0.9.50: who writes the promise rows)\n' +
                   '         [--cloud [--folder <folder.json>] [--run-id <id>]]\n' +
                   '       node build-call-debrief.js --print-folder-sql --channel <c> --company <x> [--partner <p>]\n' +
-                  '       node build-call-debrief.js --regen-plan <docId>  |  --regen <readplan.json> --rows <rows.json> [...]');
+                  '       node build-call-debrief.js --regen-plan <docId>  |  --regen <readplan.json> --rows <rows.json> [...]\n' +
+                  '       node build-call-debrief.js --promises-check <out.html.promises.json> --rows <promise-rows.json>');
     process.exit(1);
   }
   const d = JSON.parse(stripFences(fs.readFileSync(debriefPath, 'utf8')));
@@ -1299,6 +1556,14 @@ async function main() {
      was fixed on the guide in August and left broken on the debrief. */
   captureQuestionGate(d);
   const crm = crmRecordGate(config);
+  /* THE PROMISE GATE (0.9.50, B9) — see its own header. It needs the transcript to know what was
+     promised, so a build names one: --transcript <file>, or the declared --no-transcript. */
+  let tx;
+  if (transcriptPath) tx = { text: fs.readFileSync(transcriptPath, 'utf8') };
+  else if (noTranscriptReason != null) tx = { none: noTranscriptReason };
+  else throw promiseRefuse('no transcript was handed in, so nothing can say which promises the call held. Pass ' +
+    '--transcript <file> (the transcript section, never the assistant\'s summary), or declare --no-transcript "<reason>".');
+  const pGate = promiseGate(d, config, tx, crm, promiseByArg);
 
   const rendered = {};
   const html = buildStandaloneHtml(d, config, rendered);
@@ -1371,6 +1636,9 @@ async function main() {
   fs.writeFileSync(plan.quarantinePath, html, 'utf8');
   const planPath = absOut + '.plan.json';
   fs.writeFileSync(planPath, JSON.stringify(plan, null, 2), 'utf8');
+  const promisesPath = absOut + '.promises.json';
+  const promises = promisePlan(plan.docId, pGate, crm.attached ? crm.leadId : '', { promisesPath });
+  fs.writeFileSync(promisesPath, JSON.stringify(promises, null, 2), 'utf8');
 
   console.error('✓ Built ' + html.length + ' chars');
   console.error('✓ QUARANTINED at ' + plan.quarantinePath);
@@ -1412,6 +1680,14 @@ async function main() {
     out.hostedGap = filing.hostedGap;
     out.settledPath = plan.finalPath;   // the file upload-call-doc.js --hash / --upload takes
   }
+  /* 0.9.50 (B9): the promise rows this debrief owes — run after settle, judged by --promises-check. */
+  out.promises = promises;
+  console.error('');
+  console.error(promises.count
+    ? 'PROMISES — ' + promises.count + ' promise_put call(s) in stdout `promises.calls`. Run them after settle (the row must exist),' +
+      '\n  then `promises.check`, save the rows, and run `promises.judge`. Exit 0 = every promise has its row; exit ' +
+      PROMISE_EXIT.ROWS_SHORT + ' = NOT done.'
+    : 'PROMISES — none on this call (`promises: []`). Nothing to write.');
   /* 0.9.50: the hosted half is either PLANNED (exit 0 — a complete filing plan) or MISSING (exit 20). */
   if (handoff) hostedPlanned(out, handoff);
   else notOpenable(out, filing.cloud
@@ -1421,8 +1697,9 @@ async function main() {
 }
 
 if (require.main === module) {
-  /* Regeneration refusals exit on their own code (REGEN_EXIT); every other refusal keeps exit 1. */
-  main().catch((e) => { console.error(e.message); process.exit(e.regenCode ? (e.exitCode || 1) : 1); });
+  /* Regeneration refusals exit on their own code (REGEN_EXIT), and so does the promise gate
+     (PROMISE_EXIT.UNRECORDED, 0.9.50); every other refusal keeps exit 1. */
+  main().catch((e) => { console.error(e.message); process.exit((e.regenCode || e.promiseCode) ? (e.exitCode || 1) : 1); });
 }
 module.exports = { buildStandaloneHtml, buildBodyHtml,
                    /* Exported so the gates can be PROVEN rather than asserted — see the same
@@ -1430,6 +1707,9 @@ module.exports = { buildStandaloneHtml, buildBodyHtml,
                    __gates: { crmRecordGate, captureQuestionGate, keptSectionsGate, MIN_NO_LEAD_REASON },
                    filingMode, CLOUD_HOSTED_GAP, NOT_OPENABLE_EXIT,
                    planRegenRead, regenerate, REGEN_READ_SQL, REGEN_EXIT,
+                   /* 0.9.50 (B9) — the promise writer, exported so prove-promise-writer.js proves it. */
+                   __promises: { promiseGate, promisePlan, promisesVerdict, uncoveredSendPromises,
+                                 PROMISE_EXIT, PROMISE_PUT_SQL, PROMISE_CHECK_SQL, SEND_PROMISE_RX },
                    /* Exported 2026-08-11 so a REPAIR can restore a question panel into a debrief
                       that already exists, without rebuilding the document around it. Three
                       debriefs shipped with their questions silently deleted; their analysis is
