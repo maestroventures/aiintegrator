@@ -76,7 +76,10 @@ if (IS_GUIDE) {
     sections: [card('open')], objectionHandlers: [], hookSection: card('hook'),
     closeSection: Object.assign(card('close'), { question: 'q', branches: [], icp: 'i' }),
     followups: ['f'], aspectsMarkdown: md });
-  extra = ['--gate', w('gate.json', [1, 2, 3, 4].map(function (i) { return { template_id: 't' + i, ok: true, detail: 'ok' }; }))];
+  /* Since 0.9.49 the guide's gate file also carries the newest-email lookup (the open-loop
+     gate). This fixture states no open loop and the lookup found no email: the smallest pass. */
+  extra = ['--gate', w('gate.json', { rows: [1, 2, 3, 4].map(function (i) { return { template_id: 't' + i, ok: true, detail: 'ok' }; }),
+    newestEmail: { addresses: ['pat@acme.com'], checkedAt: '2026-09-17T12:00:00Z', crm: null, mailbox: null } })];
   config.guideId = 'pat-doe-20260918';
 } else {
   /* nextCallGoal is not decoration: a debrief that renders NO sections has no section index

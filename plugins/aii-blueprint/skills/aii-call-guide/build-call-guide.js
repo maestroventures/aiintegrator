@@ -197,8 +197,20 @@ function builderSha256() {
 /* content + the config the page embeds + how it was rendered. Idempotent: re-enveloping an
    envelope overwrites `config`/`render` rather than nesting them, which is what the
    regeneration path needs. */
+/* ⚠ FIXED 2026-09-24: the regeneration path hands this an ENVELOPE, and contentSha256 used to
+   hash that whole envelope — old config and old render block included — so the recorded
+   content hash of every regenerated row described something that was never content. The
+   envelope's own keys are now stripped first (contentOf), so contentSha256 always hashes the
+   authored content alone and a later regeneration can tell "content changed" from "same
+   content, new render". For a fresh build `content` has neither key and nothing changes. */
+function contentOf(g) {
+  const c = Object.assign({}, g);
+  delete c.config; delete c.render;
+  return c;
+}
 function keptEnvelope(content, cfg, html, extra) {
   const bytes = Buffer.from(html, 'utf8');
+  content = contentOf(content);
   return Object.assign({}, content, extra || {}, {
     config: cfg,
     render: {
@@ -733,6 +745,213 @@ function loadBuildGate(gatePath) {
       're-run with --gate omitted, which is the one move that turns this wall back into a door.');
   }
   return rows;
+}
+
+
+/* ────────────────────────────────────────────────────────────────────────────
+   THE OPEN-LOOP GATE — may this guide say something is still open?
+   Added 2026-09-24, approved by the operator the same day. SKILL.md Step 1 item 3b
+   ("the email record outranks everything on what is still open") went in as prose that
+   morning. The same evening three guides each stated an "open" item the email had already
+   closed — an NDA "not countersigned" three days after the signed copy was logged, two
+   decisions settled in writing, a call that never happened. Prose does not refuse. This does.
+
+   WHAT COUNTS AS AN OPEN-LOOP CLAIM IS STRUCTURAL, NEVER GUESSED FROM WORDS.
+   Any object anywhere in the guide JSON (a section, an objection, the hook, the close, a
+   contextBar or glance entry) that states an open loop, a pending item, a promise, who owes
+   what, or what was "last said" carries it in an `openLoops` array on that same object:
+
+       "openLoops": [ { "claim": "Their NDA countersignature is still with legal",
+                        "sources": [ { "kind": "email", "message_id": "<...>",
+                                       "date": "2026-09-23T16:02:00Z",
+                                       "account": "me@example.com" } ] } ]
+
+   A source is an EMAIL, never a summary of one: kind "email" {message_id, date, account}
+   or kind "crm_email_activity" {id, date}. A note, a CRM field or a prior guide is refused
+   as a source (3b: "a prior guide, a note or a CRM field is never the source").
+
+   THE BUILDER HAS NO DATABASE AND NO NETWORK, so "is there a newer email?" arrives the same
+   way the aspect verdicts do — on the gate file the session hands in:
+
+       { "rows": [ ...asset_build_gate rows... ],
+         "newestEmail": { "addresses": ["pat@acme.com"], "checkedAt": "<ISO>",
+                          "crm":     { "id": "acti_...", "date": "<ISO>" }            | null,
+                          "mailbox": { "message_id": "<...>", "date": "<ISO>",
+                                       "account": "me@example.com" }                   | null } }
+
+   `null` means "I looked and there is none"; a MISSING key means "I did not look", and the
+   two must never read alike — so both keys are required and a missing one is refused.
+
+   REFUSES (exit code per cause, and nothing is written):
+     12 UNCITED LOOP    — a claim with no source, or a source that is not an email;
+     13 STALE LOOP      — the CRM or mailbox holds an email with this person NEWER than the
+                          newest source that claim cites (or the lookup is older than a cited
+                          email, which means the lookup missed the record it is judging);
+     14 NO EMAIL RECORD — the gate file carries no usable newestEmail lookup;
+     15 BAD MARKER      — `openLoops` present but not a list of {claim, sources}.
+   A guide with no open-loop claims still builds; it still needs the lookup, because reading
+   the email record is how the session learns whether there is a loop to state at all.
+
+   PER CLAIM, NOT PER GUIDE. The newest email is compared with EACH claim's own newest source.
+   A per-guide comparison would let the stale NDA line pass on the strength of a fresh
+   citation somewhere else on the page — which is the exact 2026-09-24 failure. If the newest
+   email does not touch a loop, cite it anyway: it is the evidence the loop is still open.
+   ──────────────────────────────────────────────────────────────────────────── */
+const OPEN_LOOP_EXIT = { UNCITED: 12, STALE: 13, NO_EMAIL_RECORD: 14, BAD_MARKER: 15 };
+const OPEN_LOOP_SOURCE_KINDS = ['email', 'crm_email_activity'];
+
+function openLoopRefuse(code, label, sentence) {
+  const e = new Error('build-call-guide: REFUSED — ' + label + ' — no guide was written.\n' + sentence);
+  e.exitCode = code; e.openLoopCode = label;
+  return e;
+}
+
+/* A date an email can be ordered by: parseable AND carrying a time of day. A bare
+   "2026-09-21" is midnight UTC, which sorts BEFORE a same-day email and would refuse (or pass)
+   on an accident of formatting. */
+function loopTime(s) {
+  if (typeof s !== 'string' || !/\d{1,2}:\d{2}/.test(s)) return null;
+  const t = Date.parse(s);
+  return isNaN(t) ? null : t;
+}
+
+/* Every `openLoops` marker in the content, wherever it sits. The envelope's own keys
+   (config, render) are not content and are skipped. */
+function collectOpenLoops(g) {
+  const found = [];
+  (function walk(node, where) {
+    if (Array.isArray(node)) { node.forEach(function (x, i) { walk(x, where + '[' + i + ']'); }); return; }
+    if (!node || typeof node !== 'object') return;
+    Object.keys(node).forEach(function (k) {
+      if (where === '' && (k === 'config' || k === 'render')) return;
+      const here = where ? where + '.' + k : k;
+      if (k === 'openLoops') { found.push({ where: here, owner: node, loops: node[k] }); return; }
+      walk(node[k], here);
+    });
+  })(g, '');
+  return found;
+}
+
+function readEmailRecord(raw) {
+  const r = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw.newestEmail : undefined;
+  const shape =
+    '\nThe gate file must carry the email lookup beside the aspect rows:\n' +
+    '  { "rows": [...], "newestEmail": { "addresses": [...], "checkedAt": "<ISO>",\n' +
+    '      "crm": {"id": "...", "date": "<ISO>"} | null,\n' +
+    '      "mailbox": {"message_id": "...", "date": "<ISO>", "account": "..."} | null } }\n' +
+    'Read the CRM\'s logged Email activities for the lead AND the mailbox with every outside\n' +
+    'attendee (SKILL.md Step 1 item 3b), newest first, and write the newest of each. null means\n' +
+    '"looked, found none"; leaving a key out means "did not look", and that is what is refused.';
+  if (!r || typeof r !== 'object' || Array.isArray(r)) {
+    throw openLoopRefuse(OPEN_LOOP_EXIT.NO_EMAIL_RECORD, 'NO EMAIL RECORD',
+      'Nothing told this builder what the newest email with this person is, so it cannot tell\n' +
+      'a loop that is still open from one the email already closed.' + shape);
+  }
+  const out = { addresses: Array.isArray(r.addresses) ? r.addresses : [], newest: null };
+  [['crm', 'id', 'crm_email_activity'], ['mailbox', 'message_id', 'email']].forEach(function (s) {
+    const side = s[0], idKey = s[1];
+    if (!(side in r)) {
+      throw openLoopRefuse(OPEN_LOOP_EXIT.NO_EMAIL_RECORD, 'NO EMAIL RECORD',
+        'newestEmail has no `' + side + '` key, so there is no telling whether the ' + side +
+        ' was read and held nothing, or was never read.' + shape);
+    }
+    const v = r[side];
+    if (v === null) return;
+    const t = v && loopTime(v.date);
+    if (!v || typeof v !== 'object' || !String(v[idKey] || '').trim() || t === null ||
+        (side === 'mailbox' && !String(v.account || '').trim())) {
+      throw openLoopRefuse(OPEN_LOOP_EXIT.NO_EMAIL_RECORD, 'NO EMAIL RECORD',
+        'newestEmail.' + side + ' is not a usable email: it needs ' +
+        (side === 'mailbox' ? '{message_id, date, account}' : '{id, date}') +
+        ' with a date that carries a time of day. Got: ' + JSON.stringify(v) + shape);
+    }
+    if (!out.newest || t > out.newest.t) {
+      out.newest = { t: t, side: side, id: String(v[idKey]), date: v.date,
+                     account: v.account || null, kind: s[2] };
+    }
+  });
+  return out;
+}
+
+/* opts.record: the parsed newestEmail (readEmailRecord), or undefined.
+   opts.citationsOnly: judge sources only (a regeneration of content proven unchanged). */
+function openLoopGate(g, opts) {
+  opts = opts || {};
+  const markers = collectOpenLoops(g);
+  const claims = [];
+  markers.forEach(function (m) {
+    if (!Array.isArray(m.loops)) {
+      throw openLoopRefuse(OPEN_LOOP_EXIT.BAD_MARKER, 'BAD OPEN-LOOP MARKER',
+        m.where + ' is not a list. `openLoops` is a list of {claim, sources}.');
+    }
+    m.loops.forEach(function (c, i) {
+      const at = m.where + '[' + i + ']';
+      if (!c || typeof c !== 'object' || Array.isArray(c) || !String(c.claim || '').trim()) {
+        throw openLoopRefuse(OPEN_LOOP_EXIT.BAD_MARKER, 'BAD OPEN-LOOP MARKER',
+          at + ' carries no `claim` sentence. Each entry says, in words, what is still open.');
+      }
+      claims.push({ at: at, claim: String(c.claim).trim(), sources: c.sources });
+    });
+  });
+
+  claims.forEach(function (c) {
+    const src = Array.isArray(c.sources) ? c.sources : [];
+    if (!src.length) {
+      throw openLoopRefuse(OPEN_LOOP_EXIT.UNCITED, 'UNCITED OPEN LOOP',
+        c.at + ' says "' + c.claim + '" and cites no email.\n' +
+        'A loop the guide calls open must name the email that shows it is still open:\n' +
+        '  {"kind":"email","message_id":"...","date":"<ISO>","account":"..."} or\n' +
+        '  {"kind":"crm_email_activity","id":"...","date":"<ISO>"}.\n' +
+        'If no email shows it is open, the guide must not say it is.');
+    }
+    c.newestT = null; c.ids = [];
+    src.forEach(function (s, j) {
+      const kind = s && s.kind;
+      const idKey = kind === 'email' ? 'message_id' : 'id';
+      const t = s && loopTime(s.date);
+      const bad = OPEN_LOOP_SOURCE_KINDS.indexOf(kind) < 0
+        ? 'its kind is ' + JSON.stringify(kind) + '. Only an email is a source for a loop\'s ' +
+          'current state — a note, a CRM field or a prior guide never is (SKILL.md Step 1 item 3b)'
+        : !String(s[idKey] || '').trim() ? 'it has no ' + idKey
+        : t === null ? 'its date ' + JSON.stringify(s.date) + ' is not a date with a time of day'
+        : (kind === 'email' && !String(s.account || '').trim()) ? 'it has no account (which mailbox it was read from)'
+        : null;
+      if (bad) {
+        throw openLoopRefuse(OPEN_LOOP_EXIT.UNCITED, 'UNCITED OPEN LOOP',
+          c.at + '.sources[' + j + '] (for "' + c.claim + '") is not a usable citation: ' + bad + '.');
+      }
+      c.ids.push(String(s[idKey]));
+      if (c.newestT === null || t > c.newestT) { c.newestT = t; c.newestDate = s.date; }
+    });
+  });
+
+  if (opts.citationsOnly && !opts.record) {
+    return { claims: claims.length, freshness: 'not judged — content unchanged since its recorded render' };
+  }
+  const rec = opts.record || readEmailRecord(opts.gateRaw);
+  const newest = rec.newest;
+  claims.forEach(function (c) {
+    if (newest && c.ids.indexOf(newest.id) >= 0) return;   /* it cites the newest email itself */
+    if (!newest || c.newestT > newest.t) {
+      throw openLoopRefuse(OPEN_LOOP_EXIT.STALE, 'STALE OPEN LOOP',
+        c.at + ' cites an email dated ' + c.newestDate + ', but the email lookup' +
+        (newest ? '\'s newest email is ' + newest.date : ' found no email at all') +
+        '. The lookup cannot see the record the guide cites, so it cannot prove nothing newer\n' +
+        'exists. Re-read the CRM and the mailbox and hand in a fresh newestEmail.');
+    }
+    if (newest.t > c.newestT) {
+      throw openLoopRefuse(OPEN_LOOP_EXIT.STALE, 'STALE OPEN LOOP',
+        c.at + ' says "' + c.claim + '".\n' +
+        'Its newest source is dated ' + c.newestDate + ', but the ' +
+        (newest.side === 'crm' ? 'CRM holds a logged email' : 'mailbox ' + newest.account + ' holds an email') +
+        ' with this person dated ' + newest.date + ' (' + newest.kind + ' ' + newest.id + ').\n' +
+        'Read that email. If it closed the loop, the guide says it is closed; if the loop is\n' +
+        'still open, cite that email as the source. The email outranks the guide (SKILL.md Step 1 item 3b).');
+    }
+  });
+  return { claims: claims.length, newestEmail: newest ? newest.date : null,
+           freshness: newest ? 'every claim cites the newest email or one at least as new'
+                             : 'no email with this person exists, and no claim cites one' };
 }
 
 /* ── aspects CSS (appended to STANDALONE_CSS) ── */
@@ -1967,6 +2186,36 @@ function regenerate(readPlan, rowsIn, opts) {
   /* Same gate as a fresh build. A regeneration is a build. */
   crmRecordGate(config);
 
+  /* ── HAS THE CONTENT CHANGED SINCE ITS RECORDED RENDER? Added 2026-09-24. ─────────
+     The change note below used to say "re-render only, no content change" on EVERY
+     regeneration, including one whose kept state had been edited — a false sentence written
+     into the store. It is now MEASURED: the authored content (envelope keys stripped) is
+     hashed and compared with the contentSha256 its last render recorded.
+       unchanged — the hashes match; this really is a re-render;
+       changed   — they differ; the content was edited after it was last rendered;
+       unknown   — the row records no content hash (written before the envelope), so the
+                   claim cannot be made either way and is not made. */
+  const storedContentSha = (g.render && g.render.contentSha256) || null;
+  const contentSha = sha256(JSON.stringify(contentOf(g)));
+  const contentChange = !storedContentSha ? 'unknown'
+    : (storedContentSha === contentSha ? 'unchanged' : 'changed');
+
+  /* THE OPEN-LOOP GATE, on the content being re-rendered. Edited (or unprovable) content is a
+     new claim about what is open, so it gets the full gate — citations AND the newest-email
+     lookup, which the caller hands in with --gate exactly as a fresh build does. Content
+     proven unchanged since a render that passed is judged on its citations only. */
+  const openLoops = openLoopGate(contentOf(g), contentChange === 'unchanged' && !opts.gateRaw
+    ? { citationsOnly: true }
+    : { gateRaw: opts.gateRaw });
+
+  const changeNote = 'regenerated from kept state ' + row.state_id + ' (v' + row.kept_version +
+                ') by build ' + BUILD_STAMP + ' — ' + ({
+                  unchanged: 're-render only, no content change (content sha256 matches the recorded render)',
+                  changed:   'CONTENT CHANGED since its last render (content sha256 ' +
+                             String(storedContentSha).slice(0, 12) + '… -> ' + contentSha.slice(0, 12) + '…)',
+                  unknown:   'content change UNKNOWN: this kept state records no content hash to compare',
+                })[contentChange];
+
   const rendered = {};
   const html = buildStandaloneHtml(g, config, rendered);
   /* PROVEN, not asserted: when the source carried a recorded hash, say whether these bytes
@@ -1993,8 +2242,9 @@ function regenerate(readPlan, rowsIn, opts) {
     fileId: '', viewUrl: '',
     hostedGap: 'regeneration writes the local copy only — no Drive upload happens here',
     /* The SAME JSON goes back in. A regeneration mints a new kept-state version whose
-       source is byte-identical to the one it read: the render changed, the content did
-       not, and that is a fact the store should be able to prove later. */
+       source is byte-identical to the one it read. Whether that content changed since its
+       LAST RENDER is measured above (contentChange) and said in the change note — never
+       assumed, which is what the note used to do (corrected 2026-09-24). */
     guideJson:  keptEnvelope(g, rendered.cfg, html),
     /* THE LEAD GOES BACK IN, from the config the gate just approved — not from the row.
        If the caller CORRECTED the lead, this is what persists the correction; if it fell
@@ -2003,8 +2253,7 @@ function regenerate(readPlan, rowsIn, opts) {
        which is the property that was missing. */
     leadId:        config.leadId,
     noLeadReason:  config.noLeadReason,
-    changeNote: 'regenerated from kept state ' + row.state_id + ' (v' + row.kept_version +
-                ') by build ' + BUILD_STAMP + ' — re-render only, no content change',
+    changeNote,
   });
 
   fs.writeFileSync(plan.quarantinePath, html, 'utf8');
@@ -2017,6 +2266,9 @@ function regenerate(readPlan, rowsIn, opts) {
     fromKeptState: row.state_id,
     fromVersion: row.kept_version,
     configSource,
+    contentChange,
+    openLoops,
+    changeNote,
     htmlSha256,
     storedHtmlSha256: storedSha,
     /* null = the source recorded no hash (a pre-envelope row), so there was nothing to
@@ -2139,6 +2391,10 @@ async function main() {
   if (argv[0] === '--print-gate-sql') {
     const ti = argv.indexOf('--tenant');
     console.log(gateSql(ti >= 0 ? argv[ti + 1] : null));
+    /* stderr, so stdout stays the one SELECT a caller pipes to the connector. */
+    console.error('Save that SELECT\'s rows as gate.json {"rows": [...], "newestEmail": {...}}. newestEmail is\n' +
+                  'REQUIRED (2026-09-24): the newest email with this person in the CRM ({id, date} or null)\n' +
+                  'and in the mailbox ({message_id, date, account} or null). See SKILL.md Step 4.');
     return;
   }
   /* ── THE PURE RENDER DOORS — kept state in, HTML out. Added 2026-09-17. ───────────
@@ -2211,16 +2467,21 @@ async function main() {
     }
     const ri = argv.indexOf('--rows');
     const wi = argv.indexOf('--workspace-root');
-    if (!argv[1] || ri < 0 || !argv[ri + 1]) {
-      console.error('Usage: node build-call-guide.js --regen <readplan.json> --rows <rows.json> [--workspace-root <path>]');
+    const gi = argv.indexOf('--gate');
+    if (!argv[1] || ri < 0 || !argv[ri + 1] || (gi >= 0 && !argv[gi + 1])) {
+      console.error('Usage: node build-call-guide.js --regen <readplan.json> --rows <rows.json> [--gate <gate.json>] [--workspace-root <path>]\n' +
+                    '       --gate carries the newestEmail lookup; it is REQUIRED whenever the kept content changed since its last render.');
       process.exit(1);
     }
     const readPlan = JSON.parse(fs.readFileSync(argv[1], 'utf8'));
     const rows = JSON.parse(fs.readFileSync(argv[ri + 1], 'utf8'));
     const out = regenerate(readPlan, rows,
-      { workspaceRoot: wi >= 0 ? argv[wi + 1] : null });
+      { workspaceRoot: wi >= 0 ? argv[wi + 1] : null,
+        gateRaw: gi >= 0 ? JSON.parse(fs.readFileSync(argv[gi + 1], 'utf8')) : undefined });
     console.error('✓ Regenerated ' + out.htmlChars + ' chars from kept state ' +
                   out.fromKeptState + ' (v' + out.fromVersion + ')');
+    console.error('✓ Content since its last render: ' + out.contentChange);
+    console.error('✓ Open loops: ' + out.openLoops.claims + ' claim(s) — ' + out.openLoops.freshness);
     console.error('✓ QUARANTINED at ' + out.quarantinePath);
     console.error('  Path resolved: ' + out.pathVia);
     console.error('');
@@ -2244,6 +2505,7 @@ async function main() {
   const [guidePath, configPath, outPath] = argv;
   if (!guidePath || !configPath || !outPath) {
     console.error('Usage: node build-call-guide.js <guide.json> <config.json> <output.html> --gate <gate.json>\n' +
+                  '         gate.json = {"rows": [...asset_build_gate rows], "newestEmail": {...}} (SKILL.md Step 4)\n' +
                   '         [--cloud [--folder <folder.json>] [--run-id <id>]]\n' +
                   '       node build-call-guide.js --print-gate-sql --tenant <tenant>\n' +
                   '       node build-call-guide.js --print-folder-sql --channel <c> --company <x> [--partner <p>]');
@@ -2270,6 +2532,10 @@ async function main() {
      same reason: a refusal that arrives after the file exists is not a refusal. */
   loadBuildGate(gatePath);
 
+  /* THE OPEN-LOOP GATE (2026-09-24) — same place, same reason: before a byte is rendered.
+     loadBuildGate has just proven the file exists and parses. */
+  const openLoops = openLoopGate(g, { gateRaw: JSON.parse(fs.readFileSync(gatePath, 'utf8')) });
+
   const R = loadRegistrar();
   if (!config.docId) config.docId = R.deriveDocId('guide', config.eventId);
 
@@ -2284,19 +2550,6 @@ async function main() {
 
   /* PLAN FIRST — every shape refusal happens before a single byte is written. */
   const plan = R.planRegistration(absOut, {
-    /* 2026-09-21: FORWARD AN EXPLICIT docId WHEN THE CALLER SET ONE.
-       deriveDocId slices the SLUGGED event id at 48 chars. Two Google Calendar events can
-       share far more prefix than that: Jim Buckley 20260911 and CardLogix 20260921 are
-       identical for 65 slugged chars, so BOTH derive cd_guide_60q30c1g…4s34h9g and the
-       second build silently overwrites the first document — person, domain, meeting_date,
-       file_title, local_path and lead_id all replaced. Caught on a rolled-back rehearsal
-       only because a first build INSERTs and hit call_doc_pkey; a rebuild UPSERTs and
-       would have reported "registered".
-       config.docId was ALREADY honoured for the PAGE at ~line 2274 but never reached the
-       registrar, so a caller who set it shipped a page whose refresh button addressed one
-       document and a row that was another. register-call-doc.js:600 already reads f.docId
-       — this line is the missing hand-off. No-op when docId is absent. */
-    ...(config.docId ? { docId: config.docId } : {}),
     eventId:       config.eventId,
     kind:          'guide',
     builtBy:       config.builtBy || 'call-guide',
@@ -2368,6 +2621,7 @@ async function main() {
   const planPath = absOut + '.plan.json';
   fs.writeFileSync(planPath, JSON.stringify(plan, null, 2), 'utf8');
 
+  console.error('✓ Open loops: ' + openLoops.claims + ' claim(s) — ' + openLoops.freshness);
   console.error('✓ Built ' + html.length + ' chars' + ' (' + (buildSectionsHtml(g).total) + ' main sections)');
   console.error('✓ QUARANTINED at ' + plan.quarantinePath);
   console.error('  It is NOT a call document yet. It gets its real name only after the row lands.');
@@ -2420,7 +2674,8 @@ module.exports = { buildStandaloneHtml, buildSectionsHtml, buildLiveBoardHtml, c
                       behaviour cannot be exercised from a test is a comment with a syntax
                       error waiting to happen — and the first version of this proof correctly
                       refused to run and exited 3 rather than reporting a pass over nothing. */
-                   __gates: { crmRecordGate, MIN_NO_LEAD_REASON },
+                   __gates: { crmRecordGate, MIN_NO_LEAD_REASON,
+                              openLoopGate, collectOpenLoops, readEmailRecord, OPEN_LOOP_EXIT },
                    __links: { buildLinksHtml, cgDocsBar },
                    filingMode, CLOUD_HOSTED_GAP,
                    /* THE SEAM aii-site's render-registry.js is waiting for. ONE implementation,
