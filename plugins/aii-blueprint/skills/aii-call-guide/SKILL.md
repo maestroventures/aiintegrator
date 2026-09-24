@@ -34,6 +34,7 @@ You may be triggered three ways: (a) the user asks in chat, (b) the artifact han
 2. **Find the meeting.** Through Blueprint: `do_action` "See appointment" for the exact date/time, title, and attendees. The date/time + person is the key that links the guide file to the meeting.
    **Capture the link keys now** — you'll write them into a pointer file in Step 4.5 so the daily brief never has to re-guess the filename later. Hold on to: the **calendar `eventId`**, the meeting **date** (`YYYYMMDD`), every outside attendee **email**, and the **email domain**. If a button handed you a pasted prompt, those keys are on a `Link keys:` line in it — use them verbatim. If you're triggered another way, read them off the calendar event.
 3. **Check for a transcript** of any prior call with this person (the Google Meet notes attached to that meeting's calendar event, read through `do_action` "See appointment" then "See file"; matched by attendee email).
+3b. **Read the email record with this person — it outranks everything above on what is still open.** Read the CRM's logged **Email** activities for the lead (not only its Notes — a note is a summary somebody wrote; the email is the record) and the mailbox thread with every outside attendee, last 45 days, newest first. Before the guide states ANY open loop, pending item, promise, "last said" or who-owes-what, find the newest email that touches it: if the email closed it, the guide says it is closed; if the email and the CRM disagree, the email wins and the guide says so. A prior guide, a note or a CRM field is never the source for a loop's current state. If the CRM holds fewer emails than the mailbox for this person, say so in the brief — the CRM is missing part of the record. *(Why, measured 2026-09-24: three guides built the same evening each stated a loop the email had already closed — an NDA "not countersigned" three days after the signed copy was logged in the CRM, two "open" decisions settled in writing, and a call that never happened.)*
 4. **If the person is NOT in the CRM:** don't stop and don't make the user go create them. Build from the details they gave you, and note in the guide's "what you already said" that they're not yet in the CRM.
 
 **Only ask the user something if a fact that changes the guide is genuinely missing** (e.g., the goal of the call is unclear and you can't infer it). Ask in one pop-up, one question, plain language. Otherwise proceed.
@@ -95,6 +96,14 @@ Output ONE valid JSON object in exactly this shape. All fields present; arrays m
 ```
 
 **`docs` is also allowed on ANY section, objection, hook or close:** `"docs":[{"label":"…","url":"…","note":"…"}]`. The builder renders them as chips at the top of that card AND gathers every one into the Links drawer under the section's label, so the user can open everything before the call. The builder also fills the Links row from `config` when `links` is thin — the CRM record from `leadId` and the company site from `domain` — so the row is never empty just because authoring skipped it.
+
+⛔ **EVERY OPEN LOOP CARRIES ITS EMAIL — THE BUILDER REFUSES OTHERWISE (added 2026-09-24, v0.9.49).** Any section, objection, hook, close, `contextBar` entry or `glance` entry whose words state an open loop, a pending item, a promise, who owes what, or what was "last said" carries an **`openLoops`** list on that same object — this marker, not the wording, is what makes it an open-loop claim:
+```json
+"openLoops": [ { "claim": "Their NDA countersignature is still with legal",
+                 "sources": [ {"kind":"email","message_id":"<id>","date":"2026-09-23T16:02:00Z","account":"<mailbox it was read from>"},
+                              {"kind":"crm_email_activity","id":"<CRM email activity id>","date":"2026-09-23T16:02:05Z"} ] } ]
+```
+A source is an EMAIL (item 3b): `email` `{message_id, date, account}` or `crm_email_activity` `{id, date}`, each date with a time of day. A note, a CRM field or a prior guide is refused as a source. **Cite the newest email with this person on every claim** — if it closed the loop, the guide says closed and carries no claim; if it did not touch the loop, it is still the evidence that the loop is open, so cite it. The builder compares EACH claim with the newest email the lookup found (Step 4), so one fresh citation cannot carry a stale line beside it. The marker is carried, never rendered. A guide that states no open loop simply has no `openLoops` and builds.
 
 Write the JSON to a temp file, e.g. `guide.json`.
 
@@ -238,8 +247,24 @@ node "<skill-folder>/build-call-guide.js" --print-gate-sql --tenant <tenant>
    ("If the query returns NULL or fewer than four aspects, STOP. Do not build."). A short gate
    set and a clean one read identically, which is why the count is checked and not just the
    verdicts. It also refuses if ANY row is false, and NAMES the template that failed.
-   ⚠ **`--regen` is deliberately NOT gated:** it rebuilds from kept state and never re-reads the
-   aspect templates, so demanding a gate for templates it is not reading would be theatre.
+   ⛔ **THE GATE FILE ALSO CARRIES THE NEWEST-EMAIL LOOKUP — REQUIRED since v0.9.49 (2026-09-24).**
+   The builder has no database or network, so the session hands it what item 3b found. Save
+   `gate.json` as an object — the SELECT's rows plus the newest email with this person on each side:
+```json
+{ "rows": [ ...the rows the SELECT returned... ],
+  "newestEmail": { "addresses": ["<every outside attendee>"], "checkedAt": "<ISO now>",
+                   "crm":     {"id":"<newest logged Email activity>","date":"<ISO>"},
+                   "mailbox": {"message_id":"<newest message>","date":"<ISO>","account":"<mailbox>"} } }
+```
+   `null` for a side means *looked, and there is none*; a missing key means *did not look* and is
+   refused. The build is REFUSED, with nothing written, when: an `openLoops` claim cites no email or
+   cites a non-email (exit 12); the CRM or mailbox holds an email NEWER than the newest source a claim
+   cites, or the lookup is older than an email a claim cites (exit 13); `newestEmail` is missing or
+   unusable (exit 14); an `openLoops` marker is not a list of `{claim, sources}` (exit 15). Each
+   refusal names the claim and the email. Fix the guide from the email — never by dropping the
+   marker from a sentence that still says the loop is open.
+   ⚠ **`--regen` does not re-read the aspect templates**, so it needs no aspect rows — but it takes
+   the same `--gate` file for its `newestEmail` (Step 5).
 
 ```
 node "<skill-folder>/build-call-guide.js" guide.json config.json out.html --gate gate.json
@@ -333,9 +358,9 @@ It prints `{sql, params}`. `docId` is `call_doc.doc_id` — it is on the guide p
 
 **(c) Rebuild from it.**
 ```
-node "<skill-folder>/build-call-guide.js" --regen <readplan.json> --rows <result.json>
+node "<skill-folder>/build-call-guide.js" --regen <readplan.json> --rows <result.json> [--gate <gate.json>]
 ```
-It re-renders from the stored content, bumps the kept version, and stamps the change note `regenerated from kept state`. Then file it exactly as Step 4 does — **register → settle → file → confirm is still ONE unit of work**, and Step 4.5's pointer still gets written.
+It re-renders from the stored content, bumps the kept version, and stamps the change note `regenerated from kept state`, saying whether the content CHANGED since its last render (measured by content hash — `unchanged`, `changed`, or `unknown` for rows that predate the hash). **Unless the content is proven `unchanged`, add `--gate <gate.json>` carrying a fresh `newestEmail` (Step 4):** edited (or unprovable) content gets the same open-loop gate as a new build and is refused the same way without it. Content proven unchanged is judged on its citations only. Then file it exactly as Step 4 does — **register → settle → file → confirm is still ONE unit of work**, and Step 4.5's pointer still gets written.
 
 **FOLD THE NEW DETAILS IN PER SEGMENT — never by rewriting the guide.** Change only the segments the operator's notes actually touch, carry every untouched segment through unchanged, and mark what changed. A regeneration that rewrites a segment nobody commented on has thrown away authored work and called it an update. (Ruling D1, same 2026-08-05 card: auto-fix anything the note touches, and every auto-changed segment is VISIBLY MARKED with one-click revert.)
 

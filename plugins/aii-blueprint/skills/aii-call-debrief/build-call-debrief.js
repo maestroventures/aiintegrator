@@ -186,8 +186,18 @@ function keptSectionsGate(sections, d) {
 
 /* content + the config the page embeds + how it was rendered. Idempotent: re-enveloping an
    envelope overwrites `config`/`render`/`sections` rather than nesting them. */
+/* 2026-09-24, mirrored from build-call-guide.js (the envelope block is duplicated on purpose,
+   see above): the envelope's own keys are stripped before contentSha256 is taken, so the hash
+   always describes authored content, even if an envelope is ever handed back in. A fresh
+   debrief carries neither key, so nothing it produces changes. */
+function contentOf(g) {
+  const c = Object.assign({}, g);
+  delete c.config; delete c.render;
+  return c;
+}
 function keptEnvelope(content, cfg, html, sections) {
   const bytes = Buffer.from(html, 'utf8');
+  content = contentOf(content);
   return Object.assign({}, content, {
     sections: sections,
     config: cfg,
