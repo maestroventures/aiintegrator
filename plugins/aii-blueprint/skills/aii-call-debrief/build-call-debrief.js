@@ -997,7 +997,7 @@ function normLine(s) {
   return String(s == null ? '' : s).replace(/[\u2018\u2019\u02bc]/g, "'").replace(/[\u201c\u201d]/g, '"')
     .replace(/\s+/g, ' ').trim().toLowerCase().replace(/^["'\-\s.,…]+|["'\-\s.,…]+$/g, '');
 }
-/* "Bryce Ebeling: I'll send it" / "[00:12:03] Pat: …" → {speaker, text}; a line with no label → speaker null. */
+/* "Alex Rivera: I'll send it" / "[00:12:03] Pat: …" → {speaker, text}; a line with no label → speaker null. */
 function transcriptTurns(text) {
   return String(text || '').split(/\r?\n/).map(function (raw) {
     const m = raw.match(/^\s*(?:\[?\d{1,2}:\d{2}(?::\d{2})?\]?\s*)?([^:\n]{1,60}?):\s+(.+)$/);
