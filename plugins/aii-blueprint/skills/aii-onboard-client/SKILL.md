@@ -118,6 +118,26 @@ part of the setup; and if an answer does not work, or does not match what is on 
 and make you work it out rather than letting *"I cannot see that from here"* be the end of it. Say it
 once, plainly, at the start — never as a written list they are meant to read.
 
+**Say what "Always allow" means BEFORE the first prompt appears, not after they ask.** The very first
+Blueprint tool call puts an Always allow / Allow once choice in front of them, and it reads like a
+blank cheque. It is not, and they will ask — every walker so far has. Tell them first, in your own
+words: **you keep control, and this prompt is not where control lives.** Always allow only says this
+AI app may reach that tool without asking again; WHAT the AI may then DO is set by them in the
+Command Center, act by act — always-allow, always-ask, or blocked — and that is enforced on our side,
+on every single call, whatever they clicked here. Allow once works too and simply asks again next
+time.
+⚠ **AND SAY THAT IT COMES BACK — ONCE PER TOOL, NOT ONCE.** This is the part that rattles people:
+they approve, assume it is done, then it appears again, and again. It is the AI APP asking, once for
+each tool it reaches for, and it prints the tool's raw property names rather than a sentence.
+MEASURED 2026-09-22 on one walk: four separate cards, one reading only *"Do one thing in one of my
+tools"* with a bare *"Limit 3"* beneath it. We do not draw that card and cannot restyle it, so telling
+them first is the ONLY remedy. Say plainly: you will see this several times, it is the app and not
+us, the wording is blunt because it is machine-generated, and none of them widen what the AI may do.
+Never let them meet the second one unwarned — a repeat nobody mentioned reads as something going
+wrong. Say it once, plainly, before they hit the prompt. A
+person who is asked to approve something they do not understand either refuses and stalls, or agrees
+uneasily and trusts the whole setup less from that moment on.
+
 **The failure this prevents is not confusion, it is politeness.** Measured 2026-09-22: a walker sent
 every screenshot to his sponsor instead of to the session, saved his questions up as *"side questions
 that are separate from the process we are doing,"* and said afterwards *"I haven't really been 'stuck'
@@ -149,7 +169,7 @@ not reach that person.
    "Failed to update marketplace" and leaves Update greyed out, that is a known desktop bug and the
    fix is to remove the marketplace and add it back from the same link.
 3. **Check their permissions with them — and GET THEM INTO THE COMMAND CENTER FIRST.** It is a
-   separate site from Claude and from Google. It lives at **`app.aiintegratorhq.com`**, and sign-in is
+   separate site from Claude and from Google. It lives at **https://app.aiintegratorhq.com**, and sign-in is
    by email: they type their address there and the system emails them a link back. **Say the address
    out loud before the first step that needs it.** It is not linked from the public homepage, and no
    tool a session can reach knows it — so naming "the Command Center" without giving the address
@@ -171,7 +191,28 @@ not reach that person.
 5. **Then each tool THIS company uses, and nothing else.** The list is the company's own tools marked
    allowed (`client_connector.allowed = true`), never the plugin's manifest and never the catalog. A
    tool the company does not use is not offered, not mentioned and not signed in. For each one, the same
-   loop: sign it in once in the Command Center (Settings → Admin → Company tools, #settings/tools; Google under Me → Connections, #settings/connections), then call `what_can_i_do` and confirm its acts read `connected`, then check its settings — then the next.
+   loop: sign it in once in the Command Center, then call `what_can_i_do` and confirm its acts read `connected`, then check its settings — then the next.
+   ⚠ **HAND THEM A LINK THEY CAN CLICK, NEVER A PATH TO WALK.** Company tools is
+   **https://app.aiintegratorhq.com/#settings/tools** and a person's own Google is
+   **https://app.aiintegratorhq.com/#settings/connections**. Give the whole link, as a link, and stop
+   there — do NOT also recite "Settings → Admin → Company tools", because the link already lands on
+   that screen and the menu path just asks them to do by hand what the link already did. A bare host
+   with a hash route is something they have to retype; a full link is one click. Measured 2026-09-22:
+   a walker was handed the host plus a four-step menu path for a screen the link opens directly.
+   ⚠ **THIS APPLIES TO THE TOOL'S OWN SCREENS TOO, NOT JUST OURS** — but READ OUR OWN CODE BEFORE YOU
+   SEND ANYONE INTO A TOOL. Most tools here are signed in FROM the Command Center and need nothing
+   fetched by hand. WooCommerce is the worked example and it is a warning, not a template: on
+   2026-09-22 a session sent a client into `wp-admin` to generate REST API keys, when
+   `lib/woo/connect.js` takes the STORE ADDRESS ONLY, sends the person to their own store's approval
+   screen, and receives the keys automatically. The manual step was invented, and it cost a client
+   their time on a live call. So: before describing any step inside a tool, read the connector's own
+   file and hand the person the step our code actually expects.
+   ⚠ **NEVER HAND A LINK WITH A PLACEHOLDER IN IT — THAT IS NOT A LINK.** `https://<their-store>/...`
+   is a template for YOU, not something a person can click. If their domain is not already on record,
+   ASK FOR IT FIRST — "what is the web address of your store?" — then build the whole link from their
+   answer and hand it finished. A person handed `YOUR-STORE.com` has been given homework, and the
+   session has quietly moved its own job onto them. Read the domain back as part of the link so a
+   wrong one is caught before they click rather than after.
    Nothing is installed: the only connector is Blueprint, and every action goes through `do_action` / `check_action`.
    Never report a later act as done because an earlier one succeeded.
    Every tool runs through the Blueprint connector (its sign-in stored in the Command Center); none is
@@ -371,6 +412,44 @@ wearing a helpful face.)*
 
 ---
 
+## Step 4b — Then the person, not only the company
+
+Step 4 is about the company. This step is about the **person in front of you**: who they are, what they
+want for themselves, what they care about, how they sound, and how they want to grow. It runs for every
+new person, for every teammate joining a company that is already running, and for anyone coming back who
+never had it. The operator, 2026-09-24: *"I don't see anything here about the actual user, themselves.
+Their own personal goals, their own personal interests, their own uh, personal profile, who they are,
+their own speaking voice."* (`dr_the_blueprint_wizard_covers_the_person_not_only_the_company_20260924`.)
+
+Five parts, in this order, one at a time, with Step 4's rules (say what you already know first, one fact
+per question, their words, every answer written back with `record_my_answer` as it is given):
+
+1. **Who they are.** Run the personal questions for their role — where they sit, what they do, how they
+   like to be talked to — from the interview plan, exactly as Step 4 runs the company's. If the plan
+   carries no personal questions for their role, **say so plainly** and ask the plainest few from the
+   framework's personal question bank for their role by hand.
+2. **Their own goals.** What they want to achieve for themselves this year, separate from the company's
+   goals, dated, so a return visit can ask how they did.
+3. **Their interests.** What they care about outside the work, in their words.
+4. **Their speaking voice.** Run **`aii-voice-capture`**: ask for a few things they have written, or where
+   to find them, and build their voice profile. If they have nothing to hand, say it can be done later and
+   put it on their board — never skip it silently.
+5. **Their growth.** Make **`aii-betterment-slot`**'s offer, once, with its one plain example and a yes or
+   no. Record the answer either way.
+
+**Where it lands.** Everything here belongs to the person: their own company's store, the user tier,
+never the company tier and never anyone else's record. If a part has no dedicated place to be written
+yet, write it to their own profile and **say where it went** — never keep it only in the conversation.
+
+**Done means read back.** A part is done only when its written answer reads back. A part the person
+chose to leave for later is recorded as left for later, with a board card, and offered again on their
+next visit.
+
+*(Lens: Carnegie — what changes for them is that the system talks like them and about their goals, not
+only the company's. Allen — a part left for later gets one home and one next action.)*
+
+---
+
 ## Step 5 — Then, and only then, the audit
 
 Once the equipment is live and the interview is captured, hand off to **`aii-tune-up`** for the deep
@@ -419,6 +498,20 @@ run, once, for a new client.
 
 ---
 
+*v1.18 — 2026-09-22. Approved by the operator in chat, one word: "yes". Corrects v1.17, which said the prompt lets the app "reach the Blueprint connector without asking again each time" — implying ONE prompt. It is once per TOOL.
+
+ESTABLISHED BY A PEER SESSION AND CORROBORATED HERE FROM SCREENSHOTS. The card is the AI APP's, not ours: it renders the tool's raw JSON property names, we do not draw it and cannot restyle it. Measured on one walk 2026-09-22: four separate cards, including one reading only "Do one thing in one of my tools" with a bare "Limit 3" beneath, plus Check the connection, See what my setup has actually proved, and See which machine and AI app I am signed in on. Confirmed independently from the store that our own engine does NOT fire them — line_answer_for(..., 'See', 'permission') returns always-allow held at the company tier since 2026-09-18, so every See line was already permitted at the moment the app asked. A walker told "you will see this once" meets the second card unwarned, and a repeat nobody mentioned reads as a fault. RELATED AND NOT DONE: job_3_8_20260810 is a registered job, never run — "the moment a connector is installed, the person is walked through its permissions - always allow first, then tighten the exceptions." Lens: Norman (a control that reappears must be predicted or it reads as failure), Carnegie (warn before, never explain after), Nygard (name whose surface it is — ours or the app's).*
+
+*v1.17 — 2026-09-22. Instructed by the operator mid-install, verbatim in part: "we need to basically do a good job up front of saying, you always have control we have permissions in place ... I keep getting the question and they're going to get the question and it's vague and ambiguous". Adds one paragraph to the Step 2 opener: say what Always allow means BEFORE the first prompt appears.
+
+WHY IT BELONGS AT THE OPENER AND NOT AT THE PROMPT: the first Blueprint tool call raises the choice within seconds of the walk starting, before any other step, and it reads as a blank cheque to someone who has just met the product. It is not one - it only lets the AI app reach the connector without re-asking; what the AI may DO is the Command Center's per-act setting (always-allow / always-ask / blocked), enforced server-side on every call by lib/svc/lines.js whatever was clicked in the app. MEASURED: the operator reports being asked this by every walker so far, and answering it live each time. The cost of not saying it first is not a delay - it is a person either stalling at the prompt or agreeing uneasily and trusting the rest of the setup less. Lens: Carnegie (say why before what), Krug (answer the question they are about to ask), Schneier (a permission a person does not understand is not consent).*
+
+*v1.16 — 2026-09-22. Instructed by the operator in chat during a live install, verbatim and complete: "you should have given thhat link to chelle". Extends v1.15's link rule to THIRD-PARTY screens. One paragraph on Step 2 item 5; nothing renumbered.
+
+v1.15 made the session hand a clickable link instead of a menu path for OUR Command Center. The same session then walked a person through WooCommerce by describing where to click INSIDE WooCommerce - the identical defect, one product over, committed within the hour by the very session that had just written the rule. The rule was scoped to our own screens and so did not reach the case that mattered. It now names the tool's own screens explicitly, carries WooCommerce as the worked example with the real deep link, and states the one fact a person cannot recover from if nobody says it first: the consumer key and secret are shown ONCE. It also records the way this very rule was got WRONG first: the session's initial worked example sent a client into wp-admin to generate WooCommerce REST keys by hand, when lib/woo/connect.js takes the store address alone and the store returns the keys itself - an invented step, paid for live. Hence the standing instruction to read the connector's own file before describing anything inside a tool. It also forbids handing over a link that still carries a placeholder: the operator caught exactly that in the same exchange, verbatim, "the user needs a way to get their verison of this / without me" - a templated link is the session keeping its own work and posting the remainder to the client. Lens: Krug (hand the thing, never the route to the thing), Norman (the person should not have to hold a map of someone else's product), Nygard (a rule that stops at your own boundary has not been tested at the boundary that breaks).*
+
+*v1.15 — 2026-09-22. Instructed by the operator in chat, verbatim and complete: "why are we giving them instructions that they can't actually click? Why are we making them work for it?" Recorded as an in-chat instruction, not a pop-up label. Two wording changes, no step renumbered. (1) Step 2 item 3's Command Center address is now a whole clickable link rather than a bare host. (2) Step 2 item 5 gains one rule: hand a link that lands on the screen, never a menu path to walk, and never both. The hash routes this skill has carried since v1.10 (#settings/tools, #settings/connections) are useless on their own — a route with no host cannot be clicked, which is the same defect v1.13 fixed for the Command Center itself, repeated one item further down. MEASURED 2026-09-22 on a live install: the walk handed a person "app.aiintegratorhq.com/#settings/tools" as plain text AND a four-step menu path (Settings → Admin → Company tools) for the screen that link opens directly — so the one thing they could not do was click, and the one thing they were asked to do twice was navigate. Lens: Krug (do not make me think, and do not make me type what you could have linked), Norman (the control and the action must be the same gesture), Nygard (a route printed without its host is not a route).*
+
 *v1.14 — 2026-09-22. Instructed by the operator in chat, verbatim and complete: "we do not want anyone to freeze -- we ant the plugin to auto update ALWAYS with no human intervention whenever possible" (typo his). Recorded as an in-chat instruction, not a pop-up label. Extends Step 2 item 2: after the version check, turn AUTO-UPDATE ON for the marketplace, once, with the person watching.
 
 WHY THIS IS THE WHOLE FIX AND ALSO WHY THE GOAL AS STATED CANNOT BE MET. Researched against the Claude Code docs and the help centre on 2026-09-22. (a) Auto-update for a marketplace a person added themselves is OFF BY DEFAULT; it defaults ON only for Anthropic's own marketplaces. So every client we onboard starts frozen, by default, and no change we make to our own repo alters that. (b) "Shared with you" distribution, which DOES auto-update for recipients, is Team/Enterprise and ORGANISATION-ONLY — there is no documented way to share a plugin with someone on a separate account, so it is unavailable for external clients however convenient it sounds. (c) There is no settings, CLI or marketplace.json field that reaches an account we do not manage; managed settings (enabledPlugins, extraKnownMarketplaces) stop at the organisation boundary. (d) Even with auto-update on, a RUNNING session keeps the version it launched with (updates land after start, with a random delay of up to ten minutes), so a new task is what activates one. CONCLUSION: zero-human-intervention is not achievable for external accounts today. ONE toggle, done once during onboarding while somebody is on the line, is the closest reachable state and it converts "frozen forever" into "current from the next task onward". That is why it belongs in the walk and not in a document nobody opens. Known bug named in the step: anthropics/claude-code #72089, unfixed on desktop for git-backed marketplaces. MEASURED THE SAME DAY: a seat added from our marketplace sat on 0.9.36 against a 0.9.47 shelf for a week with nothing telling anyone. Lens: Nygard (name the default that is against you), Krug (one toggle, done for them, beats a instruction they will not follow), Christensen (the job they hired us for does not include version admin).*
@@ -442,6 +535,8 @@ MEASURED, 2026-09-22, one walker, three findings. He ran a seat at plugin 0.9.36
 *v1.7 — 2026-09-15. Pop-up-approved by the operator (dr_onboard_client_captures_and_confirms_sender_addresses_20260915, option label "Approve the edit (Recommended)"), carrying his prose ruling dr_a_clients_sender_addresses_are_captured_in_their_first_onboarding_session_20260915 ("b"). Adds Step 2 item 4: after Workspace is authorized, capture the client's sender addresses from `email_sendas_list` (or their own words) with `capture_my_sender_addresses`, then have them confirm each one with `list_my_unconfirmed_sender_addresses` and `confirm_my_sender_address`; no new Google permission. The tools ship in aii-site PR #364 (merged 2026-09-15). Former items 4 and 5 renumbered to 5 and 6. Nothing else changed.*
 
 *v1.6 — 2026-09-15. Pop-up-approved by the operator, two edits (dr_onboard_client_confirm_setup_never_cold_20260914_224841, option label "Approve edit 1 (Recommended)"; dr_onboard_client_i_dont_know_hands_off_20260914_224841, option label "Approve edit 2 (Recommended)"). Step 2 item 1 no longer asks which machine and which app cold: it reads the seat with `my_seat_env` and asks only "is this right?", correcting a field with `correct_my_seat_env`. The interview's hand-off bullet adds: on *"I do not know"*, never offer a likely answer; hand the question to the person who knows with `hand_off_question` and read back the row it wrote. The GENERIC MASTER banner now allows naming a Blueprint tool only where a step must call it (dr_onboard_client_banner_never_names_a_tool_20260915_004858, "Approve fix 2 (Recommended)"). Nothing else changed.*
+
+*v1.6 — 2026-09-24. Pop-up-approved by the operator (dr_locked_03_edit_aii_onboard_client_step_20260924_151826, option label "Add it and publish (Recommended)"). Adds **Step 4b — Then the person, not only the company**: who they are, their own goals, their interests, their speaking voice (`aii-voice-capture`), and the growth offer (`aii-betterment-slot`), for every new person, joining teammate and returning person who never had it. Additive; no existing step changed. Cause, measured: the person half of onboarding was prescribed (dr_the_whole_onboarding_job_and_why_it_exists_20260817) and carried by the retired card walk; when the walk was retired, only the company interview moved into this skill.*
 
 *v1.5 — 2026-09-14. Pop-up-approved by the operator (dr_locked_03_edit_aii_onboard_client_proof_20260914_080933, option label "Add all three (Recommended)"). Adds ONE read-back sentence each to Step 3b (read the Drive folders and the saved workspace records back), Step 3c (read back the saved record for each document named) and Step 5 (the Tune-Up hand-off is done only when its ranked gap cards are on the board). Matches first_run_step 9, 10 and 17, whose evidence was rewritten the same day. Nothing else changed.*
 
