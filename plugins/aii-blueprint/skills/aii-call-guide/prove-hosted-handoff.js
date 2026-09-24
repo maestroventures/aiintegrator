@@ -99,7 +99,7 @@ if (IS_GUIDE) {
   docPath = w('doc.json', { header: { title: 'Debrief — Pat Doe' }, captureQuestions: [], promises: [],
     nextCallGoal: 'Lock the rooftop and the start date.' });
   const txPath = path.join(tmp, 'transcript.txt');
-  fs.writeFileSync(txPath, 'Pat Doe: Thanks for the time.\nBryce Ebeling: Glad to. Talk Monday.\n');
+  fs.writeFileSync(txPath, 'Pat Doe: Thanks for the time.\nAlex Rivera: Glad to. Talk Monday.\n');
   extra = ['--transcript', txPath];
   config.debriefId = 'pat-doe-20260918';
   config.callRef = 'ff_abc123';

@@ -52,9 +52,9 @@ function w(name, obj) { const p = path.join(tmp, name); fs.writeFileSync(p, type
 
 const TX = [
   '00:00:04',
-  'Bryce Ebeling: Thanks for making the time, Pat.',
+  'Alex Rivera: Thanks for making the time, Pat.',
   'Pat Doe: Happy to. I’ll send you our lead numbers from last quarter.',
-  'Bryce Ebeling: Perfect. I’ll send you the one-page summary and the terms by Friday.',
+  'Alex Rivera: Perfect. I’ll send you the one-page summary and the terms by Friday.',
   'Pat Doe: Sounds good.',
 ].join('\n');
 const LINE_US = 'I’ll send you the one-page summary and the terms by Friday.';
@@ -105,14 +105,14 @@ try {
   const w3 = build(doc({ promises: [], notPromises: [NOT_THEIRS] }));
   check('W3 the transcript shows the user\'s send-promise and `promises` is empty: refused, exit 21, nothing written',
     refusedClean(w3), w3.rc + ' ' + w3.stderr);
-  check('W3b the refusal quotes the uncovered line, with its speaker', /Bryce Ebeling: Perfect\. I.ll send you the one-page summary/.test(w3.stderr), w3.stderr);
+  check('W3b the refusal quotes the uncovered line, with its speaker', /Alex Rivera: Perfect\. I.ll send you the one-page summary/.test(w3.stderr), w3.stderr);
 
   /* W4 */
   const w4a = build(doc({ promises: [PROMISE] }));
   check('W4a the other side\'s "I\'ll send you" is flagged when nothing names it', refusedClean(w4a) && /Pat Doe: Happy to\. I.ll send you our lead numbers/.test(w4a.stderr), w4a.rc + ' ' + w4a.stderr);
   const w4b = build(doc({ promises: [PROMISE], notPromises: [NOT_THEIRS] }));
   check('W4b ...and passes when named in `notPromises` with a reason', w4b.rc === 0, w4b.rc + ' ' + w4b.stderr);
-  const w4c = build(doc({ promises: [PROMISE] }), { config: { operatorSpeaker: 'Bryce Ebeling' } });
+  const w4c = build(doc({ promises: [PROMISE] }), { config: { operatorSpeaker: 'Alex Rivera' } });
   check('W4c ...or when config.operatorSpeaker limits the scan to the user\'s own turns', w4c.rc === 0, w4c.rc + ' ' + w4c.stderr);
   const w4d = build(doc({ promises: [PROMISE], notPromises: [{ line: LINE_THEM, why: 'theirs' }] }));
   check('W4d a `notPromises` entry with no real reason is refused', refusedClean(w4d) && /why is missing or too short/.test(w4d.stderr), w4d.rc + ' ' + w4d.stderr);
@@ -163,7 +163,7 @@ try {
     c2.json.missing[0] === 'One-page summary and terms', c2.rc + ' ' + c2.stderr);
   const c3 = checkRows(planPath, [{ promise_id: 'prm_x', source_doc_id: 'cd_other', what: 'One-page summary and terms' }]);
   check('C3 rows for another document exit 22', c3.rc === ROWS_SHORT, c3.rc + ' ' + c3.stderr);
-  const zero = build(doc({ promises: [] }), { txPath: w('tx-quiet.txt', 'Pat Doe: Thanks.\nBryce Ebeling: Talk soon.\n') });
+  const zero = build(doc({ promises: [] }), { txPath: w('tx-quiet.txt', 'Pat Doe: Thanks.\nAlex Rivera: Talk soon.\n') });
   const c4 = zero.rc === 0 ? checkRows(zero.out + '.promises.json', []) : { rc: 'build ' + zero.rc, stderr: zero.stderr };
   check('C4 a zero-promise plan with zero rows exits 0', c4.rc === 0, c4.rc + ' ' + c4.stderr);
 
