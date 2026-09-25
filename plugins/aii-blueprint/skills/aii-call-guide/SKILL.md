@@ -1,6 +1,6 @@
 ---
 name: aii-call-guide
-version: v1.2 (2026-09-25)
+version: v1.3 (2026-09-25)
 description: >
   AI Integrator Blueprint: Call Guide. Builds a deep, advisor-driven sales call guide for an
   upcoming meeting and saves it as a standalone interactive HTML file in the client folder. Use
@@ -141,35 +141,81 @@ is the wrong shape:** opens cannot be told apart, and switching one off breaks e
 Ruled by the operator 2026-09-17 (`dr_every_recipient_gets_its_own_picture_20260917_095443`):
 *every recipient gets their own link*, and the picture follows their own chain and their role.
 
-**REUSE THE PERSON'S LINK FIRST (added 2026-09-25).** A second guide for the same person keeps
-their link, because the talk rows (3.5c) and the opens hang off it; minting again orphans both.
-Look for a live one: `SELECT id, telling, relationship, code_for_reuse FROM platform_picture_link
-WHERE tenant_id = '<tenant>' AND for_person = '<their person id>' AND revoked_at IS NULL ORDER BY
-minted_at DESC LIMIT 1`. Found → use that `id`, and carry its address from the newest prior guide
-for this person (the **LINK:** line in its kept `aspectsMarkdown`, read as in Step 5). If the address
-can't be recovered, mint below and copy the old link's `platform_picture_talk` rows onto the new
-`link_id` in the same run. **Mint only when the person has no live link.**
+**THE LINK OPENS THE WALKTHROUGH AND GREETS THE RECIPIENT BY NAME (added 2026-09-25).** Ruled by
+the operator (`dr_call_guide_picture_links_open_the_tour_20260925`): a guide that points at the old
+plain picture must point at the walkthrough instead, and the company's own default walkthrough is
+acceptable unless a custom one was built for this person. A plain link whose walkthrough resolves
+opens it; no extra address flag is needed. A link without a relationship, or without a reader,
+opens the old plain picture, so every step below exists to rule that out.
 
-So, when there is none, mint one — through the board connector, resolved BY CATEGORY:
+**1 · RESOLVE THE RECIPIENT'S PERSON ID BY THEIR ADDRESS. NEVER INVENT ONE.** Take the attendee's
+email from the meeting (Step 1) and ask the store who it is:
+`SELECT * FROM person_current('<tenant>', '<their email>')`.
+- `person` → use that `person_id`.
+- `none` → create them through the doors, then link the address, in the same run:
+  `SELECT * FROM person_put('<tenant>', NULL, '<their full name, as the calendar or CRM has it>', now(), '<actor>', 'call guide <YYYY-MM-DD>: attendee had no person record')`
+  returns the new id, then
+  `SELECT * FROM person_address_link('<tenant>', '<that id>', 'email', '<their email>', 'calendar invite <event id>', '<actor>')`.
+- `ambiguous` → **stop and say so.** Name the candidates in the guide's picture line and do not mint;
+  picking one is a guess about who someone is.
 
+`<actor>` is `session:<your session id>` on a live run, `job:<job name>` on a scheduled one.
+
+**2 · REUSE THE PERSON'S LINK FIRST, BUT ONLY ONE THAT PLAYS.** A second guide for the same person
+keeps their link, because the talk rows (3.5c) and the opens hang off it; minting again orphans both.
+Look for a live one that opens a walkthrough:
+```sql
+SELECT id, telling, relationship, platform_picture_link_plays(id) AS plays
+  FROM platform_picture_link
+ WHERE tenant_id = '<tenant>' AND for_person = '<their person id>' AND revoked_at IS NULL
+   AND platform_picture_link_plays(id) IS NOT NULL
+ ORDER BY minted_at DESC LIMIT 1;
+```
+Found → use that `id`, and carry its address from the newest prior guide for this person (the
+**LINK:** line in its kept `aspectsMarkdown`, read as in Step 5). If the address can't be recovered,
+mint below and copy the old link's `platform_picture_talk` rows onto the new `link_id` in the same
+run. **A live link for this person that plays NULL is the old shape: do not reuse it.** Mint a new
+one and copy its talk rows the same way.
+
+**3 · MINT, WHEN THERE IS NO LINK THAT PLAYS** — through the board connector, resolved BY CATEGORY:
 ```sql
 SELECT * FROM platform_picture_link_mint_for_title(
   '<tenant>', '<org>', '<brand>', '<their job title, or empty>',
-  'call guide for <Name> (<Company>) <YYYY-MM-DD>', 'session:<your session id>',
-  '<relationship: prospect|client|partner|co-creation|update>', '<their person id>');
+  'call guide for <Name> (<Company>) <YYYY-MM-DD>', '<actor>',
+  NULL,                    -- p_relationship: NULL means prospect, the company's default walkthrough
+  '<their person id>');    -- p_for_person: REQUIRED, from 1
 ```
-Always pass the last two: without `for_person` the next guide cannot find this link to reuse it.
+It returns `link_id, url, lens, org_ref, brand, lens_why, telling, reader`. **Pass `p_relationship`
+and `p_telling` only when a custom walkthrough was built for this person's relationship** (look in
+`platform_picture_telling` for that relationship; a telling named for this person or their company
+is the sign). Otherwise leave both NULL and the default walkthrough plays. Never pass the old
+six-argument form: it still exists, and it makes a link that opens the old plain picture.
 
-`<org>` is `self` — **the sending company's own picture** (operator ruling, same day: *"always ours
+`<org>` is `self` — **the sending company's own picture** (operator ruling 2026-09-17: *"always ours
 for now"*), until he rules otherwise; pass the recipient's organization id only when he has said
 to show theirs. The title picks the reader view, and the result says which view and why, so the
 guide can say what the recipient will see. **The url is returned ONCE** — only its hash is stored —
 so write it into `aspectsMarkdown` immediately, replacing the library's default link in this guide
 only. Never write a minted link back into the library.
 
-⛔ **IF THE MINT FAILS, SAY SO AND KEEP THE LIBRARY LINK.** A guide with the shared link still
-works; a guide with a dead link does not, and one that quietly drops the picture looks exactly like
-a guide that never had one.
+**4 · SHOW WHAT IT PLAYS, AND PROVE IT.** The guide's picture line names the walkthrough and who it
+greets, in the LINK note: `<label> | <url> | SHARE · walkthrough "<telling>", greets <reader> by name`.
+Then confirm it from the store, not from the mint's own answer:
+`SELECT platform_picture_link_plays('<link_id>')` must return that same telling. It reads without
+stamping an open, so it is safe to run before anyone has clicked. NULL means the guide is carrying
+the old picture: do not ship it.
+
+⛔ **IF THE MINT FAILS, SAY SO, AND NEVER FALL BACK TO A LINK THAT PLAYS NULL.** The library's
+default link opens the old plain picture, so it is not a safe fallback any more. Handle each refusal
+by its code:
+- `NO-READER` → you did not pass a person id. Go back to 1.
+- `READER-UNKNOWN` → the id is not a person in this tenant. Go back to 1; never type an id by hand.
+- `NO-WALKTHROUGH` → the relationship you passed has no walkthrough with steps (nothing was kept).
+  Retry once with `p_relationship` and `p_telling` NULL, so the default plays.
+- Anything else, or a second refusal → take the picture link out of this guide's picture card and
+  write, where the link was, *"No picture link: <code> - <the refusal's words>."* A guide that
+  quietly drops the picture looks exactly like a guide that never had one; a guide with the old
+  picture shows the recipient the wrong thing.
 
 ### 3.5b — WHAT A GUIDE MAY LINK, AND WHAT IT MUST NEVER (added 2026-09-17)
 
@@ -226,11 +272,9 @@ recipient READS; the talk track is what the operator SAYS. They are never the sa
 
 **Only when the guide carries a picture link (3.5a).** No link → no talk track, and nothing to say.
 
-1. **Resolve the link and its telling, then read the steps.** The link is the one 3.5a reused or minted. Its telling is its own `telling`, else the default telling for its `relationship`:
+1. **Resolve the link and its telling, then read the steps.** The link is the one 3.5a reused or minted. Its telling is what `platform_picture_link_plays` says it plays, the same choice the page makes:
    ```sql
-   WITH l AS (SELECT l.tenant_id, l.id, COALESCE(l.telling,
-       (SELECT t.telling FROM platform_picture_telling t WHERE t.tenant_id = l.tenant_id
-          AND t.is_default AND t.relationship = l.relationship LIMIT 1)) AS telling
+   WITH l AS (SELECT l.tenant_id, l.id, platform_picture_link_plays(l.id) AS telling
      FROM platform_picture_link l WHERE l.tenant_id = '<tenant>' AND l.id = '<link_id>')
    SELECT l.telling, s.position, s.tab, s.title, s.say
      FROM l JOIN platform_picture_tour_step s ON s.tenant_id = l.tenant_id AND s.telling = l.telling
