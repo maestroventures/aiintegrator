@@ -93,6 +93,20 @@ const UNIT = {
       tx: { text: 'x' }, crmAttached: true, callEndedAt: '2026-09-24T17:00:00-06:00', now: NOW });
     return { ok: h.tone === 'green' && h.line === 'Checked — current as of Sep 24, 5:00 PM MDT', got: JSON.stringify(h) };
   },
+  J9: function (H) {
+    // Real sources lines from the 2026-09-25 walk (names removed). A denial is never a mention.
+    const deb = function (line, ops) { return H.debriefFacts({ content: { contextBar: [{ label: 'Sources', value: line }],
+      conflicts: (ops || []).map(function () { return { operatorSaid: 'said on the call' }; }), promises: [] }, crmAttached: true, now: NOW }); };
+    const a = deb('RECAP EMAIL ONLY — the host\'s summary (Sep 16) with auto-notes quoted inside it. No recording and no transcript reached you, and there are no call notes from you.', [1, 2]);
+    const b = deb('Recap email from the host ONLY — no transcript (no recording; the notes are not shared with you) and no call notes from you.', [1]);
+    const c = deb('Fireflies transcript + summary + email thread + CRM · no call notes from you', [1, 2, 3]);
+    const d = deb('Transcript only — no notes from you on this call', [1]);
+    const ok = a.tone === 'red' && a.reasons[0].code === 'no-transcript-no-notes'
+      && b.tone === 'red' && b.reasons[0].code === 'no-transcript-no-notes'
+      && c.tone === 'amber' && c.reasons.map(function (r) { return r.code; }).join() === 'no-notes'
+      && d.tone === 'amber' && d.reasons.map(function (r) { return r.code; }).join() === 'no-notes';
+    return { ok: ok, got: [a, b, c, d].map(function (h) { return h.tone + ':' + h.reasons.map(function (r) { return r.code; }).join('+'); }).join(' | ') };
+  },
   J8: function (H) {
     let jargon = null, badTone = null, fine = null;
     try { H.guideFacts({ emailRecord: REC_GREEN, content: { health: { problems: [{ tone: 'amber', say: 'call_doc row has a hosted gap' }] } } }); }
@@ -182,6 +196,7 @@ const LABEL = {
   J5: 'J5 RED debrief: a recap and nothing else -> "Built from a recap email only — no transcript and no notes from you"',
   J6: 'J6 amber debrief: "No notes from you on this call" and "1 promise has no due date"',
   J7: 'J7 green debrief: transcript + notes + every promise dated -> "Checked — current as of Sep 24, 5:00 PM MDT"',
+  J9: 'J9 a denial is never a mention: "RECAP EMAIL ONLY — no transcript … no call notes from you" is RED; "transcript · no call notes from you" is amber, even with "You said" conflicts',
   J8: 'J8 a session\'s own reason is plain words or the build is refused (exit 23); a real one shows, red',
   B1: 'B1 served (https): ONE POST to /api/cc/call-doc-report, cookie-signed, carrying doc_id, reasons and the note; nothing copied',
   B2: 'B2 file://: nothing POSTed; the prefilled "Report: guide <doc_id> for <person> <date> — <reasons> — <note>" is copied and it says "Copied — paste it into any Claude session."',
@@ -302,6 +317,11 @@ const LABEL = {
       from: "reasons.push(reason(CODES.NO_SOURCE, 'red',", to: "reasons.push(reason(CODES.NO_SOURCE, 'amber'," },
     { name: 'promises with no due date are not counted', owns: ['J6'],
       from: "if (noDue) reasons.push(", to: "if (false) reasons.push(" },
+    { name: 'a negated notes mention counts as notes', owns: ['J9'],
+      from: 'if (denied(line, OPERATOR_NOTES_RX)) return false;', to: '' },
+    { name: 'a negated transcript mention counts as a transcript', owns: ['J9'],
+      from: "function said(s, rx) { return clausesOf(s).some(function (c) { return rx.test(c) && !NEGATION_RX.test(c); }); }",
+      to: "function said(s, rx) { return clausesOf(s).some(function (c) { return rx.test(c); }); }" },
     { name: 'jargon is let through', owns: ['J8'],
       from: 'if (JARGON_RX.test(say)) throw', to: 'if (false) throw' },
     { name: 'a file:// page tries to POST instead of copying', owns: ['B2', 'B3'],

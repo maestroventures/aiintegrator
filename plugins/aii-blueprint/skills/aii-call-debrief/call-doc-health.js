@@ -157,12 +157,25 @@ function guideFacts(facts) {
    declared --no-transcript. facts.crmAttached. facts.callEndedAt (config).
    content.health (optional, from the session): { source: transcript|recap|notes,
    operatorNotes: boolean, crmMissingEmails: <count>, newestEmailAt: <ISO>, problems: [...] }. */
+/* A sources line is read clause by clause, and a clause that says "no" / "not" / "without" is a
+   denial, never a mention: "RECAP EMAIL ONLY — no transcript, no notes from you" names a recap
+   and denies both the transcript and the notes. Found on the 2026-09-25 walk of real debriefs,
+   where "no call notes from you" had been read as notes and "no transcript" as a transcript. */
+const NEGATION_RX = /\b(no|not|without|never|nothing)\b/i;
+const OPERATOR_NOTES_RX = /(notes from you|your (call )?notes|call notes|operator notes)/i;
+function clausesOf(s) {
+  return String(s || '').split(/\s[—–-]\s|[·+|;,()]|\.\s/).map(function (c) { return c.trim(); }).filter(Boolean);
+}
+function said(s, rx) { return clausesOf(s).some(function (c) { return rx.test(c) && !NEGATION_RX.test(c); }); }
+function denied(s, rx) { return clausesOf(s).some(function (c) { return rx.test(c) && NEGATION_RX.test(c); }); }
 function sourceOf(content, tx) {
   const h = (content && content.health) || {};
   if (['transcript', 'recap', 'notes'].indexOf(h.source) >= 0) return h.source;
   if (tx && tx.none != null) return /recap/i.test(String(tx.none)) ? 'recap' : 'notes';
   const s = sourcesLine(content);
-  if (/recap/i.test(s) && !/transcript/i.test(s)) return 'recap';
+  if (said(s, /transcript/i)) return 'transcript';
+  if (said(s, /recap/i)) return 'recap';
+  if (denied(s, /transcript/i)) return said(s, OPERATOR_NOTES_RX) ? 'notes' : 'recap';
   return 'transcript';
 }
 function sourcesLine(content) {
@@ -174,7 +187,9 @@ function hasOperatorNotes(content, source) {
   const h = (content && content.health) || {};
   if (typeof h.operatorNotes === 'boolean') return h.operatorNotes;
   if (source === 'notes') return true;
-  if (/notes/i.test(sourcesLine(content))) return true;
+  const line = sourcesLine(content);
+  if (denied(line, OPERATOR_NOTES_RX)) return false;
+  if (said(line, OPERATOR_NOTES_RX)) return true;
   return !!(content && Array.isArray(content.conflicts) && content.conflicts.some(function (c) { return c && String(c.operatorSaid || '').trim(); }));
 }
 function debriefFacts(facts) {
