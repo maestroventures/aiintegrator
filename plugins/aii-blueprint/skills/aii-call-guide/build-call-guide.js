@@ -134,6 +134,37 @@ function loadRegistrar() {
     '\nIf this is a packed skill, register-call-doc.js belongs in the skill\'s own bundle.'
   );
 }
+
+/* ── THE HEALTH BADGE MODULE (0.9.53) — probed exactly like the registrar above ───────────────
+   call-doc-health.js draws the badge and the "Something wrong? Report it" button at the top of
+   every guide (ruling dr_every_call_document_carries_a_problem_badge_and_a_report_button_20260925,
+   Call-Record-Lifecycle-SPEC-v1.0 section 8). ONE source, bundled into both call skills. A missing
+   module REFUSES the build: a guide with no badge and no report button is the exact thing the
+   ruling ended, so it must never be produced quietly. */
+let _health = null;
+function loadHealth() {
+  if (_health) return _health;
+  const tries = [
+    path.join(__dirname, 'call-doc-health'),
+    path.join(__dirname, 'scripts', 'call-doc-health'),
+    path.join(__dirname, '..', '..', '..', '04 — Daily Operating System', 'scripts', 'call-doc-health'),
+  ];
+  const failed = [];
+  for (const t of tries) {
+    try { _health = require(t); return _health; } catch (e) { failed.push(t + ': ' + e.message.split('\n')[0]); }
+  }
+  throw new Error('THE HEALTH BADGE MODULE IS MISSING. A call document without its badge and report button must not be built.\n' +
+    'Tried:\n  ' + failed.join('\n  ') + '\nIf this is a packed skill, call-doc-health.js belongs in the skill\'s own bundle.');
+}
+function loadHealthPath() {
+  const tries = [
+    path.join(__dirname, 'call-doc-health.js'),
+    path.join(__dirname, 'scripts', 'call-doc-health.js'),
+    path.join(__dirname, '..', '..', '..', '04 — Daily Operating System', 'scripts', 'call-doc-health.js'),
+  ];
+  for (const t of tries) { if (fs.existsSync(t)) return t; }
+  return tries[0];
+}
 /* Resolved LAZILY, inside main(). Not a style choice: build-call-guide.js declares
    its `path` const further down the file, so calling loadRegistrar() at module load
    throws "Cannot access 'path' before initialization". Proven by running it. */
@@ -190,7 +221,13 @@ function sha256(x) { return crypto.createHash('sha256').update(x).digest('hex');
    hash can, and it cannot be forgotten. */
 let _builderSha = null;
 function builderSha256() {
-  if (_builderSha === null) _builderSha = sha256(fs.readFileSync(__filename));
+  /* 0.9.53: the badge is drawn by call-doc-health.js, so the renderer is THIS file AND that one. Hashing only
+     this file would let a changed badge re-render a kept state as a different document under the same revision. */
+  if (_builderSha === null) {
+    let mod = '';
+    try { mod = fs.readFileSync(require.resolve(loadHealthPath())); } catch (e) { mod = 'call-doc-health.js not found'; }
+    _builderSha = sha256(Buffer.concat([fs.readFileSync(__filename), Buffer.from('\n--call-doc-health--\n'), Buffer.from(mod)]));
+  }
   return _builderSha;
 }
 
@@ -1825,6 +1862,8 @@ function buildStandaloneHtml(g, config, out) {
    what stops is shipping them. */
 '<style>' + BOARD_CSS + STANDALONE_CSS + '</style></head>',
 '<body>',
+/* THE HEALTH BADGE, FIRST THING ON THE PAGE (0.9.53) — where the eye lands. Drawn from cfg.health only. */
+loadHealth().badgeHtml(cfg, 'guide'),
 '<div class="cgb"><div class="panel" style="max-width:1700px;margin:12px auto 0">' +
   '<div class="stackhead"><h2>' + esc(title) + '</h2>' +
   '<span class="ctx">' + esc(sub) + '</span></div></div></div>',
@@ -2202,7 +2241,7 @@ function regenerate(readPlan, rowsIn, opts) {
       'never be filed as if it were.';
 
   /* Same gate as a fresh build. A regeneration is a build. */
-  crmRecordGate(config);
+  const crmR = crmRecordGate(config);
 
   /* ── HAS THE CONTENT CHANGED SINCE ITS RECORDED RENDER? Added 2026-09-24. ─────────
      The change note below used to say "re-render only, no content change" on EVERY
@@ -2233,6 +2272,14 @@ function regenerate(readPlan, rowsIn, opts) {
                              String(storedContentSha).slice(0, 12) + '… -> ' + contentSha.slice(0, 12) + '…)',
                   unknown:   'content change UNKNOWN: this kept state records no content hash to compare',
                 })[contentChange];
+
+  /* THE BADGE ON A REGENERATION (0.9.53). Handed a fresh email lookup, the regeneration is judged afresh, like
+     a build — the badge says what is true NOW. Without one, the stored badge is kept, so a pure re-render stays
+     byte-identical to the recorded document. */
+  if (opts && opts.gateRaw && opts.gateRaw.newestEmail) {
+    config.health = loadHealth().guideFacts({ emailRecord: opts.gateRaw.newestEmail, crmAttached: crmR.attached,
+      content: contentOf(g), zone: config.timeZone });
+  }
 
   const rendered = {};
   const html = buildStandaloneHtml(g, config, rendered);
@@ -2600,7 +2647,8 @@ async function main() {
 
   /* THE OPEN-LOOP GATE (2026-09-24) — same place, same reason: before a byte is rendered.
      loadBuildGate has just proven the file exists and parses. */
-  const openLoops = openLoopGate(g, { gateRaw: JSON.parse(fs.readFileSync(gatePath, 'utf8')) });
+  const gateRaw = JSON.parse(fs.readFileSync(gatePath, 'utf8'));
+  const openLoops = openLoopGate(g, { gateRaw: gateRaw });
 
   const R = loadRegistrar();
   if (!config.docId) config.docId = R.deriveDocId('guide', config.eventId);
@@ -2609,6 +2657,12 @@ async function main() {
      beside the conformance guard and the eventId refusal, not after the write, because a
      refusal that fires after the file exists is a cleanup instruction, not a gate. */
   const crm = crmRecordGate(config);
+
+  /* THE HEALTH BADGE'S FACTS (0.9.53), judged ONCE here from what this build knows — the email lookup the
+     open-loop gate just read and the CRM link — and stored in the page config, so a re-render from kept state
+     draws the same badge. A jargon-carrying session reason refuses here, before a byte is rendered. */
+  config.health = loadHealth().guideFacts({ emailRecord: gateRaw.newestEmail, crmAttached: crm.attached,
+    content: g, zone: config.timeZone });
 
   const rendered = {};
   const html = buildStandaloneHtml(g, config, rendered);

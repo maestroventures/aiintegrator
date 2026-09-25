@@ -98,6 +98,37 @@ function loadRegistrar() {
     '\nIf this is a packed skill, register-call-doc.js belongs in the skill\'s own bundle.'
   );
 }
+
+/* ── THE HEALTH BADGE MODULE (0.9.53) — probed exactly like the registrar above ───────────────
+   call-doc-health.js draws the badge and the "Something wrong? Report it" button at the top of
+   every debrief (ruling dr_every_call_document_carries_a_problem_badge_and_a_report_button_20260925,
+   Call-Record-Lifecycle-SPEC-v1.0 section 8). ONE source, bundled into both call skills. A missing
+   module REFUSES the build: a debrief with no badge and no report button is the exact thing the
+   ruling ended, so it must never be produced quietly. */
+let _health = null;
+function loadHealth() {
+  if (_health) return _health;
+  const tries = [
+    path.join(__dirname, 'call-doc-health'),
+    path.join(__dirname, 'scripts', 'call-doc-health'),
+    path.join(__dirname, '..', '..', '..', '04 — Daily Operating System', 'scripts', 'call-doc-health'),
+  ];
+  const failed = [];
+  for (const t of tries) {
+    try { _health = require(t); return _health; } catch (e) { failed.push(t + ': ' + e.message.split('\n')[0]); }
+  }
+  throw new Error('THE HEALTH BADGE MODULE IS MISSING. A call document without its badge and report button must not be built.\n' +
+    'Tried:\n  ' + failed.join('\n  ') + '\nIf this is a packed skill, call-doc-health.js belongs in the skill\'s own bundle.');
+}
+function loadHealthPath() {
+  const tries = [
+    path.join(__dirname, 'call-doc-health.js'),
+    path.join(__dirname, 'scripts', 'call-doc-health.js'),
+    path.join(__dirname, '..', '..', '..', '04 — Daily Operating System', 'scripts', 'call-doc-health.js'),
+  ];
+  for (const t of tries) { if (fs.existsSync(t)) return t; }
+  return tries[0];
+}
 /* Resolved LAZILY, inside main(). Not a style choice: build-call-guide.js declares
    its `path` const further down the file, so calling loadRegistrar() at module load
    throws "Cannot access 'path' before initialization". Proven by running it. */
@@ -155,7 +186,13 @@ function sha256(x) { return crypto.createHash('sha256').update(x).digest('hex');
    cannot be forgotten and cannot flatter itself. */
 let _builderSha = null;
 function builderSha256() {
-  if (_builderSha === null) _builderSha = sha256(fs.readFileSync(__filename));
+  /* 0.9.53: the badge is drawn by call-doc-health.js, so the renderer is THIS file AND that one. Hashing only
+     this file would let a changed badge re-render a kept state as a different document under the same revision. */
+  if (_builderSha === null) {
+    let mod = '';
+    try { mod = fs.readFileSync(require.resolve(loadHealthPath())); } catch (e) { mod = 'call-doc-health.js not found'; }
+    _builderSha = sha256(Buffer.concat([fs.readFileSync(__filename), Buffer.from('\n--call-doc-health--\n'), Buffer.from(mod)]));
+  }
   return _builderSha;
 }
 
@@ -918,6 +955,8 @@ function buildStandaloneHtml(d, config, out) {
 '<div class="header"><div class="header-left"><h1>' + esc(d.header && d.header.title || config.prospect) + '</h1>' +
   '<p>' + esc(d.header && d.header.subtitle || '') + '</p></div>' +
   '<div class="header-right"><div class="status-dot"></div><span class="call-live">DEBRIEF</span></div></div>',
+/* THE HEALTH BADGE, directly under the title bar (0.9.53) — where the eye lands. Drawn from cfg.health only. */
+loadHealth().badgeHtml(cfg, 'debrief'),
 '<div class="context-bar">' + sec.contextBar + '</div>',
 '<div class="doc-controls" style="max-width:820px;margin:10px auto 0;padding:0 24px;display:flex;gap:8px;">' +
   '<button class="btn btn-ghost" onclick="expandAll()">⊕ Expand all</button>' +
@@ -1565,6 +1604,15 @@ async function main() {
     '--transcript <file> (the transcript section, never the assistant\'s summary), or declare --no-transcript "<reason>".');
   const pGate = promiseGate(d, config, tx, crm, promiseByArg);
 
+  /* THE DEBRIEF KNOWS ITS OWN doc_id (0.9.53), so its report button has an address — derived through the
+     registrar's own rule, never re-typed (the guide has done this since 2026-08-07). */
+  if (!config.docId && config.eventId) config.docId = loadRegistrar().deriveDocId('debrief', config.eventId);
+  /* THE HEALTH BADGE'S FACTS (0.9.53), judged ONCE from what this build knows — transcript or not, the user's
+     notes, the promises' due dates, the CRM link — and stored in the page config so a re-render draws the same
+     badge. A jargon-carrying session reason refuses here, before a byte is rendered. */
+  config.health = loadHealth().debriefFacts({ content: d, tx: tx, crmAttached: crm.attached,
+    callEndedAt: config.callEndedAt, zone: config.timeZone });
+
   const rendered = {};
   const html = buildStandaloneHtml(d, config, rendered);
   /* Nothing is on disk yet. See this gate's own header for why it lives here and not in the
@@ -1699,7 +1747,7 @@ async function main() {
 if (require.main === module) {
   /* Regeneration refusals exit on their own code (REGEN_EXIT), and so does the promise gate
      (PROMISE_EXIT.UNRECORDED, 0.9.50); every other refusal keeps exit 1. */
-  main().catch((e) => { console.error(e.message); process.exit((e.regenCode || e.promiseCode) ? (e.exitCode || 1) : 1); });
+  main().catch((e) => { console.error(e.message); process.exit((e.regenCode || e.promiseCode || e.healthCode) ? (e.exitCode || 1) : 1); });
 }
 module.exports = { buildStandaloneHtml, buildBodyHtml,
                    /* Exported so the gates can be PROVEN rather than asserted — see the same

@@ -173,6 +173,8 @@ try {
     fs.mkdirSync(dir);
     fs.writeFileSync(path.join(dir, 'build-call-guide.js'), src.replace(from, to));
     fs.copyFileSync(path.join(HERE, 'register-call-doc.js'), path.join(dir, 'register-call-doc.js'));
+    // 0.9.53: the builder refuses without its badge module, so a mutant carries it too (it is not what is mutated).
+    fs.copyFileSync(path.join(HERE, 'call-doc-health.js'), path.join(dir, 'call-doc-health.js'));
     return path.join(dir, 'build-call-guide.js');
   }
   const off = mutant('gate-off', 'function openLoopGate(g, opts) {\n',
