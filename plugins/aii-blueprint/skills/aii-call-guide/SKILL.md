@@ -1,5 +1,6 @@
 ---
 name: aii-call-guide
+version: v1.2 (2026-09-25)
 description: >
   AI Integrator Blueprint: Call Guide. Builds a deep, advisor-driven sales call guide for an
   upcoming meeting and saves it as a standalone interactive HTML file in the client folder. Use
@@ -22,6 +23,12 @@ Two jobs split clean:
 - **Shell** = the interactive HTML (`build-call-guide.js` writes this — never hand-edit it).
 
 This skill ships with a locked builder script (`build-call-guide.js`) in the skill folder. Resolve its real path from this session's path map before running it.
+
+**`<skill-folder>` means the INSTALLED plugin's `aii-call-guide` folder** (added 2026-09-25): the pack
+bundles `build-call-guide.js`, `register-call-doc.js` and `upload-call-doc.js` there side by side. A
+source copy of the builder does NOT have the other two beside it — on the build machine they live in
+the workspace's `04 — Daily Operating System/scripts/`. So resolve each of the three separately from
+the path map, and confirm the file exists before you run it; a missing script is a STOP, not a skip.
 
 ---
 
@@ -134,13 +141,24 @@ is the wrong shape:** opens cannot be told apart, and switching one off breaks e
 Ruled by the operator 2026-09-17 (`dr_every_recipient_gets_its_own_picture_20260917_095443`):
 *every recipient gets their own link*, and the picture follows their own chain and their role.
 
-So, for THIS guide, mint one — through the board connector, resolved BY CATEGORY:
+**REUSE THE PERSON'S LINK FIRST (added 2026-09-25).** A second guide for the same person keeps
+their link, because the talk rows (3.5c) and the opens hang off it; minting again orphans both.
+Look for a live one: `SELECT id, telling, relationship, code_for_reuse FROM platform_picture_link
+WHERE tenant_id = '<tenant>' AND for_person = '<their person id>' AND revoked_at IS NULL ORDER BY
+minted_at DESC LIMIT 1`. Found → use that `id`, and carry its address from the newest prior guide
+for this person (the **LINK:** line in its kept `aspectsMarkdown`, read as in Step 5). If the address
+can't be recovered, mint below and copy the old link's `platform_picture_talk` rows onto the new
+`link_id` in the same run. **Mint only when the person has no live link.**
+
+So, when there is none, mint one — through the board connector, resolved BY CATEGORY:
 
 ```sql
 SELECT * FROM platform_picture_link_mint_for_title(
   '<tenant>', '<org>', '<brand>', '<their job title, or empty>',
-  'call guide for <Name> (<Company>) <YYYY-MM-DD>', 'session:<your session id>');
+  'call guide for <Name> (<Company>) <YYYY-MM-DD>', 'session:<your session id>',
+  '<relationship: prospect|client|partner|co-creation|update>', '<their person id>');
 ```
+Always pass the last two: without `for_person` the next guide cannot find this link to reuse it.
 
 `<org>` is `self` — **the sending company's own picture** (operator ruling, same day: *"always ours
 for now"*), until he rules otherwise; pass the recipient's organization id only when he has said
@@ -199,6 +217,46 @@ machine, so every check anyone ran was green by construction.
 `aspects` (the already-parsed object) still wins if you pass it, which is how a per-prospect override
 works. Pass neither and the builder throws — deliberately, and it names this step in the error.
 
+### 3.5c — Demo walkthrough talk track: what to SAY at each step (added 2026-09-25)
+
+Ruled by the operator 2026-09-25 (`dr_call_guide_carries_evolving_demo_talk_track_and_debrief_asks_shape_20260925`):
+*"the call guide should always reference what it is I'm talking about with this person as we learn
+more about this person and what we could do together."* The picture's page words are what the
+recipient READS; the talk track is what the operator SAYS. They are never the same words.
+
+**Only when the guide carries a picture link (3.5a).** No link → no talk track, and nothing to say.
+
+1. **Resolve the link and its telling, then read the steps.** The link is the one 3.5a reused or minted. Its telling is its own `telling`, else the default telling for its `relationship`:
+   ```sql
+   WITH l AS (SELECT l.tenant_id, l.id, COALESCE(l.telling,
+       (SELECT t.telling FROM platform_picture_telling t WHERE t.tenant_id = l.tenant_id
+          AND t.is_default AND t.relationship = l.relationship LIMIT 1)) AS telling
+     FROM platform_picture_link l WHERE l.tenant_id = '<tenant>' AND l.id = '<link_id>')
+   SELECT l.telling, s.position, s.tab, s.title, s.say
+     FROM l JOIN platform_picture_tour_step s ON s.tenant_id = l.tenant_id AND s.telling = l.telling
+    ORDER BY s.position;
+   ```
+2. **Write (or rewrite) one `platform_picture_talk` row per step** for that link (key: tenant,
+   `link_id`, `position`): `say` = **two short spoken lines in the operator's voice — never the
+   screen words** — plus one `lands_because` line saying why it lands for THIS person. Tailor from
+   everything known: their CRM record, prior calls' transcripts and debriefs, what they said, and
+   what we could build together (co-creation, a product in their name). **Read the newest debrief's
+   shape answers first** (`aii-call-debrief` Step 4e — a CRM note titled *Shape answers*): the
+   track must get better every call, so what the operator told us last time outranks what we guessed.
+   Set `from_telling`, `set_by`, `set_at`. **Rewrite** when the telling, the recipient, or what we
+   know has changed since `from_telling` / `set_at` — **and when the purpose of THIS call has
+   changed.** Re-read every existing row against this call's purpose and what they have already
+   seen: on a second call, *"before we talk about you, let me show you ours"* is stale. Rewrite any
+   line that no longer fits; keep only the rows that still do.
+3. **Emit one section, right after the section that carries the picture link:**
+   `{"id":"demo","title":"Demo walkthrough: what to say at each step","kind":"if","lane":"cover","mins":"3 min",
+   "words":["<N> · <tab>: <line 1> <line 2>", …one per step, copied from the rows…],
+   "why":"Say it; don't read the screen. The page stays sendable as is.",
+   "when":"The moment you share your screen on the picture.",
+   "do":["1. <lands_because>", …numbered…], "dont":["Don't read the page aloud."],
+   "docs":[<the same picture-link chip>]}`.
+   Copy the words FROM the rows you just wrote — the rows are the record, the section is its print.
+
 ---
 
 ## Step 4 — Build the shell + save to the client folder
@@ -218,6 +276,13 @@ extras — they are what the finished document is filed under, and **a document 
 does not get to exist.** That is deliberate: an unregistered call document is invisible to the
 Command Center and looks IDENTICAL to one that was never built. You captured both in Step 2; put
 them in the config. `meetingDate` must equal the `YYYYMMDD` slot in the filename.
+
+**No invite yet (added 2026-09-25).** When the call is agreed but not booked, there is no calendar
+id — don't stall and don't invent one that looks real. Use `eventId` =
+`tbd-<person-slug>-<purpose-slug>-wk<YYYYMMDD>` (the Monday of the expected week), set
+`"eventIdSource":"operator"` in `config.json`, and `meetingDate` = the best-known date. **Re-key it
+when the invite lands:** point the `call_doc` row and the pointer (Step 4.5) at the real calendar id,
+with `event_id_source` `calendar`.
 
 > ⚠ **CORRECTED 2026-08-06.** This paragraph used to say *"the builder registers the file in
 > `call_doc` the instant it writes it, and a registration that fails deletes the file it just
