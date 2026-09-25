@@ -1,5 +1,6 @@
 ---
 name: aii-call-debrief
+version: v1.4 (2026-09-25)
 description: >
   AI Integrator Blueprint: Call Debrief. Builds a deep, advisor-driven debrief of a call that
   already happened and saves it as a standalone interactive HTML file in the client folder. Use
@@ -144,6 +145,33 @@ The debrief is the one moment the system holds **both** the raw record **and** t
 **Reusable lines are not voice.** This captures *how they sound*, not *what to say*. If a line is good enough to hand them again, register it in the Content Library (§7 Part 3).
 
 Report it in **one plain line**, including how many calls the profile now runs on — and if that is under the pattern floor, say so rather than letting it read as settled.
+
+---
+
+## Step 4e — Open questions for you: the shape of what we could do together (added 2026-09-25)
+
+Ruled by the operator 2026-09-25 (`dr_call_guide_carries_evolving_demo_talk_track_and_debrief_asks_shape_20260925`):
+the debrief asks him *anything you don't know or need clarification on about … what the shape of
+this could look like.* His answers feed the next guide's talk track (`aii-call-guide` 3.5c), which
+is how the walkthrough gets better every call.
+
+After the content above is written, list what is still NOT known about the shape, across four
+questions only:
+1. **Co-creation** — what would building it together look like with this person?
+2. **Product X** — what would a product in their name be: its parts, and who it is for?
+3. **Go-to-market** — how would it reach buyers? *(Ask it. Do NOT add a go-to-market step to the
+   walkthrough — ruled out for now.)*
+4. **1+1=10** — where do their strengths and ours multiply rather than add?
+
+**Read first, never re-ask.** Drop any question the transcript, the CRM record or a prior debrief's
+shape answers already settle. Zero questions is a valid result — say so in one line.
+
+**Where they go.** Put each remaining question in the debrief as a `nextSteps.needsYou` item whose
+`action` starts `Open question for you —` and whose `why` names which of the four it is (the builder
+has no block of its own yet; this renders under ⚑ Needs you). **When he answers, write his words
+verbatim as a CRM note on the lead titled `Shape answers — <YYYY-MM-DD>`** (`do_action` "Create
+note", the same door Step 7 uses). That is where the next guide reads them: its Step 1 already
+reads the lead's notes. No lead → say so out loud; the answers have no home until the lead exists.
 
 ---
 
