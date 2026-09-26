@@ -1,7 +1,7 @@
 {
   "name": "aii-blueprint",
   "displayName": "AI Integrator - Blueprint Plugin",
-  "version": "0.9.53",
+  "version": "0.9.54",
   "description": "AI Integrator gives your company an operating system that keeps working when nobody is watching. One install brings the Blueprint: skills that prepare and debrief your calls, keep your CRM honest, chase what has stalled, clean up your own reference files, check your setup, and run your scheduled work unattended — plus the single connector they all reach your tools through. Sign your tools in once in the Command Center (Settings → Admin → Company tools) and the skills do the rest. Start by saying 'patch me up' or 'set me up'. More at aiintegratorhq.com.",
   "author": {
     "name": "AI Integrator",
