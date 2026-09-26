@@ -1498,6 +1498,19 @@ function selfTest() {
       sp.statements.every((x, i) => x.params[2] === i + 1 && x.params[3] === sp.n_chunks && x.params[5].length <= 16000 && x.params[1] === t) &&
       /call_doc_upload_status/.test(sp.status.sql);
   });
+  chk('O9 every staged chunk carries the sha256 of ITS OWN text as $8, and is at most 6,000 characters (0.9.54)', () => {
+    const bytes = Buffer.from('<html>' + require('crypto').randomBytes(40000).toString('hex') + '</html>', 'utf8');
+    const sp = stagePlan(bytes, 'cdt.' + TENANT + '.' + 'c'.repeat(48), 'run_self_test');
+    const h = (c) => require('crypto').createHash('sha256').update(c, 'utf8').digest('hex');
+    return sp.n_chunks > 3 && /\$8\)/.test(STAGE_SQL) && sp.statements.every((x) => x.params.length === 8 &&
+      x.params[5].length <= 6000 && x.params[7] === h(x.params[5]) && x.chunk_sha256 === x.params[7]);
+  });
+  chk('O10 RED — a chunk altered after planning no longer matches its own $8 (what the store refuses on arrival)', () => {
+    const sp = stagePlan(Buffer.from('<html>' + 'y'.repeat(9000) + '</html>'), 'cdt.' + TENANT + '.' + 'd'.repeat(48), 'run_self_test');
+    const x = sp.statements[0];
+    const altered = (x.params[5][0] === 'A' ? 'B' : 'A') + x.params[5].slice(1);
+    return require('crypto').createHash('sha256').update(altered, 'utf8').digest('hex') !== x.params[7];
+  });
   chk('O7 RED — the stage plan refuses a placeholder ticket or a missing writer', () => {
     const b = Buffer.from('x');
     const threw = (f) => { try { f(); return false; } catch (_) { return true; } };
@@ -1660,7 +1673,9 @@ function hostedHandoff(plan, bytes, folder, o) {
           when: 'upload exits 3 with door_unreachable, or the container cannot reach the door at all',
           run: 'node ' + q(registrar) + ' --stage-sql ' + q(plan.finalPath) + ' --ticket {{TICKET}} --by ' + q(by),
           then: 'run EVERY statement it prints, in order, through the board connector, straight after the mint ' +
-            '(a ticket with under 6 minutes left is refused). Then run its `status` read every ~2 minutes until ' +
+            '(a ticket with under 6 minutes left is refused at the FIRST chunk; each accepted chunk extends it). ' +
+            'CHUNK-CHANGED-IN-TRANSIT = that one chunk arrived altered: re-send THAT statement, never mint again for it. ' +
+            'Then run its `status` read every ~2 minutes until ' +
             "state is 'filed' (about 5 minutes): its file_id and view_url are {{FILE_ID}} and {{VIEW_URL}}. " +
             "State 'refused' or 'expired': mint a NEW ticket and stage again; never guess an id.",
         } },
@@ -1713,10 +1728,19 @@ function openableVerdict(raw) {
    at most 400 chunks. The filer decodes, re-hashes against the ticket and files; this file
    never touches the network. */
 const STAGE_SQL = 'SELECT doc_id, staged, n_chunks, complete, expires_at\n' +
-  '  FROM call_doc_upload_stage($1, $2, $3, $4, $5, $6, $7)';
+  '  FROM call_doc_upload_stage($1, $2, $3, $4, $5, $6, $7, $8)';
 const STAGE_STATUS_SQL = 'SELECT doc_id, state, staged, n_chunks, file_id, view_url, detail, expires_at\n' +
   '  FROM call_doc_upload_status($1, $2)';
-const STAGE_CHUNK = 15000;
+/* 0.9.54: 6,000, down from 15,000, and every chunk carries its own sha256 ($8). MEASURED 2026-09-25 09:46, the
+   cloud sweep staging the Tony Scelzo 09-17 guide (84,514 bytes = 28,624 gzip-base64 characters): the SESSION is the
+   wire on this route - it re-types every character into the connector call - and one character came through wrong.
+   Nothing noticed until the filer's gunzip five minutes later, which burned the ticket 'refused / bad_content'. The
+   retry's 13,624-character chunk took 4.8 minutes to emit and met the 6-minute expiry guard. Now the store hashes
+   each chunk ON ARRIVAL (call_doc_upload_stage, 8 arguments, lib/cc/call-doc-cloud/
+   20260925-call-doc-retire-door-and-chunk-check.sql) and refuses a changed one with CHUNK-CHANGED-IN-TRANSIT, the
+   ticket untouched, so the session re-sends ONE small chunk instead of losing the document; and every accepted chunk
+   extends the ticket, so a slow session is not refused mid-set. */
+const STAGE_CHUNK = 6000;
 
 function stagePlan(bytes, ticket, by) {
   if (!Buffer.isBuffer(bytes) || !bytes.length) throw new Error('stage-sql: refused — needs the settled file\'s bytes.');
@@ -1731,11 +1755,15 @@ function stagePlan(bytes, ticket, by) {
   if (n > 400) throw new Error('stage-sql: refused — ' + n + ' chunks; the store takes at most 400.');
   const statements = [];
   for (let i = 0; i < n; i++) {
-    statements.push({ seq: i + 1, sql: STAGE_SQL,
-      params: [TENANT, ticket, i + 1, n, 'gzip-base64', b64.slice(i * STAGE_CHUNK, (i + 1) * STAGE_CHUNK), String(by)] });
+    const chunk = b64.slice(i * STAGE_CHUNK, (i + 1) * STAGE_CHUNK);
+    const chunkSha = require('crypto').createHash('sha256').update(chunk, 'utf8').digest('hex');
+    statements.push({ seq: i + 1, chunk_sha256: chunkSha, sql: STAGE_SQL,
+      params: [TENANT, ticket, i + 1, n, 'gzip-base64', chunk, String(by), chunkSha] });
   }
   return {
-    _what_this_is: 'Run every statement in order through the board connector. The last one must return ' +
+    _what_this_is: 'Run every statement in order through the board connector, copying each chunk EXACTLY. ' +
+      'CHUNK-CHANGED-IN-TRANSIT on a statement means that one chunk arrived altered: nothing was staged and the ' +
+      'ticket is still good - run THAT statement again, then carry on. The last one must return ' +
       'complete=true. Then run `status` until state is filed and take file_id / view_url from it.',
     bytes: bytes.length,
     sha256: require('crypto').createHash('sha256').update(bytes).digest('hex'),
