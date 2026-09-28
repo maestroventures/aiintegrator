@@ -122,6 +122,42 @@ in the easiest way possible (so the layer above needs less support); whose inter
 is still open to align everyone's incentives. "Nothing is open, because …" is an answer; a blank is
 not. Time (their day) is a lens on the end recipient, not a link. A job missing any link is RED.
 
+## Step 5b — When what you are building is a business model's IDEAL
+
+For a model, a business category or a line of business, run Steps 1–5 on the model itself, plus these.
+They repeat for every model, category and line; lines inside one category are almost always the same,
+so map the category first and record only each line's nuances.
+
+1. **Design the ideal from the model and its recipient, never from a tool.** Today's tools are what create
+   the gaps; no tool is consulted until item 6.
+2. **The recipient's whole journey**, from before they arrive to after they leave, not only the middle a
+   model already covers. Name every job they hire the business for, in their words.
+3. **Every job and every step carries three whys**: the recipient's, the business's and the staff
+   member's, in their own words. The whys of parties further up the chain (a distribution partner, us)
+   are answered per job in Step 5, and on a step only where that step touches them.
+4. **Every step is one of two states**: on its own, or a person — because the business chose it or because
+   it is human by nature. A person-step is a commitment in the Command Center, never a task pushed into
+   another tool: it is tracked (handed off, untouched, dismissed, done), checked by any tool reading that
+   can confirm it, and the people doing the same step are compared.
+5. **Perception versus reality at every moment that decides the relationship**: what the recipient sees,
+   what the staff sees, what the owner sees, what is actually happening, how it is caught without anyone
+   complaining, and the step that closes it.
+6. **Every piece of data a step needs names its source**: a tool that stores it (we read it and keep it
+   current) or nobody (we become its source). We are always the source of truth for the journey. What our
+   API lacks is recorded as OUR gap; a tool is judged by which of our actions it can serve. Delivery goes
+   through the business's own tools or our metered ones.
+7. **Every status the journey reads is standardized** (appointments: `aios-data-domains/appointment_state`);
+   every tool maps its statuses to ours.
+8. **The human gaps no technology fills** (fear, pain, a hard conversation, getting there, bad news), and
+   what the system does around each: prepare the person, measure the result.
+9. **The loyalty moments**: steps almost no business does, which would make the recipient loyal to this one.
+10. **The advisors poke holes in all of it** before it is called done; every addition is marked as theirs
+    for the operator to keep or strike.
+
+Worked instance and plan: `04 — Daily Operating System/_working/dental-patient-jobs-micro-steps-20260927.md`,
+`04 — Daily Operating System/specs/Framework-Web-PLAN-v0.1.md`
+(`dr_the_model_ideal_process_is_a_section_of_the_build_skill_20260927`).
+
 ## Step 6 — Only now build it
 
 Smallest piece first, then assemble: steps into flows, flows into jobs, jobs into the thing.

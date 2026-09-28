@@ -5,8 +5,8 @@ description: >
   Blueprint, end to end, so nobody re-derives the order. It knows where the email ends and where the
   session takes over: the email does only what cannot wait for a session — add the plugin and sign in
   to its one Blueprint connector — and hands the person into a task. Everything after that runs here, with
-  someone on the line: every tool the company uses signed in once in the Command Center and its permissions checked while
-  the person clicks, the required account skills, the equipment check, the interview with every answer
+  someone on the line: every tool the company uses signed in once in the Command Center, the recommended settings approved
+  once by the company admin, the required account skills, the equipment check, the interview with every answer
   written back to the client's own store, then the hand-off to the audit. Fires on "onboard," "new client setup," "get them
   started," "stand up their Blueprint," "run the install," or the first working session on a fresh
   seat. It never reports a step done that it cannot see.
@@ -40,7 +40,8 @@ system works out which of three states they are in, and routes:
   assets they already hand out (Patch Me Up), then offer to measure the company against its ideal
   (Tune-Up).
 - **New, with files** — they have started, or they have handed over real material (a transcribed
-  meeting, an executive summary). Continue where it left off, starting from what they gave.
+  meeting, an executive summary). Continue where it left off, starting from what they gave and from
+  what the store says they are owed (Step 2 item 1's `resume`) — never from what someone tells you.
 - **New, with nothing** — there are no documents to start from. Start from scratch.
 
 **These are separate rooms behind one door, and they call each other:** this skill stands a new client
@@ -147,7 +148,11 @@ not reach that person.
 
 1. **Confirm their setup — never ask it cold.** Call `my_seat_env`, show them its `confirm_question`
    word for word, and ask only "is this right?". If they correct a field, call `correct_my_seat_env`
-   with just that field. Everything you tell them to click branches on it, and getting it wrong
+   with just that field. **Then read its `resume` — this is how a person who says "continue onboarding"
+   hears what they are owed.** If `resume.say` is set, say it in those words before anything else; never
+   compose, add to or rephrase them. An owed item marked `withheld` has words waiting on a fix on our side:
+   say one item is waiting and raise it. `resume.state` "not_read": say plainly that what they are owed
+   could not be read, never "nothing is owed"; "none_here": there is nothing to say. Everything you tell them to click branches on it, and getting it wrong
    describes a screen they do not have.
 2. **Confirm the plugin and its Blueprint connector from the email actually landed.** Call `ping` and read the live
    state; a person who followed the email is not proof that it worked. The framework's own skills
@@ -156,19 +161,22 @@ not reach that person.
    **And confirm the plugin is CURRENT, not merely present.** `ping` proves the connector answers; it
    says nothing about which plugin the seat is running. Run `aii-patch-me-up` Step 2g here — read the
    installed version off the `aii-job-poke` stamp and compare it with the plugin door — and if the seat
-   is behind, stop and have them update before anything else (Cowork: ⋮ → Check for updates, then
-   Update). Say which version they have and which is current. A plugin installed weeks ago does not
-   update itself, and every step after this one is written against the current one.
+   is behind, stop and have them update before anything else: the ⋮ menu on the MARKETPLACE's own entry,
+   NOT the plugin's → Check for updates, then Update (measured 2026-09-25: a walker sent to the plugin's
+   ⋮ could not find it). Never tell them to reinstall. Say which version they have and which is current.
+   The plugin updates itself only once its marketplace's auto-update is on (below), and every step after
+   this one is written against the current one.
    **THEN TURN AUTO-UPDATE ON FOR THE MARKETPLACE, ONCE, WHILE YOU ARE BOTH LOOKING AT IT.** A
    marketplace a person added themselves has auto-update **OFF by default** — that default is only ON
    for Anthropic's own marketplaces, so every client of ours starts frozen. It is one toggle, in the
    plugin screen under the marketplace's own entry, and it is the ONLY thing that stops this person
    freezing again the moment we ship. Do it here, with them, and never leave it as something to do
-   later. Two honest limits to say out loud rather than hide: a running session keeps the version it
+   later. It blocks nothing after it: if the switch cannot be found or will not stay on, note it, say so
+   in one line, carry it to the end-of-walk report, and go on to item 3. Two honest limits to say out loud rather than hide: a running session keeps the version it
    started with, so a new task is what picks an update up; and if "Check for updates" ever answers
    "Failed to update marketplace" and leaves Update greyed out, that is a known desktop bug and the
    fix is to remove the marketplace and add it back from the same link.
-3. **Check their permissions with them — and GET THEM INTO THE COMMAND CENTER FIRST.** It is a
+3. **Have the company admin approve the recommended settings, ONCE — and GET THEM INTO THE COMMAND CENTER FIRST.** It is a
    separate site from Claude and from Google. It lives at **https://app.aiintegratorhq.com**, and sign-in is
    by email: they type their address there and the system emails them a link back. **Say the address
    out loud before the first step that needs it.** It is not linked from the public homepage, and no
@@ -177,8 +185,13 @@ not reach that person.
    Integrator Command Center. Where is that exactly?"*, his own AI answered that it did not know and
    that only the person who set him up knew it, and his walk stopped dead until a human handed the
    address over. Then
-   call `what_can_i_do` and walk the settings it returns; any change is theirs to make in the Command
-   Center, never the session's.
+   say in one line what approving means — every tool the company uses follows what we recommend for each
+   act (run it, ask first, or never), and nothing the company or a person already chose is overridden —
+   and on the admin's yes call `approve_recommended_settings` once (it takes no arguments). Hand them the
+   `review_url` it returns as a link and say they can review or change any one setting there. **Never walk
+   the settings line by line.** Anyone who is not a company admin is refused and nothing changes: still
+   hand them `review_url` and say their admin approves. On `ok: false`, say what `detail` says. Any change
+   is theirs to make in the Command Center, never the session's.
 4. **Capture their sender addresses, then let them confirm each one.** Once Google is signed in (Me →
    Connections, #settings/connections), call `do_action` for "See sending identity" on their own account and pass the addresses
    unchanged to `capture_my_sender_addresses` with source "connector". If that read fails, ask them to
@@ -191,7 +204,9 @@ not reach that person.
 5. **Then each tool THIS company uses, and nothing else.** The list is the company's own tools marked
    allowed (`client_connector.allowed = true`), never the plugin's manifest and never the catalog. A
    tool the company does not use is not offered, not mentioned and not signed in. For each one, the same
-   loop: sign it in once in the Command Center, then call `what_can_i_do` and confirm its acts read `connected`, then check its settings — then the next.
+   loop: sign it in once in the Command Center **by running `aii-connector-builder`, which owns the walk
+   (its registered steps, one card at a time, a secret pasted straight into our row) — never by writing
+   the steps here**, then call `what_can_i_do` and confirm its acts read `connected` — then the next. Its settings are the ones the admin approved in item 3; never walk them.
    ⚠ **HAND THEM A LINK THEY CAN CLICK, NEVER A PATH TO WALK.** Company tools is
    **https://app.aiintegratorhq.com/#settings/tools** and a person's own Google is
    **https://app.aiintegratorhq.com/#settings/connections**. Give the whole link, as a link, and stop
@@ -234,7 +249,8 @@ not reach that person.
    when the first beat lands (a `job_run` row for their company whose detail starts `door=`), and say
    which outside tools their company's jobs will reach so they can allow those too.
 
-**This step ends when the last of these is done and verified.** Nothing that asks the client a question
+**This step ends when the last of these is done and verified, or, for an item that blocks nothing after
+it, noted as not done and carried to the report.** Nothing that asks the client a question
 about their business belongs here — that is Step 4.
 
 ⚠ **Verifying a step is part of the step.** Say *here is how you will know it worked* before they click,
@@ -382,7 +398,13 @@ them; it **runs** them, in order, in the client's own words.
   that is missing) or leave it open (ask it the ordinary way), and it hands you the opening sentence
   naming the documents you read. If they say a document is wrong or out of date, its answers stop
   counting and those questions are asked normally. If the plan cannot be read, **say so plainly** —
-  never fall back to asking everything as if nothing had been read. *(Approved 2026-09-18 by pop-up,
+  never fall back to asking everything as if nothing had been read. Its `resume` is the same one
+  `my_seat_env` carries; if `resume.say` was not already said, say it first. **For each
+  `resume.seat_confirm_prompts` entry, when you reach that question, show its `say` (the belief, then
+  "Is that right?") and nothing else.** Two replies: **yes** — call `record_my_answer` with its `card_id`,
+  `question_key`, `prefill_id` and `prefill_outcome` "confirmed" (answer empty); **change it** — the same
+  with `prefill_outcome` "changed" and their words as `answer`. Nothing is saved before they reply, and
+  the words are the store's, never yours. *(Approved 2026-09-18 by pop-up,
   option label verbatim: "Yes, after #449 merges (Recommended)".)*
 - **IF THE COMPANY WAS SET UP FROM A CONFIGURED ONBOARDING, ASK ITS BELIEFS AS CONFIRMATIONS, ONE AT A
   TIME.** A configured onboarding is set up in advance by a trade or a partner. Read the confirm
@@ -484,7 +506,10 @@ it.
 - **A step that fails and cannot be fixed in the session is raised, not only said.** Tell the person in
   plain words what broke and that their setup partner has been told, then call `raise_setup_problem`
   once with the step and what the tool answered, word for word. It lands as an owned alert the
-  operator is sent. Read back the alert it returns; if it refuses, say so. Never go on past the step.
+  operator is sent. Read back the alert it returns; if it refuses, say so. **Only a step that blocks the next steps pauses the
+  walk** — never go on past one of those. A failure that blocks nothing after it (an optional switch such as
+  marketplace auto-update) is noted, told to the person in one line, reported at the end, and the walk
+  continues.
 - **"They said it is done" is not evidence, and neither is "the email told them how."** The live read is
   the evidence.
 
@@ -497,6 +522,10 @@ Not for a client who is already stood up and running — that is `aii-patch-me-u
 run, once, for a new client.
 
 ---
+
+*v1.20 — 2026-09-28. Approved by the operator through the locked-file pop-up ("Yes, add it"), chat "Connector Completeness S46". Step 2 item 5's connect-each-tool loop now runs `aii-connector-builder`, which owns the walk (registered steps, one card at a time, a secret pasted straight into our row), instead of the session writing the steps. Nothing else changed. Lens: Evans (one home for the walk).*
+
+*v1.19 — 2026-09-27. Approved by the operator through the locked-file pop-up ("Yes, apply all four") after reading the before/after file, chat "Bancard Sales Onboarding S2". Four corrections found on Brian Manning's 2026-09-25 walk: (1) update from the MARKETPLACE's ⋮ menu, not the plugin's, and never reinstall; (2) only a step that blocks the next steps pauses the walk - a non-blocking failure is noted and the walk goes on (his Claude stopped the walk and paged the proctor over the optional auto-update switch); (3) the company admin approves the recommended settings ONCE through approve_recommended_settings and gets the review link - no line-by-line permission walk (operator ruling 2026-09-26); (4) on resume the session says the store's owed actions in their stored words and offers each prefill as a confirm prompt - "then he needs that when he picks up onboarding, not for me to tell him" (operator, 2026-09-26). Naming tools by category needed no edit: the skill names none of our metered vendors. Lens: Krug (the real menu, one obvious next step), Nygard (fail loud only where failure blocks), Carnegie (he hears what he is owed without asking).*
 
 *v1.18 — 2026-09-22. Approved by the operator in chat, one word: "yes". Corrects v1.17, which said the prompt lets the app "reach the Blueprint connector without asking again each time" — implying ONE prompt. It is once per TOOL.
 
