@@ -257,6 +257,11 @@ function keptEnvelope(content, cfg, html, sections) {
       builder: 'build-call-debrief.js',
       buildStamp: BUILD_STAMP,
       builderSha256: builderSha256(),
+      /* 2026-09-28: the config AS TEXT. The store keeps guide_json as JSONB, which re-sorts object
+         keys, and the page embeds JSON.stringify(cfg) in its ORIGINAL order - so a render from the
+         stored object can never reproduce htmlSha256. A string survives JSONB byte for byte; the
+         server-side filer (aii-site PR 783) renders from this when it hashes to configSha256. */
+      configJson: JSON.stringify(cfg),
       configSha256: sha256(JSON.stringify(cfg)),
       contentSha256: sha256(JSON.stringify(content)),
       htmlSha256: sha256(bytes),
@@ -291,6 +296,16 @@ const RENDER_EXIT = {
 };
 
 function renderRefuse(code, detail) { return { ok: false, refused: code, detail }; }
+
+/* The config in the order the page embedded it: render.configJson when it hashes to the recorded
+   configSha256 (the store's JSONB re-sorts the object's keys), else the stored object as before. */
+function exactConfig(k) {
+  const r = k && k.render;
+  if (r && typeof r.configJson === 'string' && sha256(r.configJson) === r.configSha256) {
+    try { return JSON.parse(r.configJson); } catch (_) { /* fall through to the stored object */ }
+  }
+  return k.config;
+}
 
 function renderFromKeptState(kept, opts) {
   opts = opts || {};
@@ -329,7 +344,7 @@ function renderFromKeptState(kept, opts) {
   }
 
   let html;
-  try { html = buildStandaloneHtml(k, k.config, opts.rendered); }
+  try { html = buildStandaloneHtml(k, exactConfig(k), opts.rendered); }
   catch (e) {
     return renderRefuse('render_threw',
       'the renderer refused this source: ' + (e && e.message ? e.message.split('\n')[0] : String(e)));

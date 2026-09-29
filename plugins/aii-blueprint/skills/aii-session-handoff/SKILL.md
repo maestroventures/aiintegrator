@@ -41,6 +41,7 @@ Scan the full conversation. Look for:
 - **References** — external systems, URLs, tools, or channels they mentioned that are useful to remember
 - **Things to forget** — if they corrected something you had wrong, note that the old fact should be removed
 - **Framework signals** — anything that could improve the product the user sells to their clients: a bug they found on their own artifact, a pattern that worked, a missing advisor lens, an arc/messaging refinement, a process discipline they reinforced. These feed the Framework Capture Lane in Step 2 — they are candidates, not canon.
+- **Connections named in this session** — every link between two parts of the business web that came up: a company that serves a line, a tool a line runs, a category's industry, an association, a company's line. Each one goes through `web_gap_raise` now, so it lands as a row or a gap. The close does not finish while a connection named here has neither. (`dr_every_level_has_serving_partners_and_a_found_misconnection_is_mapped_instantly_20260928`)
 
 **Also check the chain.** If this session is one leg of a multi-session job, find its block in the session-chain log (the overlay names the exact file). Note which session number this is and the current total estimate — you'll need both for the counter in Step 4. If no chain exists yet but the work clearly spans multiple sessions, start one.
 

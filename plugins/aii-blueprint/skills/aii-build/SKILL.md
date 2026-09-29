@@ -128,31 +128,51 @@ For a model, a business category or a line of business, run Steps 1–5 on the m
 They repeat for every model, category and line; lines inside one category are almost always the same,
 so map the category first and record only each line's nuances.
 
+0. **Read before you design.** The model cards (`model_card_answer`, `specs/Experience-Model-NN-*`), the
+   book The 0.3 (`02 — Clients/AI Integrator/working-docs/Book/`, the Method Engine), the domain's specs,
+   and the department blueprints in 03 (`*-blueprint.md`). A job is new only when all of them are silent,
+   and you say which you read.
 1. **Design the ideal from the model and its recipient, never from a tool.** Today's tools are what create
-   the gaps; no tool is consulted until item 6.
-2. **The recipient's whole journey**, from before they arrive to after they leave, not only the middle a
-   model already covers. Name every job they hire the business for, in their words.
-3. **Every job and every step carries three whys**: the recipient's, the business's and the staff
+   the gaps; no tool is consulted until item 8.
+2. **Every party, not only the customer.** The customer's whole journey, from before they arrive to after
+   they leave; then each staff role, the candidate, the new hire and the leaver (HR blueprint: models 14,
+   7, 11, 13), any visiting contractor, and the owner. Name every job each one hires the business (or the
+   role) for, in their words.
+3. **Every department.** Walk each department blueprint in 03 (sales, marketing, operations, customer
+   success, customer support, finance, HR) and say what it runs for this business, which catalog models
+   it picks and its KPIs — or that it does not apply, and why. The customer journey is one department's
+   view, never the whole.
+4. **A state grid for every record the journey keys on.** List the keys (a patient: first visit, last
+   visit, next visit, recall; a treatment plan: proposed, revised, accepted, scheduled, declined,
+   expired). Every combination, including "none set", gets its own path or a written "no path, because".
+   A message whose wording depends on a state is one message per state.
+5. **Every job and every step carries three whys**: the recipient's, the business's and the staff
    member's, in their own words. The whys of parties further up the chain (a distribution partner, us)
    are answered per job in Step 5, and on a step only where that step touches them.
-4. **Every step is one of two states**: on its own, or a person — because the business chose it or because
+6. **Every step is one of two states**: on its own, or a person — because the business chose it or because
    it is human by nature. A person-step is a commitment in the Command Center, never a task pushed into
    another tool: it is tracked (handed off, untouched, dismissed, done), checked by any tool reading that
-   can confirm it, and the people doing the same step are compared.
-5. **Perception versus reality at every moment that decides the relationship**: what the recipient sees,
+   can confirm it, and the people doing the same step are compared. Every person-step names its staff
+   measure; a miss on the customer's side is a number on the staff side.
+7. **Perception versus reality at every moment that decides the relationship**: what the recipient sees,
    what the staff sees, what the owner sees, what is actually happening, how it is caught without anyone
    complaining, and the step that closes it.
-6. **Every piece of data a step needs names its source**: a tool that stores it (we read it and keep it
-   current) or nobody (we become its source). We are always the source of truth for the journey. What our
-   API lacks is recorded as OUR gap; a tool is judged by which of our actions it can serve. Delivery goes
-   through the business's own tools or our metered ones.
-7. **Every status the journey reads is standardized** (appointments: `aios-data-domains/appointment_state`);
+8. **Every piece of data a step needs names its source**: a tool that stores it (we read it and keep it
+   current) or nobody (we become its source). We are always the source of truth for the journey. Our API
+   counts only an ACTION that carries the step, never "a kind of thing exists"; what it lacks is recorded
+   as OUR gap, and a tool is judged by which of our actions it can serve. Delivery goes through the
+   business's own tools or our metered ones.
+9. **Every status the journey reads is standardized** (appointments: `aios-data-domains/appointment_state`);
    every tool maps its statuses to ours.
-8. **The human gaps no technology fills** (fear, pain, a hard conversation, getting there, bad news), and
-   what the system does around each: prepare the person, measure the result.
-9. **The loyalty moments**: steps almost no business does, which would make the recipient loyal to this one.
-10. **The advisors poke holes in all of it** before it is called done; every addition is marked as theirs
-    for the operator to keep or strike.
+10. **The human gaps no technology fills** (fear, pain, a hard conversation, getting there, bad news), and
+    what the system does around each: prepare the person, measure the result.
+11. **The loyalty moments**: steps almost no business does, which would make the recipient loyal to this one.
+12. **Every KPI speaks to the front desk, in money, with a fix** (KPI Library §0c).
+13. **The advisors poke holes in all of it** before it is called done — each department's bench resolved
+    live; every addition is marked as theirs for the operator to keep or strike.
+14. **The result goes to the store, not a file.** A file is a draft. The model is done when its parties,
+    departments, states and steps are rows, and a standing check goes red on any step with no state, why
+    or source; any state-grid cell with no path and no reason; any department not walked.
 
 Worked instance and plan: `04 — Daily Operating System/_working/dental-patient-jobs-micro-steps-20260927.md`,
 `04 — Daily Operating System/specs/Framework-Web-PLAN-v0.1.md`
