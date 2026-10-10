@@ -242,15 +242,29 @@ def sql_for(plan):
     for r in plan["files"]:
         # A plan written before 2026-09-11 has no dispatch_mode key. It is emitted as NULL on
         # purpose, so asset_put() refuses a NEW row rather than this script supplying a mode.
+        a = r.get("audience")
+        terms_arr = "NULL"
+        if a and a.get("recipient_terms"):
+            terms_arr = "ARRAY[%s]::text[]" % ", ".join(q(t) for t in a["recipient_terms"])
+        # ⭐ AUDIENCE AT THE DOOR — 2026-10-02 (chat "New Tenant session pickup"). The reader wall on `assets`
+        #   (BEFORE INSERT, ruled "Refuse at the door") refuses a NEW row that names no reader, and the audience used to
+        #   arrive only in the asset_audience_put() line below - one statement too late, so no new sheet could register
+        #   from 2026-09-21. asset_put() now takes the audience as its last four arguments (store file
+        #   asset-put-takes-the-audience-at-the-door-FINAL-a54e64.sql) and runs the audience checks itself. A plan with no
+        #   declared audience emits the old 19-argument call, unchanged.
+        aud_args = ""
+        if a:
+            aud_args = ", %s, %s, %s, %s" % (q(a["audience_kind"]), q_or_null(a.get("recipient_company")), terms_arr,
+                                             q_or_null(a.get("audience_label")))
         lines.append(
-            "SELECT * FROM asset_put(%s, %s, %s, %d, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);"
+            "SELECT * FROM asset_put(%s, %s, %s, %d, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s%s);"
             % (q(plan["tenant"]), q(r["source_ref"]), q(r["content_sha"]), r["content_bytes"],
                q(plan["by"]), q(plan["company_id"]), q(plan["department"]), q(plan["asset_type"]),
                q(plan["program_id"]), q(r["format"]), q(r["canonical_name"]),
                q_or_null(plan.get("channel")), q_or_null(plan.get("template_id")),
                q_or_null(plan.get("dispatch_mode")), q(plan.get("change_note", "")),
                q_or_null(plan.get("touchpoint_id")), q_or_null(plan.get("inherited_from")),
-               q_or_null(r.get("body")), q_or_null(r.get("body_origin"))))
+               q_or_null(r.get("body")), q_or_null(r.get("body_origin")), aud_args))
         if plan.get("brand"):
             lines.append(
                 "SELECT * FROM asset_brand_put(%s, (SELECT asset_id FROM assets WHERE tenant_id = %s AND source_ref = %s), %s, %s, %s, %s);"
@@ -444,6 +458,12 @@ def selftest():
         print("  pass  a declared audience emits asset_audience_put() after asset_put(), terms as an escaped ARRAY")
     else:
         ok = False; print("  FAIL  audience SQL not emitted as expected: %s" % aud_sql[-220:])
+    # 2026-10-02: the audience must ALSO reach asset_put() itself, or the reader wall refuses the new row first
+    put_line = next((l for l in aud_sql.splitlines() if l.startswith("SELECT * FROM asset_put(")), "")
+    if put_line.endswith("'w', 'x.html', 'personalized', 'Riverbend Resort & Casino', ARRAY['Sphere Club', 'Pat''s']::text[], NULL);"):
+        print("  pass  a declared audience also reaches asset_put() as its last four arguments, so the new row is born declared")
+    else:
+        ok = False; print("  FAIL  audience did not reach asset_put(): %s" % put_line[-200:])
     msg["files"] = [dict(base["files"][0], body="the words", body_origin="02 — Clients/x.html")]
     msg_sql = sql_for(msg)
     if "'dispatched'" in msg_sql and msg_sql.rstrip(";").endswith("'tp_x_1', 'asset_parent', 'the words', '02 — Clients/x.html')"):

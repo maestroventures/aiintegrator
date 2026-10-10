@@ -1,11 +1,12 @@
 ---
 name: aii-job-poke
-version: v1.9 (2026-09-20)
+version: v2.0 (2026-10-09)
 description: >
   The ONE recurring task installed on each AI platform a tenant uses. It carries NO job logic and
-  NO schedule — it only asks the tenant's queue what is due, claims exactly one job, does it, and
-  beats. Identical text on every platform. Install once per platform; never edit again.
-  Installed AI Integrator Blueprint plugin version: 0.9.56.
+  NO schedule — it asks the tenant's queue what is due, claims a job, does it, beats, and keeps
+  going while work is due (up to 40 minutes or 8 jobs a run). Identical text on every platform.
+  Install once per platform; never edit again.
+  Installed AI Integrator Blueprint plugin version: 0.9.57.
 ---
 
 # Job Poke — install this once per AI platform, then forget it
@@ -140,7 +141,7 @@ Any rows returned are jobs that woke and never finished; mention them.
 
 ---
 
-## Step 2 — Claim exactly one job
+## Step 2 — Claim a job
 
 **Claim with your ROUTINE ID. Never type your account.** *(Changed in v1.3, 2026-09-11.)*
 
@@ -340,9 +341,30 @@ another executor will pick the job up — that is the design working, not a faul
 
 ---
 
-## Step 5 — Say one line
+## Step 4b — Keep going while work is due *(v2.0, 2026-10-09)*
 
-Report in the tenant's own timezone:
+**After every beat, claim again** — go straight back to **Step 2b** (not Step 0, 1 or 2a: they already
+ran this run) and do the next job the same way, Steps 2b → 3 → 4. Keep going until ONE of these is true:
+
+- the claim answers `nothing_due` or "all due work already claimed elsewhere" — the normal end;
+- **40 minutes** have passed since this run started (read the time the run fired from your first message);
+- you have done **8 jobs** in this run;
+- the last beat was `refused-account-limit`, or the platform refused you;
+- any tool asked you a question instead of answering. You cannot answer it — stop claiming.
+
+Never hold two jobs at once: a job is beaten before the next is claimed, so a run that dies mid-way
+loses one lease, never several.
+
+> **Why, measured 2026-10-09 on the operator's own company.** One job per poke meant three AI accounts
+> could take at most ~3 jobs an hour, while **78 job slots a day** came due. Over 7 days the accounts ran
+> 54 jobs a day; the rest waited, and the queue's own alarms said "nobody to run it" for jobs that only
+> needed a turn. Due work goes stale while an awake account sits idle for the rest of its hour. The old
+> rule — "One poke, one job. If more is due, the next poke gets it." — is quoted here so nobody restores
+> it.
+
+## Step 5 — Say one line per job
+
+Report in the tenant's own timezone, one line for each job this run did:
 
 ```
 [v2] <job> · <outcome> · door=<r_body_ref> · claimed <seat>/<platform> · alive HH:MM · complete HH:MM · routine <trigger_id or "fallback">
@@ -403,13 +425,20 @@ Nothing about that failure is visible from outside except that no beat arrives.
 
 **Claude desktop / Cowork is different** *(v1.8)*: its scheduled-tasks connector has no allowed-tools
 field, its `update` changes only the fields you send, and a task runs only while the app is open. There
-the install step is the person setting **Always allow** on each Blueprint tool in the block below
-(Settings → Connectors → AI Integrator - Blueprint), in this session, before the first run.
+the install step is the person setting **Always allow** on each Blueprint tool in the block below — by the
+title BEFORE the ·, which is how Settings → Connectors → AI Integrator - Blueprint lists it — in this
+session, before the first run.
+
+> ⚠ **v2.0 (2026-10-09): until this version the block printed each tool's INTERNAL name (`job_run_lookup`).
+> Neither Settings nor a run shows that name** — Settings shows the title, and a run calls the title's
+> spelling (`look_up_what_a_scheduled_job_needs`). Nobody could match the list to the screen, so tools
+> stayed on ask, and one account's poke froze three runs in a row on that exact tool. The block is
+> generated, so the fix is in `gen-poke-allowed-tools.js`, never typed here.
 
 **On a scheduler that takes `allowed_tools` at create, they go in at creation, in the same call.**
-Create the schedule with the scheduling tool's `create` action and pass `allowed_tools` = every name in the block below, in the tool-id
-form this account's runs see (`mcp__<connector name with spaces as _>__<tool>`, e.g.
-`mcp__AI_Integrator_-_Blueprint__job_poke_check`). Never plan to add them later: the scheduling tool's
+Create the schedule with the scheduling tool's `create` action and pass `allowed_tools` = every tool in the block below, in the tool-id
+form this account's runs see: `mcp__<connector name with spaces as _>__<the name after the ·>`, e.g.
+`mcp__AI_Integrator_-_Blueprint__check_that_my_scheduled_work_can_run_here`. Never plan to add them later: the scheduling tool's
 `update` REPLACES the schedule's whole setup, so an update that carries only the new text or only the new
 tools silently drops everything else. If you must ever update one, `get` it first and send back the WHOLE
 setup with the one change in it, then `get` it again and compare.
@@ -418,12 +447,28 @@ setup with the one change in it, then `get` it again and compare.
      lib/board/job-run-tools.js TOOLS, and every client-audience Blueprint tool a published house job body names).
      Never type a name into this block; re-run the generator. -->
 ```
-Blueprint connector, every seat:
-  job_poke_check  job_poke_reap  job_poke_verify_routine  job_poke_claim  job_poke_body  job_poke_about  job_poke_beat
-  job_run_contract  job_run_lookup  job_run_step  job_run_report_gap  job_run_contract_sql  job_run_statement
-  file_framework_finding  my_context  ping
+Blueprint connector, every seat (title in Settings  ·  name a run calls):
+  Check that my scheduled work can run here  ·  check_that_my_scheduled_work_can_run_here
+  Free scheduled work that was left unfinished  ·  free_scheduled_work_that_was_left_unfinished
+  Confirm which schedule woke me  ·  confirm_which_schedule_woke_me
+  Pick up the next scheduled job  ·  pick_up_the_next_scheduled_job
+  Read the steps of the job I picked up  ·  read_the_steps_of_the_job_i_picked_up
+  Say who a scheduled job was for  ·  say_who_a_scheduled_job_was_for
+  Report how a scheduled job went  ·  report_how_a_scheduled_job_went
+  Read the rules of the scheduled job I picked up  ·  read_the_rules_of_the_scheduled_job_i_picked_up
+  Look up what a scheduled job needs  ·  look_up_what_a_scheduled_job_needs
+  Write down a step of my scheduled job  ·  write_down_a_step_of_my_scheduled_job
+  Report a tool a scheduled job could not find  ·  report_a_tool_a_scheduled_job_could_not_find
+  Run the query my scheduled job is due on  ·  run_the_query_my_scheduled_job_is_due_on
+  Run one statement my scheduled job names  ·  run_one_statement_my_scheduled_job_names
+  Check on something waiting for approval  ·  check_on_something_waiting_for_approval
+  Do one thing in one of my tools  ·  do_one_thing_in_one_of_my_tools
+  Report a problem with AI Integrator  ·  report_a_problem_with_ai_integrator
+  Read my working instructions  ·  read_my_working_instructions
+  Check the connection  ·  check_the_connection
+  See what I'm allowed to do  ·  see_what_im_allowed_to_do
 Blueprint connector, an operator (builder) seat only — a client seat never sees it:
-  run_sql
+  Run a database command  ·  run_a_database_command
 This platform's own tools the steps above use:
   Skill  RemoteTrigger  ToolSearch
 ```
@@ -458,7 +503,9 @@ restored from a chat signed in to that account.
 ## What you must never do
 
 - Never install a job's schedule into this platform. The schedule is a row; this poke is a hand.
-- Never claim twice in one run. One poke, one job. If more is due, the next poke gets it.
+- Never hold two jobs at once. Beat the job you have before you claim the next one (Step 4b).
+- Never claim a new job once 40 minutes have passed since this run started, after 8 jobs, after a
+  `refused-account-limit`, or after any tool asked you a question. *(v2.0)*
 - Never write a job's state to a local file — a hosted executor cannot reach it, and a synced
   folder serves stale copies.
 - Never hardcode a tool address, a prefix, or a table name into this file.
