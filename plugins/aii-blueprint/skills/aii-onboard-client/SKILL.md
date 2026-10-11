@@ -240,7 +240,18 @@ not reach that person.
    is a property of the JOBS the framework performs for this client, read from the capability floor;
    never inferred from what happens to be installed.
    Read your own skill listing and record what is really on with `record_my_skills_observed`, one call per provider. Say whether the listing is complete. Read any `uncovered` names back to them: those are skills that are on but that the setup does not know about.
-7. **Turn on the check-in that runs the company's scheduled work, on this account.** Follow
+7. **Turn on the check-in that runs the company's scheduled work, on this account — from Claude Code.**
+   The check-in is a routine, and a routine can only be made from a Claude Code session; a Cowork task
+   cannot make one. Say that first, in one line, and have them open Claude Code on this same account.
+   **Before you start, check the two things a fresh account is missing** — on a real walk (2026-10-09)
+   the session stopped on both: (a) the plugin is installed in that Claude Code session (its skills are
+   listed there; if not, add it there the same way as in item 2); (b) the Claude Code Remote connector is
+   added to the account (if not, they add it at **https://claude.ai/customize/connectors**). Hand that
+   session the two connector addresses and let it read its own connector ids from its own list — ids
+   differ per account, so never hand it another account's id: Blueprint
+   **https://www.aiintegratorhq.com/api/blueprint/mcp**, Claude Code Remote
+   **https://api.anthropic.com/v1/code/mcp/meta**. A fresh account has no cloud environment until the
+   routines screen is opened, which makes one named "Default"; use that one. Then follow
    `aii-job-poke` *Installing it on an account* exactly: one hourly schedule, the standard name and
    text, and its allowed-tools block passed IN THE CREATE CALL — a schedule missing one of those tools
    stops at the first run and never says so. On their yes, create it; then `get` it and read its allowed
@@ -288,9 +299,18 @@ Numbered 3b on purpose rather than renumbering the steps below it: this is a sma
 happen at a specific moment, not a re-cut of the sequence.
 
 The client's folders get their declared shape and their drawer vocabulary **now**, before the
-interview writes the first thing into them. The house tier's *When you put working files away* block
-is the rule; this is the only moment it can be applied for free.
+interview writes the first thing into them. The framework tier's *When you put working files away*
+block is the rule; this is the only moment it can be applied for free.
 
+- **Ask where the company keeps its shared files BEFORE you create anything — never assume Google
+  Drive.** One plain question: *"Where does your company keep its shared files — Google Drive, Dropbox,
+  something else, or only on your computer?"* A Google sign-in is not the answer: a person can sign in
+  with Google and keep every file in Dropbox (measured 2026-10-09: a workspace could not be made because
+  setup assumed Google Drive for a person whose files live in Dropbox). Their answer picks where the
+  workspace is built, and the shape is recorded with one of three storage choices: **Google Drive**,
+  **Dropbox**, or **local** (a folder on their own computer). If they use a shared drive we have no
+  connector for yet, build the workspace as a local folder, say so in one line, and raise the missing
+  connector with `raise_setup_problem` — the walk does not wait on it.
 - **Register this client's drawer vocabulary in their OWN store first, then create the folders.** The
   order matters: the standing work-drawer check refuses to run without a vocabulary for the seat it
   is checking, so folders created before the vocabulary exists are folders nothing can police. If the
@@ -306,21 +326,25 @@ is the rule; this is the only moment it can be applied for free.
   the shape.
 - **Create it through the one door, so the shape is recorded all at once.** Read the shape from
   `client_workspace_template()`. First look for a folder already named exactly "AIOS — <Company>" at
-  the top of their Drive (and for each ruled folder under it): if there is one, reuse it and create
-  only what is missing; if there are two, stop and show them both — never pick one. After their yes,
-  create the root in the person's own Drive at the
-  account root, named "AIOS — <Company>", then each folder under it with `do_action` "Create file" (a folder), keeping every
-  id Drive returns. Then record the whole shape in ONE call to `record_my_workspace_shape`, with the root's id and every folder's id exactly as Drive returned them. It
-  refuses a partial shape or a folder that is not in the template, and records nothing when it refuses
-  — so if it refuses, say what Drive already made and stop. `lib/onb/workspace-shape.js` is this same
-  flow in code.
+  the top of the storage they named (and for each ruled folder under it): if there is one, reuse it and
+  create only what is missing; if there are two, stop and show them both — never pick one. After their
+  yes, create the root at the top of that storage, named "AIOS — <Company>", then each folder under it
+  — in Google Drive or Dropbox with `do_action` "Create file" (a folder), keeping every id it returns;
+  for local, in the folder on their computer they name. Then record the whole shape in ONE call to
+  `record_my_workspace_shape`, with its storage choice (Google Drive, Dropbox or local) and the root's
+  id and every folder's id exactly as the storage returned them. It refuses a partial shape or a folder
+  that is not in the template, and records nothing when it refuses — so if it refuses, say what was
+  already made and stop. **If the tool offers no storage choice yet, it records Google Drive:** for
+  Dropbox or local, never record it as Google Drive — say the folders are made but not yet recorded, and
+  raise it with `raise_setup_problem`. `lib/onb/workspace-shape.js` is this same flow in code.
 - **Why this is a step and not a cleanup task later:** measured 2026-08-10 on a workspace with no
   declared shape, the folders that had none held 86, 35, 16 and 13 things and the one with a written
   taxonomy held 5 — and untangling one of them afterwards nearly broke the product, because by then a
   personal folder had become a load-bearing address for something else. People adopt what is already
   there. Born with the shape costs one step; retrofitting it costs a session and risks a regression.
 - **Do not report this step done if you cannot see the folders.** Same rule as every other step here.
-  Seeing them means reading them back: list "AIOS — <Company>" and its folders with `do_action` "See file", and
+  Seeing them means reading them back: list "AIOS — <Company>" and its folders (in Google Drive or
+  Dropbox with `do_action` "See file"; for local, list the folder), and
   read the saved workspace root and one folder record per folder from their store. If any is missing,
   say which and do not move on.
 
@@ -488,12 +512,73 @@ When the tune-up finishes, update the company's first-tune-up card with `put_tun
 
 ---
 
+## Step 5b — End in their Command Center, with one next action
+
+Onboarding does not end on "you're all set." It ends by handing the person **their Command Center
+link and the one card at the top of their own board** — so they leave knowing exactly where to go and
+what to do next, instead of losing momentum right after the biggest part of setup.
+
+- **Take the top card from what the tune-up just wrote** — the card it ranked first on their own board,
+  never one you picked. If you cannot tell which card is first, say so plainly; never guess one.
+- **Hand them the link, whole and clickable: https://app.aiintegratorhq.com**, and say that this is
+  where they will work from now on.
+- **Say that one card in their words:** its title and, in one line, why it is first. One card, not the
+  list — the rest of the board is there when they open it.
+
+**This step is done only when your last message names that one card and gives the link**, and the
+person has said they can see it on their Command Center. If they cannot, that is a step that did not
+land; say so.
+
+*(Lens: Allen — every open loop gets one next action. Krug — one obvious next step.)*
+
+---
+
 ## Step 6 — Never leave an offer as a rendered affordance
 
 Everything this skill hands a client — a step, an install, an enable, a fix — is **said, in words, one
 at a time, recommendation first.** Drawing a button or a list on a screen is not asking. The rule and
 its lived proof are homed in **`aii-patch-me-up`** Step 3; this skill enforces it and does not restate
 it.
+
+---
+
+## When a proctor is on the call
+
+A proctor is the person from our side watching the walk live (usually on a screen share) and clearing
+walls as they come up. Two rules apply only when one is there. **This section is their one home**; the
+proctoring guide points here.
+
+**1 · When a step can only go on by changing the live product: a small patch first, otherwise skip it
+and patch it later.** The operator was asked *"When a live onboarding walk can only continue by
+changing the live product, what happens?"* and answered: *"ideally, with a proctor on the call, keep
+goign with a small patch that keeps the client moving foward that is the most ideal, when not
+possible, if it can be skipped -- skip that section and a SMALL patch me up for that fucntion would be
+run when told to"* (`dr_a_proctored_walk_patches_small_or_skips_and_patches_later_20261011`). In plain
+words, in this order:
+
+- **Best: a small patch that keeps the client moving.** The proctor ships one small fix and the person
+  carries on. Small means one function, not a rebuild — never a redesign on a live call.
+- **If that is not possible and the section can be skipped: skip it.** Tell the person in one line that
+  this part is skipped for now, that it is on our side, and that it will be finished later. Then queue
+  a SMALL Patch Me Up for that one function: raise it with `raise_setup_problem` (the step, what the
+  tool answered word for word, and that the section was skipped). It runs when the operator says so —
+  never on its own, and never folded into the rest of the walk.
+- **If it cannot be patched small and cannot be skipped,** it is a step that blocks the next ones, and
+  the *Fail loud* rule below applies: pause the walk there.
+
+Either way, a skipped section is reported at the end as skipped, by name — never as done.
+
+**2 · When a partner meeting starts turning into an install: say so, and book the install as its own
+session.** If the call was booked for something else — the partner's own business — and it starts
+becoming a setup, the proctor says so out loud, stops setting up, and books a separate install session
+for it, with its own prep. Then the meeting goes back to what it was booked for. Measured 2026-10-09: a
+quick call booked for a partner's own request turned into an 87-minute install, and the request it
+was booked for was never reached. An install that rides inside another meeting runs without the prep
+a booked install gets, and the partner's business waits.
+
+*(Lens: Nygard — a fix on a live call must stay small, or the fix becomes the outage. Allen — a
+skipped section gets one home and one next action. Goldratt — protect what the meeting was booked
+for.)*
 
 ---
 
@@ -509,7 +594,8 @@ it.
   operator is sent. Read back the alert it returns; if it refuses, say so. **Only a step that blocks the next steps pauses the
   walk** — never go on past one of those. A failure that blocks nothing after it (an optional switch such as
   marketplace auto-update) is noted, told to the person in one line, reported at the end, and the walk
-  continues.
+  continues. With a proctor on the call, *When a proctor is on the call* comes first: a small patch, or
+  skip the section and queue a small Patch Me Up.
 - **"They said it is done" is not evidence, and neither is "the email told them how."** The live read is
   the evidence.
 
@@ -522,6 +608,8 @@ Not for a client who is already stood up and running — that is `aii-patch-me-u
 run, once, for a new client.
 
 ---
+
+*v1.21 — 2026-10-11. Approved by the operator in chat. Asked which of four edits to the locked onboarding skill he approved, he answered "1a, co-creation, all four edits approved" (`dr_four_onboarding_skill_edits_approved_20261011`); edit five carries his separate ruling `dr_a_proctored_walk_patches_small_or_skips_and_patches_later_20261011`. Five edits, all from the 2026-09-22 to 2026-10-09 walks, nothing renumbered: (1) new section *When a proctor is on the call*, rule 2: when a partner meeting starts turning into an install, the proctor says so and books a separate install session; (2) Step 2 item 7: the check-in routine is made from Claude Code, after checking the plugin is installed there and the Claude Code Remote connector is added, with the two connector addresses handed over and the "Default" environment used; (3) new Step 5b: onboarding ends with the Command Center link and the one top card of the person's own board; (4) Step 3b asks where the company keeps its shared files before creating anything, never assumes Google Drive, and records one of three storage choices (Google Drive, Dropbox, local), with a local folder when there is no connector yet; (5) *When a proctor is on the call*, rule 1, the stop rule in his words: a small patch first, otherwise skip the section and queue a small Patch Me Up for that function, run when the operator says so — and a pointer to it from *Fail loud*. Also says "framework tier" in Step 3b, where it said "house tier". Lens: Allen (one next action), Nygard (a live fix stays small), Krug (ask, never assume).*
 
 *v1.20 — 2026-09-28. Approved by the operator through the locked-file pop-up ("Yes, add it"), chat "Connector Completeness S46". Step 2 item 5's connect-each-tool loop now runs `aii-connector-builder`, which owns the walk (registered steps, one card at a time, a secret pasted straight into our row), instead of the session writing the steps. Nothing else changed. Lens: Evans (one home for the walk).*
 
