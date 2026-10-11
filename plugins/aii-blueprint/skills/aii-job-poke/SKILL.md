@@ -1,12 +1,12 @@
 ---
 name: aii-job-poke
-version: v2.0 (2026-10-09)
+version: v2.1 (2026-10-11)
 description: >
   The ONE recurring task installed on each AI platform a tenant uses. It carries NO job logic and
-  NO schedule — it asks the tenant's queue what is due, claims a job, does it, beats, and keeps
-  going while work is due (up to 40 minutes or 8 jobs a run). Identical text on every platform.
+  NO schedule — it asks the tenant's queue what is due, claims ONE job, does it with the whole run's
+  time, beats, and stops. Identical text on every platform.
   Install once per platform; never edit again.
-  Installed AI Integrator Blueprint plugin version: 0.9.57.
+  Installed AI Integrator Blueprint plugin version: 0.9.58.
 ---
 
 # Job Poke — install this once per AI platform, then forget it
@@ -341,26 +341,24 @@ another executor will pick the job up — that is the design working, not a faul
 
 ---
 
-## Step 4b — Keep going while work is due *(v2.0, 2026-10-09)*
+## Step 4b — One job per run, then stop *(v2.1, 2026-10-11)*
 
-**After every beat, claim again** — go straight back to **Step 2b** (not Step 0, 1 or 2a: they already
-ran this run) and do the next job the same way, Steps 2b → 3 → 4. Keep going until ONE of these is true:
+**After the beat, go to Step 5 and stop. Never claim a second job in the same run.** The company's work
+is done by ALL of its workers — every account of every user — each taking one job per run with the whole
+run's time (ruling `dr_who_does_a_companys_work_20261011_062042`). Throughput comes from more workers and
+more frequent runs, never from a longer run.
 
-- the claim answers `nothing_due` or "all due work already claimed elsewhere" — the normal end;
-- **40 minutes** have passed since this run started (read the time the run fired from your first message);
-- you have done **8 jobs** in this run;
-- the last beat was `refused-account-limit`, or the platform refused you;
-- any tool asked you a question instead of answering. You cannot answer it — stop claiming.
-
-Never hold two jobs at once: a job is beaten before the next is claimed, so a run that dies mid-way
-loses one lease, never several.
-
-> **Why, measured 2026-10-09 on the operator's own company.** One job per poke meant three AI accounts
-> could take at most ~3 jobs an hour, while **78 job slots a day** came due. Over 7 days the accounts ran
-> 54 jobs a day; the rest waited, and the queue's own alarms said "nobody to run it" for jobs that only
-> needed a turn. Due work goes stale while an awake account sits idle for the rest of its hour. The old
-> rule — "One poke, one job. If more is due, the next poke gets it." — is quoted here so nobody restores
-> it.
+> **Why, measured 2026-10-11 on the operator's own company, 24 hours after v2.0 shipped.** By position in
+> a run: the 1st job failed 8 of 27, the 2nd 8 of 11, every 3rd-or-later job 5 of 5. Later jobs inherited
+> a shrinking budget and were rushed or abandoned ("ran out of safe time budget this fire"; two jobs failed
+> in under two minutes). A call guide due before a call failed twice that way.
+>
+> **RETIRED v2.0 text, quoted so nobody restores it:** *"After every beat, claim again — go straight back
+> to Step 2b ... and do the next job the same way, Steps 2b → 3 → 4. Keep going until ONE of these is true:
+> the claim answers nothing_due ...; 40 minutes have passed since this run started; you have done 8 jobs in
+> this run; the last beat was refused-account-limit ...; any tool asked you a question."* Its own reason was
+> real (78 job slots a day against ~54 runs) and stays true: the answer to too little throughput is more
+> workers and more frequent runs per worker, measured at company grain, not more jobs per run.
 
 ## Step 5 — Say one line per job
 
@@ -503,9 +501,7 @@ restored from a chat signed in to that account.
 ## What you must never do
 
 - Never install a job's schedule into this platform. The schedule is a row; this poke is a hand.
-- Never hold two jobs at once. Beat the job you have before you claim the next one (Step 4b).
-- Never claim a new job once 40 minutes have passed since this run started, after 8 jobs, after a
-  `refused-account-limit`, or after any tool asked you a question. *(v2.0)*
+- Never claim a second job in the same run. One run, one job, beaten, then stop (Step 4b). *(v2.1)*
 - Never write a job's state to a local file — a hosted executor cannot reach it, and a synced
   folder serves stale copies.
 - Never hardcode a tool address, a prefix, or a table name into this file.
