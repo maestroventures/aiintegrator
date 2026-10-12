@@ -34,6 +34,15 @@ results the user shares); the *data* stays local. This is the same "credential c
 and off the AI" discipline (Core, Self-Install Standard rule #6) applied to chat history. If a step
 would require uploading the raw export, that step is wrong — rewrite it to run locally.
 
+**When chat text is filed into the company's store, it goes through one door with its door word.**
+If a session files any text that came from the person's AI chat history — a thread, an extract, the
+quotes behind the thinking profile — it files it only with `register_my_document`, passing
+`intake_door` `chat-history-import`. That door keeps only the conversations about the company's
+business; every other conversation is set aside, not stored, and `set_aside` says how many and why —
+tell the person that in plain words. Never file chat text any other way, and if `register_my_document`
+does not offer `intake_door` yet, do not file it at all; say so. *(Approved 2026-10-11,
+`dr_two_skill_lines_mark_pasted_chat_for_the_business_gate_20261011`.)*
+
 ---
 
 ## Step 1 — Get the export

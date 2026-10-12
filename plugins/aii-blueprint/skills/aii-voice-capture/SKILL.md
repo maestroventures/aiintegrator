@@ -26,7 +26,15 @@ Ask the user for real examples of their writing, in plain terms:
 > sounds like you. Or point me at a folder of your writing and I'll read it."
 
 Take whatever they give: pasted samples, attached files, or a directory to read through. More is
-better, but a few strong samples are enough to start. If they have nothing handy, capture the voice
+better, but a few strong samples are enough to start.
+
+**When a sample is chat, it is filed through one door with its door word.** If you file chat text you
+learn their voice from — pasted from an AI chat or taken from their chat history — into the company's
+store, file it only with `register_my_document`, passing `intake_door` `voice-capture`. That door
+keeps only the conversations about the company's business; every other conversation is set aside, not
+stored, and `set_aside` says how many and why — tell them that in plain words. If
+`register_my_document` does not offer `intake_door` yet, do not file chat text at all; say so.
+*(Approved 2026-10-11, `dr_two_skill_lines_mark_pasted_chat_for_the_business_gate_20261011`.)* If they have nothing handy, capture the voice
 by asking a couple of questions about how they like to come across and refine it from their edits over time.
 
 ---
