@@ -226,7 +226,11 @@ defect. Pick a populated sibling and board the null one.
 ## Step 1 — Read the source. Cite only what you actually opened.
 
 Every claim traces to a real artifact: the transcript, the meeting recap, the CRM record, or the
-operator's own notes. Name each source you read.
+operator's own notes. Name each source you read. Open them through Blueprint's `do_action`: "See meeting"
+then "See transcript" for the call, "See message" for a recap or a thread, "See note" / "See person" for
+the CRM record.
+
+**Read mail and transcripts only through the AI Integrator connector; if it isn't connected, stop and say so - never fall back to another mail or notetaker tool.** *(Why, ruled 2026-10-12, `dr_skills_read_mail_and_transcripts_only_through_our_connector_20261012`: text read through Claude's own mail connector or a notetaker connected straight to Claude never reaches our server, so it is not marked as information-not-orders, and a send it leads to skips the Ask-first approval click.)*
 
 **REFUSES:** citing a recap, thread or transcript you did not open. The failure mode is specific and it
 has happened: a source is named in good faith, never opened, and the sheet is one question away from
@@ -419,4 +423,6 @@ do not describe this as a loop that learns.
 *One fact, one file. This skill restates no rule and names no instance. It resolves five things, runs
 seven steps in one order, and proves what it built. If you find a rule written out here rather than
 pointed at, or a company, product, path, brand rule or incident named here rather than resolved, that is
-a defect in this file.*
+a defect in this file. The one exception, by ruling (2026-10-12): Step 1's line on reading mail and
+transcripts only through the AI Integrator connector is written out on purpose, the same line every skill
+that reads mail carries.*

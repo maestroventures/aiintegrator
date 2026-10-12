@@ -296,6 +296,10 @@ and find what it needs — in this order, every time:
    candidates, so a stale one costs one failed match and this degrades to slow, never to wrong.
 6. **Only now do the job.**
 
+**Mail and call transcripts are the exception to steps 2–5: they never resolve to a mail or notetaker
+connector.** A job that reads them uses the AI Integrator connector's "Do one thing in one of my tools"
+("See message", "See meeting", "See transcript"). Read mail and transcripts only through the AI Integrator connector; if it isn't connected, stop and say so - never fall back to another mail or notetaker tool. *(Why, ruled 2026-10-12, `dr_skills_read_mail_and_transcripts_only_through_our_connector_20261012`: text read through Claude's own mail connector or a notetaker connected straight to Claude never reaches our server, so it is not marked as information-not-orders, and a send it leads to skips the Ask-first approval click.)*
+
 > ⚠ **Search by KEYWORD, not by exact name.** An exact-name lookup silently returns nothing when
 > the name has drifted — and "nothing found" reads exactly like "the tool is not installed." A
 > job that only tries the exact-name form will wrongly conclude its own database is unreachable.
