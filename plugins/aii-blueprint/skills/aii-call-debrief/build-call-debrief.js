@@ -1033,6 +1033,17 @@ const PROMISE_PUT_SQL = [
   '  FROM promise_put($1, $2, $3, $4, $5, $6, $7, $8, $9::timestamptz, $10, $11::timestamptz, $12,',
   '       (SELECT s.state_id FROM call_guide_state_current_v s WHERE s.tenant_id = $1 AND s.doc_id = $2))',
 ].join('\n');
+/* 2026-10-13 (ruling dr_a_commitment_made_for_someone_shows_on_their_board_and_stays_the_makers_20261013). A promise the call says a
+   TEAMMATE will do is handed to that teammate by the store's own door. The builder never names a person_id: it carries the words that name who it is handed to
+   as spoken (promises[i].handed_to.name) and the store's promise_handed_to_resolve decides - exactly ONE live inside person of the company, else
+   nothing is handed and the verdict says why. The promise stays the maker's own row either way. ONE statement, 6 values:
+   tenant, source doc, the item's `what`, the name it is handed to as spoken, the call's outside names (the same-first-name guard), the writer. */
+const PROMISE_HAND_SQL = [
+  'SELECT verdict, person_id, handed, why',
+  '  FROM promise_hand_auto($1,',
+  '       (SELECT c.promise_id FROM call_promise c WHERE c.tenant_id = $1 AND c.source_doc_id = $2 AND c.what = btrim($3)),',
+  '       $4, $5, $6)',
+].join('\n');
 const PROMISE_CHECK_SQL = [
   'SELECT promise_id, source_doc_id, what, status, due_at',
   '  FROM call_promise',
@@ -1101,6 +1112,11 @@ function promiseGate(d, config, tx, crm, argBy) {
     else if (seen[what.toLowerCase()]) errs.push(n + '.what repeats promises[' + seen[what.toLowerCase()] + '] — one row per item, so two items with one `what` would collapse into one row');
     else seen[what.toLowerCase()] = String(i);
     if (!String(p.sourceLine || '').trim()) errs.push(n + '.sourceLine is empty (the user\'s own words, verbatim)');
+    /* 2026-10-13: `handed_to` is OPTIONAL. Absent or null = the user does it himself. Present = {"name": "<the teammate, as said>"}; the
+       store decides whether that name is exactly one inside person. A handed_to with no name is a mistake, never a quiet skip. */
+    if (p.handed_to != null && !String(typeof p.handed_to === 'string' ? p.handed_to : (p.handed_to && p.handed_to.name) || '').trim()) {
+      errs.push(n + '.handed_to is present but has no name: write {"name": "<the teammate, as said>"}, or leave it out when the user does it himself');
+    }
     if (PROMISE_SOURCE_KINDS.indexOf(p.sourceKind) < 0) errs.push(n + '.sourceKind must be one of ' + PROMISE_SOURCE_KINDS.join('|'));
     const words = p.spokenDue == null ? '' : String(p.spokenDue).trim();
     const at = p.spokenDueAt == null ? '' : String(p.spokenDueAt).trim();
@@ -1140,7 +1156,21 @@ function promiseGate(d, config, tx, crm, argBy) {
         'already kept on the call), name it in `notPromises: [{"line", "why"}]`.');
     }
   }
-  return { items: d.promises, promisedAt, by };
+  return { items: d.promises, promisedAt, by, operator: [].concat(config.operatorSpeaker || []),
+    hint: [config.prospect, config.company].filter(Boolean).join(' ') };
+}
+
+/* The words naming who an item is handed to, from one promise item: a string, or {name}. '' when the user does it himself. */
+function handedToWords(p) {
+  const d = p && p.handed_to;
+  return String(d == null ? '' : (typeof d === 'string' ? d : d.name || '')).trim();
+}
+/* The user himself is never handed his own promise. Matches the seat's own FULL operator label (config.operatorSpeaker) or the first-person pronouns, nothing else. A bare first name goes to the store, which decides (it knows a teammate who shares the operator's first name and answers cannot-tell). Never a literal name: the code ships to every seat. */
+function handedToIsOperator(words, operator) {
+  const w = normLine(words);
+  if (!w) return true;
+  if (/^(i|me|myself)$/.test(w)) return true;
+  return [].concat(operator || []).map(normLine).filter(Boolean).some(function (o) { return o === w; });
 }
 
 /* One promise_put per item. Nothing here touches a database. */
@@ -1162,6 +1192,19 @@ function promisePlan(docId, gate, leadId, paths) {
           p.spokenDueAt == null || String(p.spokenDueAt).trim() === '' ? null : String(p.spokenDueAt).trim(),
           gate.by] };
     }),
+    /* 2026-10-13: the hand-offs. Run each AFTER every `calls` item (the row must exist). A hand that does not land is NEVER a failure
+       of the debrief: the promise stays the user's own. Count verdict 'handed' in promise_hands_made; list every other verdict and its
+       `why` in the run detail as promise_hands_skipped (the reason is the record). */
+    hands: gate.items.map(function (p, i) { return { p: p, i: i, who: handedToWords(p) }; })
+      .filter(function (x) { return x.who && !handedToIsOperator(x.who, gate.operator); })
+      .map(function (x) {
+        return { n: x.i + 1, what: String(x.p.what).trim(), handed_to: x.who, sql: PROMISE_HAND_SQL,
+          params: [R.TENANT, docId, String(x.p.what).trim(), x.who,
+            [x.p.to && x.p.to.name, gate.hint].filter(Boolean).join(' '), gate.by] };
+      }),
+    handsSkipped: gate.items.map(function (p, i) { return { n: i + 1, what: String(p.what).trim(), handed_to: handedToWords(p) }; })
+      .filter(function (x) { return x.handed_to && handedToIsOperator(x.handed_to, gate.operator); })
+      .map(function (x) { return { n: x.n, what: x.what, handed_to: x.handed_to, why: 'the person it is handed to is the user himself' }; }),
     check: { sql: PROMISE_CHECK_SQL, params: [R.TENANT, docId], save: 'promise-rows.json (the FULL result)' },
     judge: 'node ' + q(path.join(__dirname, 'build-call-debrief.js')) + ' --promises-check ' + q(paths.promisesPath) +
       ' --rows promise-rows.json',
@@ -1408,7 +1451,8 @@ function regenerate(readPlan, rowsIn, opts) {
       throw promiseRefuse('kept state ' + row.state_id + ' carries ' + kc.promises.length + ' promise(s) but ' +
         (!ISO_WITH_OFFSET.test(at) ? 'no call end time (config.callEndedAt)' : 'no writer: pass --promise-by session:<id>') + '.');
     }
-    pGate = { items: kc.promises, promisedAt: at, by };
+    pGate = { items: kc.promises, promisedAt: at, by, operator: [].concat(config.operatorSpeaker || []),
+      hint: [config.prospect, config.company].filter(Boolean).join(' ') };
   }
 
   let handoff = null;
@@ -1749,7 +1793,11 @@ async function main() {
   console.error(promises.count
     ? 'PROMISES — ' + promises.count + ' promise_put call(s) in stdout `promises.calls`. Run them after settle (the row must exist),' +
       '\n  then `promises.check`, save the rows, and run `promises.judge`. Exit 0 = every promise has its row; exit ' +
-      PROMISE_EXIT.ROWS_SHORT + ' = NOT done.'
+      PROMISE_EXIT.ROWS_SHORT + ' = NOT done.' +
+      (promises.hands && promises.hands.length
+        ? '\n  HANDS — ' + promises.hands.length + ' promise(s) name a teammate it is handed to. After the calls, run each `promises.hands[i]`;' +
+          '\n  a verdict other than `handed` is not a failure (the promise stays yours): list it with its `why` as promise_hands_skipped.'
+        : '')
     : 'PROMISES — none on this call (`promises: []`). Nothing to write.');
   /* 0.9.50: the hosted half is either PLANNED (exit 0 — a complete filing plan) or MISSING (exit 20). */
   if (handoff) hostedPlanned(out, handoff);
@@ -1772,7 +1820,8 @@ module.exports = { buildStandaloneHtml, buildBodyHtml,
                    planRegenRead, regenerate, REGEN_READ_SQL, REGEN_EXIT,
                    /* 0.9.50 (B9) — the promise writer, exported so prove-promise-writer.js proves it. */
                    __promises: { promiseGate, promisePlan, promisesVerdict, uncoveredSendPromises,
-                                 PROMISE_EXIT, PROMISE_PUT_SQL, PROMISE_CHECK_SQL, SEND_PROMISE_RX },
+                                 PROMISE_EXIT, PROMISE_PUT_SQL, PROMISE_HAND_SQL, PROMISE_CHECK_SQL, SEND_PROMISE_RX,
+                                 handedToWords, handedToIsOperator },
                    /* Exported 2026-08-11 so a REPAIR can restore a question panel into a debrief
                       that already exists, without rebuilding the document around it. Three
                       debriefs shipped with their questions silently deleted; their analysis is
