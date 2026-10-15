@@ -1524,6 +1524,43 @@ function selfTest() {
       /--stage-sql/.test(h.steps[3].staged.run) && /--openable/.test(h.steps[6].judge);
   });
 
+  /* KEPT STATE BY REFERENCE (2026-10-15). Offline halves only; the store half (rebuild + sha refusal)
+     was proven in a rolled-back rehearsal against a real kept state. */
+  const krBase = { header: { title: 'T' }, aspectsMarkdown: 'long shared text', gone: 1,
+    sections: [{ id: 'a', do: ['x'] }, { id: 'b', do: ['y'] }, { id: 'c', why: 'é "q" \n' }] };
+  const krNew = { header: { title: 'T2' }, aspectsMarkdown: 'long shared text', added: [1, 2],
+    sections: [{ id: 'b', do: ['y'] }, { id: 'c', why: 'é "q" \n' }, { id: 'd', do: [] }] };
+  const krPlan = () => planRegistration(base.localPath, Object.assign({}, base, { guideJson: krNew }));
+  chk('KR1 jsonbText is Postgres\'s own form: shorter keys first, ", " and ": ", escapes', () =>
+    jsonbText({ bb: 1, a: [true, null], c: 'é"\\\n\u0001' }) === '{"a": [true, null], "c": "é\\"\\\\\\n\\u0001", "bb": 1}');
+  chk('KR2 the patch rebuilds the new guide exactly, keeps unchanged sections by id, sends no shared text', () => {
+    const p = keptPatch(krBase, krNew);
+    return jsonbText(applyKeptPatch(krBase, p)) === jsonbText(krNew)
+      && p.sections[0].$keep === 'b' && p.sections[1].$keep === 'c' && p.sections[2].id === 'd'
+      && !JSON.stringify(p).includes('long shared text');
+  });
+  chk('KR3 a by-ref plan is the SAME statement with a front spliced on, $17 = patch, + base id and sha', () => {
+    const p = byReference(krPlan(), { stateId: 'cgs_x_v1', guide: krBase });
+    return p.sql.includes(GUARDED_UPSERT.slice(GUARDED_UPSERT.indexOf('terms AS ('), GUARDED_UPSERT.indexOf('gap AS (SELECT reason FROM vocab_gap')))
+      && p.sql.endsWith(GUARDED_UPSERT.slice(GUARDED_UPSERT.indexOf('ins AS (')))
+      && /WITH RECURSIVE kr_in/.test(p.sql) && /SELECT reason FROM kr_gap UNION ALL/.test(p.sql)
+      && /\(SELECT g FROM kr_built\) AS guide_json/.test(p.sql) && !/\$17::jsonb AS guide_json/.test(p.sql)
+      && p.params.length === 23 && p.params[21] === 'cgs_x_v1' && /^[0-9a-f]{64}$/.test(p.params[22])
+      && p.params[22] === require('crypto').createHash('sha256').update(jsonbText(krNew)).digest('hex')
+      && JSON.parse(p.params[16]).sections !== undefined && p.byReference.patchChars < p.byReference.fullGuideChars;
+  });
+  chk('KR4 by-ref REFUSES a plan this file did not print, and one with no guide JSON', () => {
+    let a = false, b = false;
+    try { byReference(Object.assign({}, krPlan(), { sql: 'SELECT 1' }), { stateId: 's', guide: krBase }); } catch (_) { a = true; }
+    try { byReference(planRegistration(base.localPath, base, {}), { stateId: 's', guide: krBase }); } catch (_) { b = true; }
+    return a && b;
+  });
+  chk('KR5 a base read through the connector is unwrapped for ITS code only', () => {
+    const r = readBase({ outside_text_notice: 'wrapped between ⟦outside ab12⟧ and ⟦/outside ab12⟧', rows: [
+      { state_id: '⟦outside ab12⟧cgs_x_v1⟦/outside ab12⟧', guide_json: { t: '⟦outside ab12⟧hi⟦/outside ab12⟧', u: '⟦outside ffff⟧keep⟦/outside ffff⟧' } }] });
+    return r.stateId === 'cgs_x_v1' && r.guide.t === 'hi' && r.guide.u === '⟦outside ffff⟧keep⟦/outside ffff⟧';
+  });
+
   console.log(`\n  ${pass} passed, ${fail} failed`);
   console.log('  This proves the SHAPE refusals and every SETTLE outcome, offline.');
   console.log('  The VOCABULARY and CAPABILITY refusals live in the SQL now, not in this');
@@ -1775,6 +1812,271 @@ function stagePlan(bytes, ticket, by) {
   };
 }
 
+/* ── KEPT STATE BY REFERENCE (2026-10-15, work_run 11091) ───────────────────────────────────
+   WHY. Measured 2026-10-15 ("▶ OUTPUTS/2026-10-15 Call Guide build time by stage.md"): the register
+   call is the biggest single wait in a build. The session re-types the WHOLE guide JSON - 26-64K
+   characters, shared talking points included - as $17 of the guarded statement: 86-172 s per call,
+   twice on a regen. The store stamps the row in 2 s. The time is the session typing, not the store.
+
+   WHAT IT DOES. `--by-ref <plan.json> --base <file>` rewrites a plan so $17 carries only what CHANGED
+   against a kept state the store ALREADY holds (the base, pinned by its state_id), and the store
+   rebuilds the full guide itself:
+       guide = (base - drop) || set,   then sections[] rebuilt in order, {"$keep": "<id>"} = base's section
+   It is still ONE statement through the SAME connector door, and the guarded upsert is untouched: three
+   counted anchors splice a front (kr_*) onto it, and the kept write still lands through `kept`.
+
+   THE GUARD. The plan carries the sha256 of the full guide AS THE STORE WILL PRINT IT (jsonbText below
+   reproduces Postgres's own jsonb text form). The statement rebuilds the guide, hashes it, and if the
+   hash is not the plan's, kr_gap joins `gap` and NOTHING is written - the same discipline as
+   call_doc_upload_stage's CHUNK-CHANGED-IN-TRANSIT. A changed patch, a corrupted base file, or a base
+   row that is not the one the patch was cut from are all the same red.
+
+   WHAT IT IS NOT. No credential, no network, no new door: the session is still the wire, it just
+   carries a patch instead of the guide. A FIRST build has no base, so it saves nothing there (use the
+   plain plan); the win is on every rebuild/regen, where the base is the doc's own previous version. */
+const KR_ANCHORS = [
+  ['\nWITH in_f AS (\n', null],
+  ['$17::jsonb AS guide_json,', '(SELECT g FROM kr_built) AS guide_json,'],
+  ['gap AS (SELECT reason FROM vocab_gap UNION ALL', 'gap AS (SELECT reason FROM kr_gap UNION ALL SELECT reason FROM vocab_gap UNION ALL'],
+];
+const KR_FRONT = `
+WITH RECURSIVE kr_in AS (
+  SELECT $17::jsonb AS patch, $22::text AS base_state_id, lower($23::text) AS want_sha, $2::text AS tenant_id
+),
+kr_base AS (
+  SELECT s.guide_json AS g FROM call_guide_state s, kr_in k
+   WHERE s.tenant_id = k.tenant_id AND s.state_id = k.base_state_id
+),
+kr_g0 AS (
+  SELECT k.patch,
+         CASE WHEN k.base_state_id IS NULL THEN coalesce(k.patch -> 'set', '{}'::jsonb)
+              ELSE ((SELECT g FROM kr_base)
+                     - ARRAY(SELECT jsonb_array_elements_text(coalesce(k.patch -> 'drop', '[]'::jsonb))))
+                   || coalesce(k.patch -> 'set', '{}'::jsonb) END AS g0
+    FROM kr_in k
+),
+kr_g1 AS (
+  SELECT CASE WHEN jsonb_typeof(x.patch -> 'sections') = 'array' THEN
+           jsonb_set(x.g0, '{sections}', (
+             SELECT coalesce(jsonb_agg(CASE WHEN y.e ? '$keep'
+                      THEN (SELECT bs FROM jsonb_array_elements((SELECT g FROM kr_base) -> 'sections') bs
+                             WHERE bs ->> 'id' = y.e ->> '$keep' LIMIT 1)
+                      ELSE y.e END ORDER BY y.o), '[]'::jsonb)
+               FROM jsonb_array_elements(x.patch -> 'sections') WITH ORDINALITY y(e, o)))
+         ELSE x.g0 END AS g
+    FROM kr_g0 x
+),
+kr_ops AS (
+  SELECT x.o, x.e, ARRAY(SELECT jsonb_array_elements_text(x.e -> 'p')) AS p
+    FROM kr_in k, jsonb_array_elements(coalesce(k.patch -> 'ops', '[]'::jsonb)) WITH ORDINALITY x(e, o)
+),
+kr_apply AS (
+  SELECT 0::bigint AS i, g FROM kr_g1
+  UNION ALL
+  SELECT a.i + 1, CASE WHEN x.e ? 'v' THEN jsonb_set(a.g, x.p, x.e -> 'v', true) ELSE a.g #- x.p END
+    FROM kr_apply a JOIN kr_ops x ON x.o = a.i + 1
+),
+kr_built AS (
+  SELECT g FROM kr_apply ORDER BY i DESC LIMIT 1
+),
+kr_gap AS (
+  SELECT 'KEPT-REF: want_sha256 is not 64 hex characters. Run the plan the by-ref step printed, unchanged. Nothing was written.' AS reason
+    FROM kr_in k WHERE coalesce(k.want_sha, '') !~ '^[0-9a-f]{64}$'
+  UNION ALL
+  SELECT 'KEPT-REF: base ' || k.base_state_id || ' is not a kept state of tenant ' || k.tenant_id
+         || '. Nothing was written.'
+    FROM kr_in k WHERE k.base_state_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM kr_base)
+  UNION ALL
+  SELECT 'KEPT-REF-CHANGED-IN-TRANSIT: the guide rebuilt from base ' || coalesce(k.base_state_id, '(none)')
+         || ' + the patch hashes to ' || coalesce(encode(sha256(convert_to(b.g::text, 'UTF8')), 'hex'), 'NULL')
+         || ', not the ' || k.want_sha || ' the plan printed. The patch or the base changed on the way. '
+         || 'Nothing was written: send the plan''s sql and params again, copied exactly.'
+    FROM kr_in k CROSS JOIN kr_built b
+   WHERE k.want_sha ~ '^[0-9a-f]{64}$'
+     AND (k.base_state_id IS NULL OR EXISTS (SELECT 1 FROM kr_base))
+     AND (b.g IS NULL OR encode(sha256(convert_to(b.g::text, 'UTF8')), 'hex') <> k.want_sha)
+),
+in_f AS (
+`;
+
+/* Postgres's own jsonb text form, so the plan can print the sha256 the STORE will compute.
+   Keys: shorter first, then bytewise (jsonb's order); separators ", " and ": "; strings escaped as
+   escape_json does. A number in exponent form is refused rather than guessed - the plan then falls
+   back to the plain (whole-guide) plan, it never ships a sha it is unsure of. */
+function jsonbText(v) {
+  if (v === null) return 'null';
+  if (typeof v === 'boolean') return v ? 'true' : 'false';
+  if (typeof v === 'number') {
+    const s = JSON.stringify(v);
+    if (!/^-?\d+(\.\d+)?$/.test(s)) throw new Error('jsonbText: number ' + s + ' has no certain jsonb form');
+    return s;
+  }
+  if (typeof v === 'string') {
+    let o = '"';
+    for (const ch of v) {
+      const c = ch.codePointAt(0);
+      if (ch === '"') o += '\\"';
+      else if (ch === '\\') o += '\\\\';
+      else if (ch === '\b') o += '\\b';
+      else if (ch === '\f') o += '\\f';
+      else if (ch === '\n') o += '\\n';
+      else if (ch === '\r') o += '\\r';
+      else if (ch === '\t') o += '\\t';
+      else if (c < 0x20) o += '\\u' + c.toString(16).padStart(4, '0');
+      else o += ch;
+    }
+    return o + '"';
+  }
+  if (Array.isArray(v)) return '[' + v.map(jsonbText).join(', ') + ']';
+  if (typeof v === 'object') {
+    const keys = Object.keys(v).sort((a, b) => {
+      const ba = Buffer.from(a, 'utf8'), bb = Buffer.from(b, 'utf8');
+      return ba.length - bb.length || Buffer.compare(ba, bb);
+    });
+    return '{' + keys.map((k) => jsonbText(k) + ': ' + jsonbText(v[k])).join(', ') + '}';
+  }
+  throw new Error('jsonbText: cannot encode a ' + typeof v);
+}
+const sha256Hex = (s) => require('crypto').createHash('sha256').update(s, 'utf8').digest('hex');
+
+/* The patch: what the store must do to the base to get `guide`. Pure.
+     drop/set     whole top-level keys (kept for readability; ops can express them too)
+     sections     the new sections[] in order; {"$keep": id} = the base's section with that id
+     ops          then, in order, [{p:[path], v:value}] = jsonb_set, [{p:[path]}] = #- (delete)
+   A subtree is diffed only while its ops are SMALLER than the subtree itself; otherwise it is sent
+   whole. Arrays are diffed element-wise only when the lengths agree (no index shifting). */
+function keptPatch(baseGuide, guide) {
+  const T = jsonbText;
+  const isObj = (x) => x && typeof x === 'object' && !Array.isArray(x);
+  const diff = (a, b, p) => {
+    if (T(a) === T(b)) return [];
+    let ops = null;
+    if (isObj(a) && isObj(b)) {
+      ops = [];
+      for (const k of Object.keys(a)) if (!(k in b)) ops.push({ p: p.concat(k) });
+      for (const k of Object.keys(b)) ops.push(...(k in a ? diff(a[k], b[k], p.concat(k)) : [{ p: p.concat(k), v: b[k] }]));
+    } else if (Array.isArray(a) && Array.isArray(b) && a.length === b.length) {
+      ops = [];
+      for (let i = 0; i < b.length; i++) ops.push(...diff(a[i], b[i], p.concat(String(i))));
+    }
+    const whole = [{ p, v: b }];
+    return ops && JSON.stringify(ops).length < JSON.stringify(whole).length ? ops : whole;
+  };
+  const patch = { ops: [] };
+  const top = Object.assign({}, baseGuide), want = Object.assign({}, guide);
+  const bs = Array.isArray(baseGuide.sections) ? baseGuide.sections : null;
+  const ns = Array.isArray(guide.sections) ? guide.sections : null;
+  const ids = bs ? bs.map((x) => x && x.id) : [];
+  const idOk = bs && ns && ids.every((x) => typeof x === 'string') && new Set(ids).size === ids.length
+    && !ns.some((x) => isObj(x) && '$keep' in x) && T(bs) !== T(ns);
+  if (idOk) {
+    patch.sections = ns.map((x, i) => {
+      const b = isObj(x) && typeof x.id === 'string' ? bs.find((y) => y.id === x.id) : undefined;
+      if (!b) return x;
+      patch.ops.push(...diff(b, x, ['sections', String(i)]));
+      return { $keep: x.id };
+    });
+    delete top.sections; delete want.sections;
+  }
+  for (const k of Object.keys(top)) if (!(k in want)) patch.ops.push({ p: [k] });
+  for (const k of Object.keys(want)) patch.ops.push(...(k in top ? diff(top[k], want[k], [k]) : [{ p: [k], v: want[k] }]));
+  if (!patch.ops.length) delete patch.ops;
+  return patch;
+}
+
+/* The same rebuild the SQL does, in JS, so the plan is proven before it is printed. jsonb_set semantics:
+   a missing LAST key is created; a missing parent leaves the value unchanged (and the sha then refuses). */
+function applyKeptPatch(baseGuide, patch) {
+  const clone = (x) => JSON.parse(JSON.stringify(x));
+  let g = {};
+  if (baseGuide && patch.set === undefined) g = clone(baseGuide);
+  else { for (const k of Object.keys(baseGuide || {})) if (!(patch.drop || []).includes(k)) g[k] = clone(baseGuide[k]); }
+  Object.assign(g, clone(patch.set || {}));
+  if (Array.isArray(patch.sections)) {
+    const bs = (baseGuide && baseGuide.sections) || [];
+    g.sections = patch.sections.map((e) => (e && typeof e === 'object' && '$keep' in e)
+      ? clone(bs.find((x) => x && x.id === e.$keep) || null) : clone(e));
+  }
+  for (const op of patch.ops || []) {
+    if (!op.p.length) { if ('v' in op) g = clone(op.v); continue; }
+    let parent = g;
+    for (const k of op.p.slice(0, -1)) {
+      parent = parent && typeof parent === 'object' ? parent[Array.isArray(parent) ? Number(k) : k] : undefined;
+    }
+    const last = op.p[op.p.length - 1];
+    if (!parent || typeof parent !== 'object') continue;
+    if (Array.isArray(parent)) {
+      const i = Number(last);
+      if ('v' in op) { if (i >= 0 && i < parent.length) parent[i] = clone(op.v); }
+      else if (i >= 0 && i < parent.length) parent.splice(i, 1);
+    } else if ('v' in op) parent[last] = clone(op.v);
+    else delete parent[last];
+  }
+  return g;
+}
+
+/* Read a base out of whatever the session has on disk: the regen read's saved result
+   ({rows:[{state_id, guide_json}]}), a bare row, or an array of rows. */
+function readBase(obj) {
+  const rows = Array.isArray(obj) ? obj : (obj && Array.isArray(obj.rows) ? obj.rows : [obj]);
+  const row = rows.find((r) => r && typeof r.state_id === 'string' && r.guide_json);
+  if (!row) throw new Error('by-ref: refused — the base file holds no row with state_id and guide_json.');
+  let g = typeof row.guide_json === 'string' ? JSON.parse(row.guide_json) : row.guide_json;
+  /* The connector wraps every string of call_guide_state in ⟦outside <code>⟧…⟦/outside <code>⟧, with a
+     code announced once per reply in outside_text_notice. Unwrap ONLY that code and only a whole-string
+     wrap; any other marker is text. If this ever unwraps wrong, the store's sha check refuses the plan -
+     a bad base can make a red, never a wrong row. */
+  const code = obj && !Array.isArray(obj) && typeof obj.outside_text_notice === 'string'
+    ? ((/⟦outside ([0-9a-f]+)⟧/.exec(obj.outside_text_notice) || [])[1] || null) : null;
+  if (code) {
+    const open = '⟦outside ' + code + '⟧', close = '⟦/outside ' + code + '⟧';
+    const un = (x) => {
+      if (typeof x === 'string') return x.startsWith(open) && x.endsWith(close) ? x.slice(open.length, -close.length) : x;
+      if (Array.isArray(x)) return x.map(un);
+      if (x && typeof x === 'object') { const o = {}; for (const k of Object.keys(x)) o[k] = un(x[k]); return o; }
+      return x;
+    };
+    g = un(g);
+  }
+  return { stateId: un0(row.state_id, code), guide: g };
+}
+function un0(s, code) {
+  if (!code || typeof s !== 'string') return s;
+  const open = '⟦outside ' + code + '⟧', close = '⟦/outside ' + code + '⟧';
+  return s.startsWith(open) && s.endsWith(close) ? s.slice(open.length, -close.length) : s;
+}
+
+function byReference(plan, base) {
+  if (!plan || plan.sql !== GUARDED_UPSERT || !Array.isArray(plan.params) || plan.params.length !== 21) {
+    throw new Error('by-ref: refused — that is not a registration plan this file printed (sql or params differ).');
+  }
+  if (plan.params[16] == null) throw new Error('by-ref: refused — the plan carries no guide JSON ($17 is null); there is nothing to reference.');
+  const guide = JSON.parse(plan.params[16]);
+  const wantSha = sha256Hex(jsonbText(guide));
+  const patch = base ? keptPatch(base.guide, guide) : { set: guide };
+  const rebuilt = applyKeptPatch(base ? base.guide : {}, patch);
+  if (sha256Hex(jsonbText(rebuilt)) !== wantSha) {
+    throw new Error('by-ref: refused — the patch does not rebuild the guide in this process; use the plain plan.');
+  }
+  let sql = GUARDED_UPSERT;
+  for (const [from, to] of KR_ANCHORS) {
+    const n = sql.split(from).length - 1;
+    if (n !== 1) throw new Error('by-ref: refused — anchor found ' + n + ' times, expected 1: ' + JSON.stringify(from));
+    sql = sql.replace(from, () => (to === null ? KR_FRONT : to));
+  }
+  const params = plan.params.slice();
+  params[16] = JSON.stringify(patch);
+  params.push(base ? base.stateId : null, wantSha);
+  return Object.assign({}, plan, {
+    _what_this_is: 'A call_doc registration plan BY REFERENCE: $17 is a patch against kept state ' +
+      (base ? base.stateId : '(none)') + ', and the store rebuilds the guide and refuses it unless it ' +
+      'hashes to byReference.wantSha256. Run `sql` with `params` exactly as for a plain plan, then --settle.',
+    sql, params,
+    byReference: { baseStateId: base ? base.stateId : null, wantSha256: wantSha,
+      fullGuideChars: plan.params[16].length, patchChars: params[16].length },
+  });
+}
+
 module.exports = { planRegistration, settleRegistration, quarantinePathFor, lookupSql,
                    confirmHosted, confirmSettle, cleanupSettleScratch,
                    validateShape, deriveDocId, GUARDED_UPSERT,
@@ -1785,7 +2087,9 @@ module.exports = { planRegistration, settleRegistration, quarantinePathFor, look
                    /* HOSTED HANDOFF (2026-09-17) — see the block above module.exports. */
                    folderSql, readFolderAddress, hostedHandoff, HOSTED_EXIT_UNRESOLVED,
                    /* OPENABLE + STAGED UPLOAD (0.9.50) — see the blocks above module.exports. */
-                   openableVerdict, OPENABLE_EXIT, stagePlan, STAGE_SQL, STAGE_STATUS_SQL };
+                   openableVerdict, OPENABLE_EXIT, stagePlan, STAGE_SQL, STAGE_STATUS_SQL,
+                   /* KEPT STATE BY REFERENCE (2026-10-15) — see the block above module.exports. */
+                   byReference, keptPatch, applyKeptPatch, jsonbText, readBase };
 
 if (require.main === module) {
   const argv = process.argv.slice(2);
@@ -1868,6 +2172,19 @@ if (require.main === module) {
       process.exit(0);
     }
 
+    if (cmd === '--by-ref') {
+      // --by-ref <plan.json> --base <rows.json|row.json> [--out <file>]
+      if (!argv[1] || argv[1].startsWith('--')) { console.error('--by-ref needs the plan.json first.'); process.exit(64); }
+      const bi = argv.indexOf('--base');
+      if (bi < 0 || !argv[bi + 1]) { console.error('--by-ref needs --base <file>: the kept-state row the store already holds (the regen read result).'); process.exit(64); }
+      const oi = argv.indexOf('--out');
+      const out = oi >= 0 && argv[oi + 1] ? argv[oi + 1] : argv[1].replace(/(\.plan)?\.json$/, '') + '.byref.plan.json';
+      const p2 = byReference(readJson(argv[1]), readBase(readJson(argv[bi + 1])));
+      fs.writeFileSync(out, JSON.stringify(p2, null, 2));
+      console.log(JSON.stringify(Object.assign({ out }, p2.byReference), null, 2));
+      process.exit(0);
+    }
+
     if (cmd === '--lookup-sql') {
       console.log(JSON.stringify(lookupSql(argv[1], argv[2]), null, 2));
       process.exit(0);
@@ -1893,6 +2210,10 @@ if (require.main === module) {
       '  --stage-sql <settledFile> --ticket <t> --by <id>\n' +
       '                                           the no-egress upload: chunk statements for the\n' +
       '                                           board connector, then the status read\n' +
+      '  --by-ref <plan.json> --base <rows.json> [--out <f>]\n' +
+      '                                           the same plan with $17 cut to a patch against a\n' +
+      '                                           kept state the store holds; the store rebuilds it\n' +
+      '                                           and refuses unless the sha256 matches\n' +
       '\nThere is no flag that opens a database. The session is the wire: run plan.sql through\n' +
       'the board connector, resolved BY CATEGORY (Core §11 rule 4), and hand the result back.'
     );

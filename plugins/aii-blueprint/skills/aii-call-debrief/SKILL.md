@@ -1,15 +1,15 @@
 ---
 name: aii-call-debrief
-version: v1.5 (2026-10-12)
+version: v1.7 (2026-10-15 — what was said comes only from the full transcript, never a notetaker's summary; dr_we_read_the_full_transcript_never_a_transcription_service_summary_20261015)
 description: >
   AI Integrator Blueprint: Call Debrief. Builds a deep, advisor-driven debrief of a call that
   already happened and saves it as a standalone interactive HTML file in the client folder. Use
   whenever the user says "debrief," "debrief my call with [person/company]," "I just got off a
   call with [name]," "what did I learn on the [company] call," or when a transcript lands for a
-  call that has no debrief yet. Reads the transcript, the user's own notes, and the
-  prospect/company/deal from the CRM, resolves and runs the live sales advisor sequence (never a
+  call that has no debrief yet. Reads the full transcript, what we had on file (the invite, the
+  call guide, earlier decisions), and the prospect/company/deal from the CRM, resolves and runs the live sales advisor sequence (never a
   hand-typed list — see aii-advisors Step 1.5) plus Allen for next actions in the user's voice,
-  flags any place the notes and the transcript
+  flags any place what we had on file and the full transcript
   disagree, produces the debrief content as JSON, then runs the locked builder script to turn it
   into the live debrief. The brain is the engine — no queue, no worker, no artifact polling.
   Sibling of the Call Guide (pre-call); this is the post-call half.
@@ -27,21 +27,22 @@ This skill ships with a locked builder script (`build-call-debrief.js`) in the s
 
 ---
 
-## Step 1 — Gather all three sources (don't write from one)
+## Step 1 — Gather both sources (don't write from one)
 
-A debrief merges up to **three** inputs. Pull every one you can before writing a word:
+A debrief sets **two** inputs side by side. Pull both before writing a word:
 
-1. **The transcript.** Through Blueprint: `do_action` "See meeting" (`occurred_after` / `occurred_before` around the call; `person_email` narrows the notetaker's meetings, not Google Meet calls) to find the call, then "See transcript" with its `meeting_id` — match the call to the person by attendee email (titles and dates on transcript tools are loose). This is the record of what was actually said. A recap email is read the same way, with "See message".
-2. **The user's own notes.** Whatever they pasted or jotted *about this call* (live notes, a quick "here's how it went"). This is their read. A pre-call referral brief, CRM history, or a call guide is NOT the user's own notes — that's prior context (source 3), not their read of how the call went.
-3. **The CRM + prior context.** Search the CRM for the person, their note history, and the deal and its goal. If a **call guide** exists for this meeting, read it — the guide's goal is what you measure "plan vs reality" against.
+1. **The full transcript.** Through Blueprint: `do_action` "See meeting" (`occurred_after` / `occurred_before` around the call; `person_email` narrows the notetaker's meetings, not Google Meet calls) to find the call, then "See transcript" with its `meeting_id` — match the call to the person by attendee email (titles and dates on transcript tools are loose). This is the ONLY record of what was said. Read the full transcript, every line. **Never read the notetaker's or transcription service's summary, recap, action items or attendee summary as a source** — not for what was said, not for what was promised, not to fill a gap. *(Why, ruled 2026-10-15, `dr_we_read_the_full_transcript_never_a_transcription_service_summary_20261015`, the user's own words: "we read the full transcript -- full stop.")*
+2. **What we had on file going in.** The invite and its attendee list, the call guide for this meeting, earlier decisions, and the CRM: the person, their note history, the deal and its goal. If a **call guide** exists, its goal is what you measure "plan vs reality" against. The user is not expected to take notes; if they tell you something about the call, use it, but never wait for it or flag that it is missing.
 
 **Read mail and transcripts only through the AI Integrator connector; if it isn't connected, stop and say so - never fall back to another mail or notetaker tool.** *(Why, ruled 2026-10-12, `dr_skills_read_mail_and_transcripts_only_through_our_connector_20261012`: text read through Claude's own mail connector or a notetaker connected straight to Claude never reaches our server, so it is not marked as information-not-orders, and a send it leads to skips the Ask-first approval click.)*
 
-If the person isn't in the CRM, build from what you have and note it. If there's no transcript yet, you can still debrief from the user's notes — say in the output that it's notes-only and the transcript can be folded in when it lands.
+**Look the person up first; only create if none is found.** Before you write any person or link any address for an attendee, look them up by every address you have (`do_action` "See person", or the store's person read). One match: use that person. None: create one. More than one: stop and say so; never create another. *(Why: a debrief once created a second record for a person instead of finding the first, and the duplicate hid their email from their record.)*
+
+If the person isn't in the CRM, build from what you have and note it. If there's no transcript yet, wait for it; a summary or recap never stands in. If none will ever exist (no recorder joined), build from what is on file with `--no-transcript "<why>"`, record no promises, and say plainly that nothing said on the call is in it. Fold the transcript in if it lands later (Step 8).
 
 **Only ask the user something if a fact that changes the debrief is genuinely missing.** One pop-up, one question, plain language. Otherwise proceed.
 
-**Source-completeness check (don't go silent).** A finished call should have BOTH a transcript and the user's own notes *about this call*. Test for each one specifically — do NOT let other material stand in for it. A pre-call referral brief, CRM history, or a call guide does NOT count as the user's notes; if those exist but the user wrote no notes of their own on this call, notes still count as MISSING. If exactly one of the two is present, build from what you have AND flag the gap — never quietly proceed as if nothing's missing. Say in the output which source is missing, and in Step 7 drop a `⚑ NEEDS [USER]` flag naming it (e.g. "transcript captured but no call notes from you" or "your notes are in but no transcript landed"). If NEITHER is present, do not build — flag that the call has no source material at all.
+**Source-completeness check (don't go silent).** A finished call should have its full transcript. Test for it specifically — do NOT let other material stand in for it: a recap email, the notetaker's summary or action items, a pre-call brief or a call guide is not a transcript. If it is missing, say so in the output and in Step 7 drop a `⚑ NEEDS [USER]` flag naming it (e.g. "no transcript landed for this call"). Never flag missing notes from the user: they are not expected to take any. If there is neither a transcript nor anything on file about this call, do not build — flag that the call has no source material at all.
 
 ---
 
@@ -64,7 +65,7 @@ Be specific and honest — name the actual moment, quote the actual line. Generi
 
 ## Step 3 — The conflict gate (do not skip)
 
-Compare the three sources pairwise (notes vs transcript, pre-call vs live, etc.). **Wherever two sources genuinely disagree on something that matters** — how committed they are, what was promised, who decides — put it in the `conflicts` array. Show both readings and how to settle it. **Never silently pick one.** If the sources agree, leave `conflicts` empty and move on — the gate fires only on real conflict.
+Compare what we had on file (the invite, the guide, earlier decisions, the CRM) with what the full transcript shows. **Wherever they genuinely disagree on something that matters** — who is coming, how committed they are, what was promised, who decides — put it in the `conflicts` array. Name the on-file source in `onFileSource` ("the invite", "the guide", "Oct 8 decision", "the CRM") and who said it and when in `saidBy` ("Sam, 23:26"); the page shows "On file (the invite)" vs "Said on the call (Sam, 23:26)". Show both readings and how to settle it. **Never silently pick one.** If the sources agree, leave `conflicts` empty and move on — the gate fires only on real conflict.
 
 ---
 
@@ -72,7 +73,7 @@ Compare the three sources pairwise (notes vs transcript, pre-call vs live, etc.)
 
 **Take the user's own send-promises from the TRANSCRIPT, never the transcriber's summary.** A summary lists what each side owes and drops what the user said in passing they would send ("I'll send an invite for..."); every such line becomes a `followups` item or a staged invite.
 
-**Every promise the user makes on the call is also one `promises` item (v0.9.50), on top of its `followups` or `needsYou` line.** Each one becomes a row in the company's promise store, and a row is kept only when a SENT message carries it (Call-Record-Lifecycle stage 11). Write who it was promised to, what, the user's own words copied verbatim from the transcript (`sourceLine`), and the due date only if one was said out loud (`spokenDue` plus `spokenDueAt`). Never put a date nobody said: leave both null and the store sets 2 business days. A promise the OTHER side makes is `needsInfo`, not a promise row. If the transcript has a send-promise line that is not the user's promise (theirs, or one already kept on the call), name it in `notPromises` with the reason. **A promise a TEAMMATE will do (v0.9.62) is still the user's, so still one `promises` item: add `"handed_to": {"name": "<the teammate, as said>"}` ("Sam will send you the steps" -> `{"name":"Sam"}`), the name exactly as said, never a person id; the store decides who that is and puts it on their list too. `handed_to` is optional: leave it out (or null) when the user does it himself, so a debrief without it stays valid.** The builder reads the transcript and **refuses the build (exit 21)** when a send-promise line is in neither list.
+**Every promise the user makes on the call is also one `promises` item (v0.9.50), on top of its `followups` or `needsYou` line.** **A promise passes three tests, read off the words said (v0.9.63).** (a) **He commits**: first-person future words ("I'll send", "I will", "let me", "you'll get it from me", "will do"). "I can", "I could", a question, or an offer that waits for them ("if you want", "when you want to dig in") is not a promise until they say yes. Quote that yes, verbatim, in `acceptedBy`. (b) **A concrete thing**: write it in `deliverable`, using the words that were said. If the thing has to be inferred ("it" is the link he showed), add the line that names it as `contextLine`, verbatim. A deliverable nobody said is an invented promise. (c) **Not talk**: a turn of phrase ("I'll tell you what"), a reaction he predicts ("you're going to be flabbergasted"), a hypothetical ("imagine", "let's say") is conversation. Put it in `notPromises` with the reason. When unsure, it is NOT a promise: a false promise puts a due date on him that he never agreed to. The builder refuses (exit 21) an item that fails any test. Each one becomes a row in the company's promise store, and a row is kept only when a SENT message carries it (Call-Record-Lifecycle stage 11). Write who it was promised to, what, the user's own words copied verbatim from the transcript (`sourceLine`), and the due date only if one was said out loud (`spokenDue` plus `spokenDueAt`). Never put a date nobody said: leave both null and the store sets 2 business days, and labels the row `due_basis = two-business-days` so every reader can tell it is a default, not a date he gave. When the promise waits on the other side first ("send me the docs and I'll review them"), say so in `what` ("once they send the docs"). **Also set `waitsOn` to what they owe first, in plain words ("they send the docs by email"), and leave `spokenDue` null: the builder refuses (exit 21) a promise whose own `sourceLine` waits on them without it, and the store then starts its clock when their message lands, not on a date nobody said. A line that only reads conditional ("if you give me a second, I'll pull it up") takes `waitsOnWhyNot` with the reason instead; never set `waitsOn` for a condition nobody said.** A promise the OTHER side makes is `needsInfo`, not a promise row. If the transcript has a send-promise line that is not the user's promise (theirs, or one already kept on the call), name it in `notPromises` with the reason. **A promise a TEAMMATE will do (v0.9.62) is still the user's, so still one `promises` item: add `"handed_to": {"name": "<the teammate, as said>"}` ("Sam will send you the steps" -> `{"name":"Sam"}`), the name exactly as said, never a person id; the store decides who that is and puts it on their list too. `handed_to` is optional: leave it out (or null) when the user does it himself, so a debrief without it stays valid.** The builder reads the transcript and **refuses the build (exit 21)** when a send-promise line is in neither list.
 
 Sort every follow-up into three buckets:
 - **autoDone** — internal things you (the system) already did or can do now: logged the outcome, **created the follow-up email as a real draft in the user's email (say it's in their drafts)**, set a build to-do. State where it landed.
@@ -184,9 +185,9 @@ Output ONE valid JSON object in exactly this shape. All keys present; arrays may
 ```json
 {
   "header": { "title": "Call Debrief — <Name>", "subtitle": "<role>, <Company> · Called <date> · Outcome: <one phrase>" },
-  "contextBar": [ {"label":"Call","value":"..."}, {"label":"Length","value":"..."}, {"label":"Outcome","value":"..."}, {"label":"Sources","value":"Transcript + your notes"} ],
+  "contextBar": [ {"label":"Call","value":"..."}, {"label":"Length","value":"..."}, {"label":"Outcome","value":"..."}, {"label":"Sources","value":"Full transcript + on file (invite, guide, CRM)"} ],
   "planVsReality": { "planned":"what the call set out to do (from the guide/goal)", "happened":"what actually happened", "verdict":"on-track | partial | off-plan" },
-  "conflicts": [ {"topic":"...","operatorSaid":"what your notes say","transcriptSaid":"what the transcript shows","resolve":"how to settle it before logging"} ],
+  "conflicts": [ {"topic":"...","operatorSaid":"what we had on file","onFileSource":"the invite | the guide | <date> decision | the CRM","transcriptSaid":"what the full transcript shows","saidBy":"<who>, <mm:ss>","resolve":"how to settle it before logging"} ],
   "captureQuestions": [ {"questionCode":"reception|trigger|repertoire","beachhead":"general|open_two_unit|landing_example","text":"the question, in plain words, naming the actual moment","why":"one line — why only they can answer this","anchorMs":762000,"anchorQuote":"the real line from the transcript, trimmed","transcriptUrl":"deep link to that moment","askAttribution":true,"options":[]} ],
   "wentWell": [ {"point":"specific moment","why":"named-advisor read of why it worked"} ],
   "toImprove": [ {"point":"the specific moment","fix":"named-advisor fix that names what the user could have SAID OR DONE while the call was still live — Core §9, non-negotiable"} ],
@@ -200,8 +201,8 @@ Output ONE valid JSON object in exactly this shape. All keys present; arrays may
   "followups": [ {"channel":"Email|Text|Call","to":"<name>","subject":"<if email>","draft":"the full draft text (this becomes the real Gmail/email draft body in Step 7), use \\n\\n for breaks"} ],
   "nextGuideSeed": "one tight paragraph seeding the next call guide — goal + where they're stuck + the play",
   "crmLog": "the clean summary to log to the CRM — outcome, what held/slipped, blocker, next, any watch-out",
-  "promises": [ {"to":{"name":"<who it was promised to>","email":"<their address, or empty when the lead is attached>"},"what":"<the thing promised, short, one per row>","sourceLine":"<the user's own words, VERBATIM from the transcript>","sourceKind":"transcript | recap","spokenDue":"<the words said, e.g. 'by Friday'> | null","spokenDueAt":"<ISO time with offset, only when a date was said> | null","handed_to":{"name":"<the teammate who will do it, as said>"} | null} ],
-  "notPromises": [ {"line":"<a send-promise line from the transcript that is not the user's promise>","why":"<why: the other side's promise, or already kept on the call>"} ]
+  "promises": [ {"to":{"name":"<who it was promised to>","email":"<their address, or empty when the lead is attached>"},"what":"<the thing promised, short, one per row>","sourceLine":"<the user's own words, VERBATIM from the transcript>","sourceKind":"transcript","deliverable":"<the thing, in the words said>","contextLine":"<the line that names it, verbatim> | null","acceptedBy":"<their yes to an offer, verbatim> | null","spokenDue":"<the words said, e.g. 'by Friday'> | null","spokenDueAt":"<ISO time with offset, only when a date was said> | null","waitsOn":"<what THEY owe before he can deliver, plain words, only when his words wait on them> | null","waitsOnWhyNot":"<why a line that reads conditional does not wait on them> | null","handed_to":{"name":"<the teammate who will do it, as said>"} | null} ],
+  "notPromises": [ {"line":"<a send-promise line from the transcript that is not the user's promise>","why":"<why: the other side's promise, already kept on the call, an offer they did not take up, or talk (a turn of phrase, a hypothetical)>"} ]
 }
 ```
 
@@ -238,8 +239,8 @@ them in the config. `meetingDate` must equal the `YYYYMMDD` slot in the filename
 ```
 node "<skill-folder>/build-call-debrief.js" debrief.json config.json out.html --folder folder.json --transcript transcript.txt --promise-by session:<this session id>
 ```
-   `--transcript` is the transcript section itself, never the assistant's summary. A notes-only debrief passes
-   `--no-transcript "<why>"` instead. A scheduled job leaves off `--promise-by`: its `builtBy` writes the rows as `job:<builtBy>`.
+   `--transcript` is the transcript section itself, never the assistant's summary. A debrief for a call with no recording passes
+   `--no-transcript "<why>"` instead, and records no promises (a recap is refused as a source, exit 21). A scheduled job leaves off `--promise-by`: its `builtBy` writes the rows as `job:<builtBy>`.
    **The health badge (0.9.53).** The builder draws a badge at the top of the debrief from what it was built from. It reads "Built from a recap email only — no transcript", "No transcript — built from your notes only", "No notes from you on this call", or "N promise(s) have no due date", and it turns red when there is neither a transcript nor the user's notes. Tell it what it cannot work out on its own. Add `"health": {"source": "transcript" | "recap" | "notes", "operatorNotes": true | false, "crmMissingEmails": <n>, "newestEmailAt": "<ISO>"}` to the debrief JSON. Leave out any key you did not check; the builder then falls back to the Sources line and `--no-transcript`. Problems only you can see go in `"health": {"problems": [{"tone": "amber" | "red", "say": "<one plain sentence>"}]}`, under the same plain-words rule as the guide (exit 23 on internal words). Every debrief also carries a "Something wrong? Report it" button. You do nothing for it.
    **Something wrong? Report it:** on every page, in every color. Opened from the Command Center, one click sends the report. Opened from a file, it copies "Report: <kind> <doc_id> for <person> <date> — <reasons> — <note>" plus a `[call-doc-report {...}]` line. When a user pastes that into a session, file it with `call_doc_report_put('<tenant>', '<the JSON after call-doc-report>'::jsonb, 'pasted', 'session:<your session id>')` through the board connector (resolve it by category). Then tell them in one line what the store said back.
    The plan carries `sql`, `params`, `planPath`, `resultPath` and `quarantinePath`. The file on
@@ -310,15 +311,32 @@ The debrief isn't just a document — it should leave the workspace better than 
   - This is the same rule for every drafter in the fleet, not a debrief special case. If you are reading this in a skill that drafts email and it is absent there, that skill is out of date — it is not evidence the rule changed.
 - **Stage calendar invites, don't fire them.** Through Blueprint, `do_action` "Create appointment" (always-ask by default, so it lands as a card in the Command Center). Any follow-up call invite is pre-seeded for one-click OK and always includes the meeting-transcript bot — created with notifications OFF so the other party isn't emailed until the user sends it. Never fired silently.
 - **A promised DOCUMENT is not a follow-up email — route it.** If any next action promises the other side something they will READ that does not exist yet — a sheet, a one-pager, "I'll write something up for you" — that is collateral owed, and an email saying it is coming does not discharge it. Hand it to `aii-collateral-sheet`, which owns building it. If this run cannot reach the files, brand assets and renderer that builder needs, RAISE it as a named ⚑ flag naming what was promised and stop — **never report a document as produced when no file exists.** A promise to send an EXISTING file is not this; a promise to MAKE one is.
+- **The business plan after the call (cc_job step 8).** After a held call whose debrief names a deal (a prospect or a client), a
+  business plan is owed: what shape their business should take and what happens first, built from what THEY said on the call, in
+  their words. It is drafted for the user and sent only by him.
+  1. **Shape.** Default: a mini business plan in ONE email whose job is story alignment, no pilot and no 90-day phases unless he asked
+     (the operator's standing ruling). When he asks for the document, run the
+     locked builder `scripts/exec-summary-plan/build_exec_summary_plan.py` (content JSON, `"shape": "why-first"`, its checks green),
+     register the docx and pdf as `assets` rows of type `exec_summary`, and the email covers it.
+  2. **Stage it** as a Command Center draft (the same door the follow-up email uses), never sent.
+  3. **Link it**: `SELECT call_business_plan_link('<tenant>', '<calendar event id>', '<draft id>', <exec_summary asset id or NULL>, 'session:<id>');`
+     Read the answer: `linked; waits for his send`. A refusal names what is missing (no deal on the debrief: say so to him, step 8 reads
+     "person" until the call is linked to its deal). When he releases the draft, the store writes the sheet-sent event itself.
+  4. **Nothing to plan.** If the person is not someone to plan a business for (a partner, an introducer, a vendor), do NOT decide it:
+     ask him in one line. On his answer, register his ruling, then
+     `SELECT call_business_plan_not_owed('<tenant>', '<event>', 'he-ruled-none', '<what you saw>', '<his ruling id>', 'session:<id>');`
+     If the deal already got its plan after an earlier call, use `'sent-after-an-earlier-call'` (no ruling; the door checks deal_event).
+  5. **Prove it**: `SELECT event_id, s8_prescribe, next_step FROM call_record_s8('<tenant>', now() - interval '7 days', now() + interval '1 day', true) WHERE event_id = '<event>';`
+     Before his send it reads waiting or late; after his send, done; after the exit, not-needed.
 - **Never mark a promise delivered from here.** A staged draft is not a delivery, and the store refuses one. A promise is delivered only by a SENT message to that person carrying it: the `promise-due-watch` job matches it, or a session that has read the sent message calls `promise_mark_delivered` with its message id, account and sent time.
-- **Surface the review + any missing source.** If the deal has a real lead, drop a `⚑ NEEDS [USER] — Review call debrief: <Name>` task on the lead so it shows up where the user already looks. If the source-completeness check (Step 1) found a missing transcript or missing notes, drop the `⚑ NEEDS [USER]` flag naming it here too. Skip gracefully if there's no lead.
+- **Surface the review + any missing source.** If the deal has a real lead, drop a `⚑ NEEDS [USER] — Review call debrief: <Name>` task on the lead so it shows up where the user already looks. If the source-completeness check (Step 1) found a missing transcript, drop the `⚑ NEEDS [USER]` flag naming it here too. Skip gracefully if there's no lead.
 - **Say whether this was the right conversation.** Record whether this person and company fit the profile for where they sit in the business web — right fit, wrong fit, or unsure — with the reason in their words, and place the company on its line through `web_gap_raise` (a company that fits no line raises a gap). This verdict is what the prospecting loop learns from: a slice earns autonomy from these, so they are not optional. Until the fit store exists (layer two of the business web), the verdict goes in the CRM note as its first line. (`dr_a_constant_research_loop_and_prospecting_goes_autonomous_once_fit_is_proven_20260928`)
 
 ---
 
-## Step 8 — Regenerate (transcript landed after a notes-only debrief)
+## Step 8 — Regenerate (transcript landed after a debrief built without one)
 
-If a notes-only debrief already exists and the transcript now arrives: read the existing debrief, fold in the transcript (this is where the conflict gate earns its keep — notes vs transcript), and **overwrite the same filename** so the call's debrief stays one file. Don't spawn a second file for the same call.
+If a debrief built without a transcript already exists and the transcript now arrives: read the existing debrief, fold in the full transcript (this is where the conflict gate earns its keep — on file vs the full transcript), and **overwrite the same filename** so the call's debrief stays one file. Don't spawn a second file for the same call.
 
 **Re-file a debrief that was built but never filed, and don't re-author it (v0.9.50).** Every debrief built since 2026-09-17 keeps its content as kept state. To re-file one from any seat, cloud included:
 ```
@@ -340,11 +358,12 @@ For each required output the state is either **CONFIRMED** (you captured the id 
 2. **Email draft** — for every Email item in `followups`, a real draft exists (the id the create-draft call returned, or re-list drafts and find it). N/A only if there were no Email follow-ups.
 3. **CRM note** — the `crmLog` note exists on the lead (its note id). N/A only if there's no lead.
 4. **Review task** — the `⚑ NEEDS [USER] — Review call debrief` task exists on the lead (its task id). N/A only if there's no lead.
-5. **Missing-source flag** — if Step 1's source-completeness check tripped, the `⚑ NEEDS [USER]` flag naming what's missing exists. N/A if both transcript and notes were present.
+5. **Missing-source flag** — if Step 1's source-completeness check tripped, the `⚑ NEEDS [USER]` flag naming what's missing exists. N/A if the transcript was present.
 6. **Capture questions** — if `captureQuestions` is non-empty, the built HTML actually contains the panel AND it renders **above** the analysis (Core §8). N/A only if the array is empty. **Since 2026-08-11 the builder enforces the first half itself** (it refuses when a non-empty array renders zero questions), so this step is now a *confirmation* rather than the only thing standing between you and a silently empty debrief. **That change is the lesson, not a footnote:** this check was written correctly, would have caught the defect every time, and caught it zero times in three occurrences — because a check that runs only when a session remembers to run it is not a gate. When a self-check here proves load-bearing, move it into the builder and leave the confirmation behind.
 7. **`toImprove` in-the-moment test** — read every `fix` back, one at a time, and answer: *could the user have done this while the call was still live?* Report how many you tested (e.g. "4/4 name an in-room move"). An item that fails is rewritten, never shipped. N/A only if `toImprove` is empty.
 8. **Voice sightings** — the number of traits written from this call, plus the total number of calls the profile now runs on. Zero traits for a call that had a transcript is a **FAILURE**, not an N/A.
 9. **Promise rows (v0.9.50)** — the `promise_id` for every `promises` item, from `--promises-check` exit 0. N/A only when `promises` is empty. Exit 22, or rows you tried to write and could not confirm, is a **FAILURE**.
+10. **Step 8 (business plan)** — the draft id and call_business_plan_link's answer, or the exit and his ruling, or the ⚑ flag naming why neither happened.
 
 If any required output is a FAILURE: do NOT report done. Retry that one output once; if it still fails, say plainly which output did not land (the saved file is still useful — keep it). Then report the saved path in one line **plus a one-line proof checklist** — what landed with ids, what's N/A and why — and offer to open it. Don't narrate the steps. (This is the `aii-prove-it` discipline — a claim is not proof; the check is the proof.)
 

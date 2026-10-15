@@ -15,7 +15,13 @@
      W7  spoken words without a date, or a date without spoken words, are refused (the store's own rule);
      W8  no call end time, or no writer, is refused; a job's builtBy writes as job:<builtBy>;
      W9  two items with one `what` are refused (they would collapse into one row);
-     W10 --no-transcript refuses a transcript-kind promise and accepts a recap one;
+     W10 a recap is never a source (ruling dr_we_read_the_full_transcript_never_a_transcription_service_summary_20261015):
+         --no-transcript refuses a transcript-kind promise AND a recap-kind one, and builds with no promises;
+     W11 (2026-10-15) a promise that WAITS ON THEM: Pat's two real lines ("if you shoot that to me in an email, I'll...",
+         "Just give that to me ... and I will give you the text") carry `waitsOn` into the plan through the one statement
+         that holds the clock (14 values, with a plain-promise_put fallback); without `waitsOn` they are refused; a plain
+         commitment does not wait and an invented `waitsOn` on it is refused; a rhetorical line is still refused;
+         `waitsOnWhyNot` keeps a date; `waitsOn` beside a spoken date is refused;
      C1  --promises-check exits 0 when every promise has its row, and returns the promise ids;
      C2  it exits 22 PROMISE ROWS SHORT, naming each item, when a row is missing;
      C3  it exits 22 on rows for another document;
@@ -64,7 +70,7 @@ const FOLDER_OK = w('folder-ok.json', [{ drive_folder_id: '1AbCdEfGhIjKlMnOpQrSt
 const BASE_CONFIG = { eventId: '4p9e9u82qq2au5hl31o7tsq21d', meetingDate: '20260918', prospect: 'Pat Doe', company: 'Acme Co',
   domain: 'acme.com', leadId: 'lead_abc', crmName: 'Close', debriefId: 'pat-doe-20260918', callRef: 'ff_abc123',
   callEndedAt: '2026-09-18T10:30:00-06:00' };
-const PROMISE = { to: { name: 'Pat Doe', email: 'pat@acme.com' }, what: 'One-page summary and terms', sourceLine: LINE_US,
+const PROMISE = { to: { name: 'Pat Doe', email: 'pat@acme.com' }, what: 'One-page summary and terms', deliverable: 'one-page summary and the terms', sourceLine: LINE_US,
   sourceKind: 'transcript', spokenDue: 'by Friday', spokenDueAt: '2026-09-19T17:00:00-06:00' };
 const NOT_THEIRS = { line: LINE_THEM, why: 'Pat’s promise to us, not ours: it is a needsInfo item.' };
 
@@ -150,8 +156,62 @@ try {
   const w10a = build(doc({ promises: [PROMISE] }), { tx: false, flags: ['--no-transcript', 'notetaker never joined; written from the operator\'s own notes'] });
   const w10b = build(doc({ promises: [Object.assign({}, PROMISE, { sourceKind: 'recap' })] }),
     { tx: false, flags: ['--no-transcript', 'notetaker never joined; written from the operator\'s own notes'] });
-  check('W10 --no-transcript refuses a transcript-kind promise and accepts a recap one',
-    refusedClean(w10a) && w10b.rc === 0 && w10b.json.promises.calls[0].params[7] === 'recap', w10a.rc + '/' + w10b.rc + ' ' + w10b.stderr);
+  const w10c = build(doc({ promises: [] }),
+    { tx: false, flags: ['--no-transcript', 'notetaker never joined; no recording of this call exists'] });
+  check('W10 --no-transcript refuses a transcript-kind promise AND a recap one (a recap is never a source), and builds with none',
+    refusedClean(w10a) && refusedClean(w10b) && /never a source/.test(w10b.stderr) && w10c.rc === 0,
+    w10a.rc + '/' + w10b.rc + '/' + w10c.rc + ' ' + w10b.stderr + ' ' + w10c.stderr);
+
+  /* W11 — A PROMISE THAT WAITS ON THEM (2026-10-15, 2026-10-15).
+     Pat's two lines are REAL, verbatim from call_promise.source_line. */
+  const PAT_1 = 'And maybe you don\'t need a phase 1, 2 or 3 but if you give me the that domain staging example-partner.com docs if you shoot that to me in an email, I\'ll have the system look at what you have and make suggestions on it.';
+  const PAT_2 = 'Just give that to me when you have a chance and I will give you the text for it.';
+  const PLAIN = 'I\'ll send you an email after this to recap the next steps.';
+  const RHET = 'I\'ll tell you what my actual costs to run this are and you\'re going to be flabbergasted.';
+  const PAT_TX = w('tx-pat.txt', ['Alex Morgan: ' + PAT_1, 'Pat Rivera: Sure, I will do that.', 'Alex Morgan: ' + PAT_2,
+    'Alex Morgan: ' + PLAIN, 'Alex Morgan: ' + RHET].join('\n'));
+  const PAT = { name: 'Pat Rivera', email: 'pat.rivera@example.com' };
+  const L1 = { to: PAT, what: 'Suggestions on the staging docs', deliverable: 'suggestions on the docs', sourceLine: PAT_1,
+    sourceKind: 'transcript', spokenDue: null, spokenDueAt: null, waitsOn: 'Pat sends the staging example-partner.com docs by email' };
+  const L2 = { to: PAT, what: 'The text for the relay domain page', deliverable: 'the text for it', sourceLine: PAT_2,
+    sourceKind: 'transcript', spokenDue: null, spokenDueAt: null, waitsOn: 'Pat sends the relay domain' };
+  const PL = { to: PAT, what: 'Recap email of the next steps', deliverable: 'an email to recap the next steps', sourceLine: PLAIN,
+    sourceKind: 'transcript', spokenDue: null, spokenDueAt: null };
+  const NOT_RHET = { line: RHET, why: 'a turn of phrase about his costs, not a thing he will deliver' };
+  const pat = function (promises, notPromises) {
+    return build(doc({ promises: promises, notPromises: notPromises || [NOT_RHET] }), { txPath: PAT_TX, config: { operatorSpeaker: 'Alex Morgan' } });
+  };
+  const noWait = function (p) { const c = Object.assign({}, p); delete c.waitsOn; return c; };
+  const w11 = pat([L1, L2, PL]);
+  const wp = w11.json && w11.json.promises;
+  const wc = wp && wp.calls || [];
+  check('W11a Pat\'s two real lines build (exit 0) and each plan call carries `waitsOn`', w11.rc === 0 && wp.waits === 2 &&
+    wc[0].waitsOn === L1.waitsOn && wc[1].waitsOn === L2.waitsOn, w11.rc + ' ' + w11.stderr + ' ' + JSON.stringify(wc.map(function (c) { return c.waitsOn; })));
+  const P_ = require(BUILDER).__promises;
+  check('W11b ...through ONE statement that holds the clock (promise_put then promise_wait_put), 14 values: the 12, what they owe, why',
+    [0, 1].every(function (i) { const c = wc[i]; return c && c.sql === P_.PROMISE_PUT_WAITING_SQL && /promise_wait_put\(\$1, p\.promise_id, btrim\(\$13\), \$12, \$14\)/.test(c.sql) &&
+      c.params.length === 14 && c.params[12] === c.waitsOn && /wait on Pat Rivera sending it first/.test(c.params[13]) && c.params[13].length >= 12 &&
+      c.fallback && c.fallback.sql === P_.PROMISE_PUT_SQL && JSON.stringify(c.fallback.params) === JSON.stringify(c.params.slice(0, 12)); }),
+    JSON.stringify(wc[0] && wc[0].params));
+  check('W11c a plain commitment does not wait: the plain 12-value promise_put, no `waitsOn`, no fallback',
+    wc[2] && wc[2].sql === P_.PROMISE_PUT_SQL && wc[2].params.length === 12 && !('waitsOn' in wc[2]) && !wc[2].fallback, JSON.stringify(wc[2]));
+  const w11d = pat([noWait(L1), noWait(L2), PL]);
+  check('W11d Pat\'s lines WITHOUT `waitsOn` are refused (exit 21), each named as waiting on them',
+    refusedClean(w11d) && /promises\[0\] waits on them/.test(w11d.stderr) && /promises\[1\] waits on them/.test(w11d.stderr) && !/promises\[2\] waits/.test(w11d.stderr),
+    w11d.rc + ' ' + w11d.stderr);
+  const w11e = pat([L1, L2, Object.assign({}, PL, { waitsOn: 'Pat sends the next steps first' })]);
+  check('W11e a `waitsOn` on a plain commitment is refused: a condition nobody said is invented',
+    refusedClean(w11e) && /promises\[2\] has `waitsOn` but the words said do not/.test(w11e.stderr), w11e.rc + ' ' + w11e.stderr);
+  const w11f = pat([L1, L2, PL, { to: PAT, what: 'Actual costs to run it', deliverable: 'my actual costs to run this', sourceLine: RHET,
+    sourceKind: 'transcript', spokenDue: null, spokenDueAt: null }], []);
+  check('W11f a rhetorical line is still refused as a promise (the commitment test is unchanged)',
+    refusedClean(w11f) && /promises\[3\] is rhetorical, not a promise/.test(w11f.stderr), w11f.rc + ' ' + w11f.stderr);
+  const w11g = pat([L1, Object.assign(noWait(L2), { waitsOnWhyNot: 'he already sent the domain in the chat during the call' }), PL]);
+  check('W11g `waitsOnWhyNot` with a reason lets a conditional-sounding line keep its date (plain promise_put)',
+    w11g.rc === 0 && w11g.json.promises.waits === 1 && w11g.json.promises.calls[1].sql === P_.PROMISE_PUT_SQL, w11g.rc + ' ' + w11g.stderr);
+  const w11h = pat([Object.assign({}, L1, { spokenDue: 'by Friday', spokenDueAt: '2026-10-16T17:00:00-06:00' }), L2, PL]);
+  check('W11h `waitsOn` beside a spoken date is refused (the store\'s wait would lose the date)',
+    refusedClean(w11h) && /has `waitsOn` AND a spoken date/.test(w11h.stderr), w11h.rc + ' ' + w11h.stderr);
 
   /* C — the finish verdict */
   const planPath = w4b.out + '.promises.json';
@@ -204,7 +264,9 @@ try {
     const src = fs.readFileSync(BUILDER, 'utf8');
     if (src.indexOf(from) < 0) { check('M  mutation site "' + name + '" found', false, from); return null; }
     const dir = path.join(tmp, 'mutant-' + name); fs.mkdirSync(dir);
-    ['register-call-doc.js', 'upload-call-doc.js'].forEach(function (f) {
+    /* 2026-10-15: call-doc-health.js added. Without it every mutant died at load ("THE HEALTH BADGE MODULE IS MISSING", rc 1),
+       and a mutant that crashes reads as caught - M1-M3 were passing on a crash, not on the rule. */
+    ['register-call-doc.js', 'upload-call-doc.js', 'call-doc-health.js'].forEach(function (f) {
       if (fs.existsSync(path.join(HERE, f))) fs.copyFileSync(path.join(HERE, f), path.join(dir, f));
     });
     fs.writeFileSync(path.join(dir, 'build-call-debrief.js'), src.replace(from, to));
@@ -226,6 +288,14 @@ try {
   if (m3) {
     const r = checkRows(planPath, [], m3);
     check('M3 a verdict that ignores missing rows turns C2 RED (caught: rc=' + r.rc + ')', r.rc !== ROWS_SHORT, r.rc);
+  }
+  const m4 = mutant('never-waits-on-them', '  return hit ? hit.why : null;\n', '  return null;\n');
+  if (m4) {
+    const r = build(doc({ promises: [Object.assign({}, PL), (function () { const c = Object.assign({}, L2); delete c.waitsOn; return c; })()],
+      notPromises: [NOT_RHET, { line: PAT_1, why: 'isolated: only the second line is under test here' }] }),
+      { builder: m4, txPath: PAT_TX, config: { operatorSpeaker: 'Alex Morgan' } });
+    check('M4 a builder that never sees a line wait on them turns W11d RED: it BUILDS the waiting line with no `waitsOn` (rc=' + r.rc + ')',
+      r.rc === 0 && !refusedClean(r), r.rc + ' ' + r.stderr.slice(0, 300));
   }
 } catch (e) {
   check('the proof itself ran', false, e.stack);

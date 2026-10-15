@@ -491,13 +491,19 @@ node "<skill-folder>/build-call-guide.js" --regen-plan <docId>
 ```
 It prints `{sql, params}`. `docId` is `call_doc.doc_id` — it is on the guide page itself as `CONFIG.docId`, and the daily brief carries it.
 
-**(b) Run that `sql` with its `params`** through the board connector, resolved BY CATEGORY (Core §11 rule 4), and **save the FULL result** — do not summarise it and do not trim the JSON. The row carries the kept `guide_json` and its version.
+**(b) Run that `sql` with its `params`** through the board connector, resolved BY CATEGORY (Core §11 rule 4), and **save the FULL result** — do not summarise it and do not trim the JSON. The row carries the kept `guide_json` and its version. **Keep this file exactly as saved — it is the BASE for (d).** If you fold new details in, edit a COPY and hand the copy to `--rows`.
 
 **(c) Rebuild from it.**
 ```
 node "<skill-folder>/build-call-guide.js" --regen <readplan.json> --rows <result.json> [--gate <gate.json>]
 ```
 It re-renders from the stored content, bumps the kept version, and stamps the change note `regenerated from kept state`, saying whether the content CHANGED since its last render (measured by content hash — `unchanged`, `changed`, or `unknown` for rows that predate the hash). **Unless the content is proven `unchanged`, add `--gate <gate.json>` carrying a fresh `newestEmail` (Step 4):** edited (or unprovable) content gets the same open-loop gate as a new build and is refused the same way without it. Content proven unchanged is judged on its citations only. Then file it exactly as Step 4 does — **register → settle → file → confirm is still ONE unit of work**, and Step 4.5's pointer still gets written.
+
+**(d) Register BY REFERENCE — never re-type the whole guide (2026-10-15).** The plain plan carries the whole guide JSON (26–64K characters) as `$17`, and re-typing it was the biggest single wait in a build (86–172 s per call). Cut it to a patch against the kept state you read in (b):
+```
+node "<skill-folder>/register-call-doc.js" --by-ref <planPath> --base <result.json from (b), unedited>
+```
+It writes `<plan>.byref.plan.json` and prints `{out, baseStateId, wantSha256, fullGuideChars, patchChars}`. **Run THAT plan's `sql` with its `params`** in Step 4 (b) — and as `hosted.steps` step 1 — instead of the plain plan, then `--settle` with it. The store rebuilds the guide from the base plus the patch and writes NOTHING unless it hashes to `wantSha256`. `refused` with `KEPT-REF-CHANGED-IN-TRANSIT` = a character changed on the way: send the same sql and params again, copied exactly. If `--by-ref` itself refuses, run the plain plan as before.
 
 **Regenerate with `--folder` too (v0.9.50), and `--cloud` on a seat with no operator folder:** `--regen <readplan.json> --rows <result.json> [--gate <gate.json>] --folder folder.json [--cloud --run-id <id> [--out-dir <dir>]]`. In cloud mode it never looks for the stored local path. It renders the kept state onto this disk (`--out-dir`, or a fresh temp folder by default) under the row's own `file_title`, keeps the row's `local_path` as it is (NULL for a cloud-born row), and prints the same `hosted.steps`. That's how a row stranded with "filing pending" or "NO DEVICE BRIDGE" gets re-filed from any seat. The exit codes are the same as a build: 0 with a ready handoff, **20 NOT OPENABLE** without `--folder`, and 4 when the folder is unresolved. The refusals also stay: 3–7 when kept state is missing or unusable, 12–15 for the open-loop gate.
 

@@ -286,7 +286,9 @@ const LABEL = {
     const d = JSON.parse(JSON.stringify(content));
     d.contextBar = [{ label: 'Sources', value: 'Recap email' }];
     d.conflicts = [];
-    d.promises.forEach(function (p) { p.sourceKind = 'recap'; });
+    /* 2026-10-15: a recap is never a promise source (ruling dr_we_read_the_full_transcript_never_a_transcription_service_summary_20261015),
+       so with no transcript the debrief records no promises; this check is about the badge, not the promises (J6 covers due dates). */
+    d.promises = [];
     const c2 = Object.assign({}, cfg); delete c2.health; delete c2.docId;
     const dir = path.join(tmp, 'cli'); fs.mkdirSync(dir);
     const out = path.join(dir, '20260924_debrief_pat-doe_intro.html');
@@ -296,7 +298,7 @@ const LABEL = {
     const html = j && fs.existsSync(j.quarantinePath) ? fs.readFileSync(j.quarantinePath, 'utf8') : '';
     check('C1 the CLI build judges what it was handed: a recap and no notes shows RED, and the page knows its own doc_id',
       r.status === 0 && /class="cdh cdh-red"/.test(html) && /Built from a recap email only — no transcript and no notes from you/.test(html)
-        && /"doc_id":"cd_debrief_4p9e9u82qq2au5hl31o7tsq21d"/.test(html) && /1 promise has no due date/.test(html), 'rc=' + r.status + ' ' + r.stderr.slice(0, 400));
+        && /"doc_id":"cd_debrief_4p9e9u82qq2au5hl31o7tsq21d"/.test(html), 'rc=' + r.status + ' ' + r.stderr.slice(0, 400));
     const bad = JSON.parse(JSON.stringify(content)); bad.health = { problems: [{ tone: 'red', say: 'hosted_gap is set' }] };
     const dir2 = path.join(tmp, 'cli2'); fs.mkdirSync(dir2);
     const r2 = spawnSync(process.execPath, [BUILDER, w('d2.json', bad), w('c2.json', c2), path.join(dir2, '20260924_debrief_pat-doe_intro.html'),

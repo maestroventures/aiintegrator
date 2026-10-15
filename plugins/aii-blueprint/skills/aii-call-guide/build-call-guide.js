@@ -371,15 +371,22 @@ function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replac
 function stripFences(s) { return String(s || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim(); }
 function pillColor(c) { return ({ green:'green', yellow:'yellow', red:'red', blue:'' })[c] || ''; }
 function nl(s) { return esc(s).replace(/\\n\\n/g, '<br><br>').replace(/\n\n/g, '<br><br>').replace(/\\n/g, '<br>').replace(/\n/g, '<br>'); }
+/* richAnswer (2026-10-15, plugin 0.9.63 follow-up): a written <br>, <br/> or <br /> is a line break like <strong>/<em> are
+   emphasis, so it is restored after escaping too. Before this the talking points' HOW TO USE text (which carried a literal
+   "<br><br>") printed "<br><br>" as words on every guide. Every other tag stays escaped. */
 function richAnswer(s) {
   let h = esc(s).replace(/\\n\\n/g, '<br><br>').replace(/\n\n/g, '<br><br>').replace(/\\n/g, '<br>').replace(/\n/g, '<br>');
-  return h.replace(/&lt;strong&gt;/gi, '<strong>').replace(/&lt;\/strong&gt;/gi, '</strong>').replace(/&lt;em&gt;/gi, '<em>').replace(/&lt;\/em&gt;/gi, '</em>');
+  return h.replace(/&lt;br\s*\/?&gt;/gi, '<br>').replace(/&lt;strong&gt;/gi, '<strong>').replace(/&lt;\/strong&gt;/gi, '</strong>').replace(/&lt;em&gt;/gi, '<em>').replace(/&lt;\/em&gt;/gi, '</em>');
 }
 
 /* -- person/company links (generic, CRM-sourced: contact LinkedIn + company website/domain) -- */
 var LINKEDIN_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4.98 3.5a2.5 2.5 0 1 1-.02 5 2.5 2.5 0 0 1 .02-5zM3 9h4v12H3zM9 9h3.8v1.7h.05c.53-1 1.83-2.05 3.77-2.05 4.03 0 4.78 2.65 4.78 6.1V21H20v-5.4c0-1.3 0-2.96-1.8-2.96-1.8 0-2.08 1.4-2.08 2.86V21H12z"/></svg>';
 var GLOBE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9s1.3-6.3 3.8-9z"/></svg>';
-function normUrl(u){u=String(u==null?'':u).trim();if(!u)return '';if(/^https?:\/\//i.test(u))return u;return 'https://'+u.replace(/^\/+/,'');}
+/* normUrl (2026-10-14, plugin 0.9.63): a URL that already names a safe scheme
+   (http, https, file, mailto, tel) is returned unchanged - before this, file:///Users/... came out as https://file:///Users/... and every
+   local document chip was dead. A script-capable or unknown scheme (javascript:, data:, vbscript:, any other x://) returns '' so it
+   renders as the red "no link" chip. Only a bare domain or path gets https:// in front. */
+function normUrl(u){u=String(u==null?'':u).trim();if(!u)return '';if(/^(https?|file):\/\//i.test(u)||/^(mailto|tel):/i.test(u))return u;if(/^(javascript|data|vbscript):/i.test(u)||/^[a-z][a-z0-9+.-]*:\/\//i.test(u))return '';return 'https://'+u.replace(/^\/+/,'');}
 function domainOf(u){return String(u==null?'':u).replace(/^https?:\/\//i,'').replace(/^www\./i,'').replace(/[\/?#].*$/,'');}
 function linkChip(url,svg,label,sub){var href=/^mailto:/i.test(String(url||''))?String(url):normUrl(url);if(!href)return '';return '<a class="lk" href="'+esc(href)+'" target="_blank" rel="noopener">'+svg+'<span>'+esc(label)+(sub?' <span class="lk-sub">'+esc(sub)+'</span>':'')+'</span></a>';}
 /* ── LINKS + DOCUMENTS (2026-09-17) ─────────────────────────────────────────────────────
@@ -416,7 +423,14 @@ function buildLinksHtml(g,config){var L=(g&&g.links)||{};var C=config||{};var p=
   var AS=(g&&g.aspects)||((g&&typeof g.aspectsMarkdown==='string'&&g.aspectsMarkdown.trim())?parseAspectsMarkdown(g.aspectsMarkdown):null);((AS&&AS.items)||[]).forEach(function(a){var ds=docsOf(a);if(ds.length)groups.push({label:a.label||'',docs:ds});});
   cgOrderedItems(g).forEach(function(item){var ds=docsOf(item.d);if(ds.length)groups.push({label:item.d.label||item.d.title||item.d.concern||'',docs:ds});});
   var html=chips.length?'<div class="glance-links">'+chips.join('')+'</div>':'';
-  groups.forEach(function(gr){html+='<div class="cgb-kv"><i>'+esc(gr.label)+'</i><div class="linkbar">'+gr.docs.map(docChip).join('')+'</div></div>';});
+  /* ONE LINK, SHOWN ONCE (2026-10-15): a document named on five sections used to be drawn five times in this drawer, once
+     per group. The
+     FIRST group that names a link keeps it; later groups skip it, and a group left with no links is not drawn. Keyed by the
+     normalized href; a doc with no usable url keys by its label, so one missing link is also shown once. The section cards'
+     own docs bar (cgDocsBar) is not this drawer and is unchanged. */
+  var seenDoc={};
+  groups.forEach(function(gr){var ds=gr.docs.filter(function(x){var h=normUrl(x&&x.url);var k=h?'u:'+h:'m:'+String((x&&x.label)||'');if(seenDoc[k])return false;seenDoc[k]=1;return true;});
+    if(ds.length)html+='<div class="cgb-kv"><i>'+esc(gr.label)+'</i><div class="linkbar">'+ds.map(docChip).join('')+'</div></div>';});
   return html;}
 function cgDocsBar(d){var ds=docsOf(d);return ds.length?'<div class="linkbar cgb-docs">'+ds.map(docChip).join('')+'</div>':'';}
 

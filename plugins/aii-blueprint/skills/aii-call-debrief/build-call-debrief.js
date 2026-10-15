@@ -446,21 +446,34 @@ function buildBodyHtml(d) {
   }
 
   /* conflicts — the validation gate, fires only on conflict, shown FIRST */
+  /* 2026-10-15 — the two sides are "On file" vs "Said on the call", never "you said / your notes".
+     The operator, verbatim: "i rarely make cal notes -- that is why i'm having a hard time understanding
+     what you are saying". The left side (JSON field operatorSaid, name kept so stored rows still render)
+     is almost always what we HAD going in: the invite and its attendees, the guide, an earlier
+     decision, the CRM. The right side is ONLY the full transcript. Ruling
+     dr_we_read_the_full_transcript_never_a_transcription_service_summary_20261015 (the operator, verbatim:
+     "we read the full transcript -- full stop"): a notetaker's or transcription service's summary, recap,
+     action items or attendee summary is never a source on either side. Optional per-conflict fields:
+       onFileSource : "the invite" | "the guide" | "Oct 8 decision" | "the CRM" ...
+                      -> "On file (the invite)"; absent -> "On file"
+       saidBy       : "Sam, 23:26" -> "Said on the call (Sam, 23:26)"; absent -> "Said on the call"
+     A row built before these fields existed renders "On file" / "Said on the call". */
   if (d.conflicts && d.conflicts.length) {
     labels['conflicts'] = 'Resolve these';
+    const srcLbl = (base, v) => (v != null && String(v).trim()) ? base + ' (' + String(v).trim() + ')' : base;
     const rows = d.conflicts.map(c =>
       '<div class="conflict-card">' +
       '<div class="conflict-topic">' + esc(c.topic) + '</div>' +
       '<div class="conflict-cols">' +
-      '<div class="conflict-side"><div class="conflict-lbl">You said</div><div class="conflict-txt">' + nl(c.operatorSaid) + '</div></div>' +
-      '<div class="conflict-side"><div class="conflict-lbl">Transcript said</div><div class="conflict-txt">' + nl(c.transcriptSaid) + '</div></div>' +
+      '<div class="conflict-side"><div class="conflict-lbl">' + esc(srcLbl('On file', c.onFileSource)) + '</div><div class="conflict-txt">' + nl(c.operatorSaid) + '</div></div>' +
+      '<div class="conflict-side"><div class="conflict-lbl">' + esc(srcLbl('Said on the call', c.saidBy)) + '</div><div class="conflict-txt">' + nl(c.transcriptSaid) + '</div></div>' +
       '</div>' +
       '<div class="conflict-resolve"><strong>How to settle it</strong>' + nl(c.resolve) + '</div>' +
       '</div>'
     ).join('');
-    const body = '<div class="coach-note warn"><strong>Why this is here</strong>Your notes and the transcript don\'t fully agree. Nothing was silently picked for you — read both, decide, and fix the record before you log it.</div>' +
+    const body = '<div class="coach-note warn"><strong>Why this is here</strong>What we had on file going in (the invite, the guide, an earlier decision, the CRM) doesn\'t match what the full transcript shows was said on the call. Nothing was picked for you. Read both, decide, and fix the record before you log it.</div>' +
       rows + captureBlock('conflicts', 'Your call — what\'s the truth here?');
-    html += section('conflicts', '⚠', 'Resolve these first — your notes vs. the transcript', String(d.conflicts.length) + ' to settle', body, { open: true });
+    html += section('conflicts', '⚠', 'Resolve these first — on file vs. said on the call', String(d.conflicts.length) + ' to settle', body, { open: true });
   }
 
   /* what went well */
@@ -1020,7 +1033,12 @@ loadHealth().badgeHtml(cfg, 'debrief'),
    promise, and the check refuses a finish with fewer rows than items.
    ════════════════════════════════════════════════════════════════ */
 const PROMISE_EXIT = { UNRECORDED: 21, ROWS_SHORT: 22 };
-const PROMISE_SOURCE_KINDS = ['transcript', 'recap'];
+/* 2026-10-15: 'recap' is no longer a source kind. A recap is a transcription service's summary, and ruling
+   dr_we_read_the_full_transcript_never_a_transcription_service_summary_20261015 (the operator, verbatim: "i do not trust
+   transcript summaries produced by the actual transcription services -- we read the full transcript -- full stop") says
+   what was said comes ONLY from the full transcript. Rows written earlier with source_kind 'recap' keep it; kept-state
+   regen does not pass through this gate. With no transcript, a debrief records no promises: nothing heard, nothing quoted. */
+const PROMISE_SOURCE_KINDS = ['transcript'];
 const MIN_NOT_A_PROMISE_WHY = 12;
 const ISO_WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/;
 const EMAIL_RX = /^[^@\s]+@[^@\s]+$/;
@@ -1032,6 +1050,37 @@ const PROMISE_PUT_SQL = [
   'SELECT promise_id, what, status, due_at, due_basis',
   '  FROM promise_put($1, $2, $3, $4, $5, $6, $7, $8, $9::timestamptz, $10, $11::timestamptz, $12,',
   '       (SELECT s.state_id FROM call_guide_state_current_v s WHERE s.tenant_id = $1 AND s.doc_id = $2))',
+].join('\n');
+/* 2026-10-15: a promise that WAITS ON THEM (see waitProblems). ONE statement, 14 values: PROMISE_PUT_SQL's 12, then $13 what they
+   owe (waitsOn) and $14 why it waits. promise_put writes the row; promise_wait_put holds its clock in the same statement - but only
+   when the row did not exist before this statement (g.existed reads the statement's own snapshot, so a re-run never re-holds a clock
+   a message from them already started) and no message FROM that address has landed since the call ended (they already sent it:
+   the promise keeps its date). Each answer row says which: wait = waiting | not-new | they-already-wrote | not-held.
+   Measured in a rolled-back practice 2026-10-15 (new -> waiting, due NULL; re-run -> not-new, unchanged; their message
+   starts the clock and a re-run leaves it started; an earlier message from them -> they-already-wrote, dated).
+   A store with no promise_wait_put (a company the 1497 change has not reached) refuses this statement by name; the plan item then
+   carries `fallback` - the plain 12-value promise_put - and the promise keeps its date. */
+const PROMISE_PUT_WAITING_SQL = [
+  'WITH g AS MATERIALIZED (',
+  '  SELECT EXISTS (SELECT 1 FROM call_promise o WHERE o.tenant_id = $1 AND o.source_doc_id = $2 AND o.what = btrim($6)) AS existed,',
+  '         (SELECT o.waits_on FROM call_promise o WHERE o.tenant_id = $1 AND o.source_doc_id = $2 AND o.what = btrim($6)) AS had_waits_on,',
+  '         EXISTS (SELECT 1 FROM person_message m WHERE m.tenant_id = $1 AND m.message_direction = \'from-person\'',
+  '                    AND btrim(coalesce($4, \'\')) <> \'\' AND lower(btrim(coalesce(m.person_address, \'\'))) = lower(btrim($4))',
+  '                    AND coalesce(m.happened_at, m.recorded_at) >= $9::timestamptz) AS they_wrote',
+  '), p AS MATERIALIZED (',
+  '  SELECT promise_id, what, status, due_at, due_basis',
+  '    FROM promise_put($1, $2, $3, $4, $5, $6, $7, $8, $9::timestamptz, $10, $11::timestamptz, $12,',
+  '         (SELECT s.state_id FROM call_guide_state_current_v s WHERE s.tenant_id = $1 AND s.doc_id = $2))',
+  '), w AS MATERIALIZED (',
+  '  SELECT (x.r).promise_id, (x.r).status, (x.r).waits_on',
+  '    FROM (SELECT promise_wait_put($1, p.promise_id, btrim($13), $12, $14) AS r',
+  '            FROM p CROSS JOIN g WHERE NOT g.existed AND NOT g.they_wrote AND p.status IN (\'open\', \'late\') OFFSET 0) x',
+  ')',
+  'SELECT p.promise_id, p.what, coalesce(w.status, p.status) AS status, CASE WHEN w.promise_id IS NULL THEN p.due_at END AS due_at,',
+  '       p.due_basis, coalesce(w.waits_on, g.had_waits_on) AS waits_on,',
+  '       CASE WHEN w.promise_id IS NOT NULL THEN \'waiting\' WHEN g.existed THEN \'not-new\' WHEN g.they_wrote THEN \'they-already-wrote\'',
+  '            ELSE \'not-held\' END AS wait',
+  '  FROM p CROSS JOIN g LEFT JOIN w ON w.promise_id = p.promise_id',
 ].join('\n');
 /* 2026-10-13 (ruling dr_a_commitment_made_for_someone_shows_on_their_board_and_stays_the_makers_20261013). A promise the call says a
    TEAMMATE will do is handed to that teammate by the store's own door. The builder never names a person_id: it carries the words that name who it is handed to
@@ -1050,6 +1099,119 @@ const PROMISE_CHECK_SQL = [
   ' WHERE tenant_id = $1 AND source_doc_id = $2',
   ' ORDER BY what',
 ].join('\n');
+
+/* ── THE COMMITMENT TEST — added 2026-10-14 (plugin 0.9.63).
+   Until then the gate checked ONE direction: a send-promise the transcript shows must not be dropped. Nothing
+   checked the other: that an item the author wrote IS a promise. So a line like "I'll tell you what my actual
+   costs to run this are and you're going to be flabbergasted" passed as a promise, got a `what` nobody said,
+   and the store hung the 2-business-day default on it. The user had promised nothing; it was conversation.
+   A promise item now has to pass three tests, each on the words said (sourceLine, plus an optional contextLine
+   that is also verbatim in the transcript - the request it answers, or the first half of a split sentence):
+     (a) THE USER COMMITS: first-person future words ("I'll", "I will", "let me", "you'll get ... from me",
+         "will do"). "I can", "I could", a question, an offer "if you want" are not a commitment - they become
+         one only when `acceptedBy` quotes the other side's yes, verbatim from the transcript.
+     (b) A CONCRETE DELIVERABLE: `deliverable` names the thing he will send, make or do, and at least one of
+         its content words is in the words said. A deliverable nobody said is an invented promise.
+     (c) NOT RHETORICAL OR HYPOTHETICAL: a turn of phrase ("I'll tell you what", "you're going to be
+         flabbergasted"), a hypothetical ("imagine", "let's say", "what if"). Refused outright: there is no
+         override; a line like that goes in `notPromises`.
+   Kept-state lines are a summary's words, not his: (a) and (c) read only transcript-kind items (and since
+   2026-10-15 a recap is refused outright, see PROMISE_SOURCE_KINDS);
+   (b) reads every item. Regen of kept state does not pass through here, so older debriefs re-file unchanged. */
+const COMMIT_RX = /\b(?:i'll|i will|i'm going to|i am going to|i'm gonna|we'll|we will|let me|you'll get|you will get|you'll have|will do)\b/;
+const OFFER_RX = [
+  { conditional: true, rx: /\bif you (?:want|like|need|'d like|would like|wanna)\b/, why: 'an offer that waits for their yes ("if you want")' },
+  { conditional: true, rx: /\bwhen(?:ever)? you (?:want|are ready|'re ready)\b/, why: 'an offer that waits for them ("when you want")' },
+  { rx: /\b(?:i|we) (?:can|could|might|may)\b/, why: 'says he CAN, not that he WILL' },
+  { rx: /\?\s*$/, why: 'a question, not a commitment' },
+];
+const RHETORICAL_RX = [
+  { rx: /\b(?:i'll|i will|let me) tell you what\b/, why: '"I\'ll tell you what" is a turn of phrase, not an offer to deliver anything' },
+  { rx: /\byou(?:'re| are|'ll| will)? (?:going to |gonna )?be (?:flabbergasted|amazed|shocked|surprised|blown away|floored|stunned|impressed)\b/,
+    why: 'a reaction he predicts, not a thing he will deliver' },
+  { rx: /\b(?:imagine|picture this|let'?s say|say you|suppose|what if|hypothetically)\b/, why: 'a hypothetical' },
+];
+const DELIVERABLE_STOP = new Set(('the and for you your our that this with from have will what them they their about into ' +
+  'over just some send sent make made give thing things stuff back after before when then here there').split(' '));
+function contentWords(s) {
+  return normLine(s).replace(/[^a-z0-9' ]+/g, ' ').split(' ')
+    .map(function (w) { return w.replace(/'s$/, '').replace(/s$/, ''); })
+    .filter(function (w) { return w.length >= 4 && !DELIVERABLE_STOP.has(w); });
+}
+/* The reasons an item is NOT a promise; [] when it is. Pure: the gate turns each reason into a refusal. */
+function commitmentProblems(p, txText) {
+  const out = [];
+  const said = [p.contextLine, p.sourceLine].filter(function (x) { return String(x || '').trim(); }).join(' ');
+  const line = normLine(said);
+  const deliverable = String(p.deliverable || '').trim();
+  if (!deliverable) out.push('has no `deliverable` (the thing he will send, make or do, in the words said)');
+  else {
+    const saidWords = contentWords(said);
+    if (!contentWords(deliverable).some(function (w) { return saidWords.some(function (s) { return s === w || s.indexOf(w) === 0 || w.indexOf(s) === 0; }); })) {
+      out.push('`deliverable` "' + deliverable.slice(0, 80) + '" shares no word with what was said: a deliverable nobody said is an invented promise');
+    }
+  }
+  if (p.sourceKind !== 'transcript') return out;
+  RHETORICAL_RX.forEach(function (r) { if (r.rx.test(line)) out.push('is rhetorical, not a promise: ' + r.why + ' - put it in `notPromises`'); });
+  const accepted = String(p.acceptedBy || '').trim();
+  if (accepted && txText && normLine(txText.replace(/\s+/g, ' ')).indexOf(normLine(accepted)) < 0) {
+    out.push('`acceptedBy` is not in the transcript, verbatim: "' + accepted.slice(0, 90) + '"');
+  }
+  /* A conditional ("if you want", "when you want") waits for their yes even after "I'll"; "I can" / a question is an
+     offer only when the line has no words of him committing. */
+  const commits = COMMIT_RX.test(line);
+  const offer = OFFER_RX.filter(function (r) { return r.rx.test(line) && (r.conditional || !commits); });
+  if (!accepted && offer.length) out.push('is an offer, not a commitment: ' + offer[0].why + ' - quote their yes in `acceptedBy`, or put it in `notPromises`');
+  if (!accepted && !offer.length && !COMMIT_RX.test(line)) out.push('has no words of the user committing ("I\'ll", "I will", "let me", "will do") - quote the line where he commits');
+  return out;
+}
+
+/* ── A PROMISE THAT WAITS ON THEM — added 2026-10-15.
+   Some commitments start only when the other person sends something first: "if you shoot that to me in an email, I'll
+   have the system look at it", "just give that to me when you have a chance and I will give you the text for it". Until
+   now such a promise got the two-business-day default and went LATE on a date nobody said, while nothing had arrived.
+   The store holds a promise's clock since run 1497 (call_promise.waits_on, door promise_wait_put; a message FROM that
+   person starts the clock, two business days after it lands). So a promise item now says it waits:
+     `waitsOn`        what THEY owe before he can deliver, in plain words ("they send the staging docs by email").
+                      Required when his own sourceLine makes his delivery depend on them first (WAITS_ON_THEM_RX);
+                      refused when neither sourceLine nor contextLine does (a condition nobody said is invented), and
+                      refused beside a spoken date (the store's wait ends on the two-business-day clock, so a spoken
+                      date would be silently lost).
+     `waitsOnWhyNot`  the escape for a line that reads conditional but is not ("if you give me a second, I'll pull
+                      it up"): a reason of 12+ characters, and the promise keeps its date.
+   The plan then writes the promise with PROMISE_PUT_WAITING_SQL - promise_put, and in the SAME statement
+   promise_wait_put, only when the row is new (a re-run never re-holds a clock a message already started) and no
+   message from that address has landed since the call ended (they already sent it: the promise keeps its date). */
+const WAITS_ON_THEM_RX = [
+  { rx: /\b(?:if|once|when|whenever|as soon as|after)\s+you(?:'ve|\s+have)?\s+(?:can\s+)?(?:send|sent|shoot|shot|email|e-mail|emailed|forward|forwarded|give|gave|get|got|pass|passed|drop|dropped|share|shared|upload|uploaded)\s+(?:me|us|that|it|this|those|them|over|along|the|your)\b/,
+    why: '"if / once / when you send me X" - his delivery starts when they send it' },
+  { rx: /(?:^|[.,;:!?]\s*|\b(?:just|please|so)\s+)(?:send|shoot|email|e-mail|forward|give|get|pass|drop|share)\s+(?:me|us|that|it|this|those|them)\b[^.?!]*?\b(?:and|then|so)\s+(?:i'll|i will|we'll|we will|i'm going to|i am going to)\b/,
+    why: '"give me X and I will ..." - his delivery starts when they send it' },
+];
+const MIN_WAITS_ON = 8;
+/* The words that make the line wait on them, or null. Pure. */
+function waitsOnThem(s) {
+  const line = normLine(s);
+  const hit = WAITS_ON_THEM_RX.filter(function (r) { return r.rx.test(line); })[0];
+  return hit ? hit.why : null;
+}
+/* The reasons an item's wait is wrong; [] when it is right. Transcript-kind items only (the words said). */
+function waitProblems(p) {
+  const out = [];
+  if (!p || p.sourceKind !== 'transcript') return out;
+  const has = p.waitsOn != null && String(p.waitsOn).trim() !== '';
+  const own = waitsOnThem(p.sourceLine);
+  const either = own || waitsOnThem([p.contextLine, p.sourceLine].filter(Boolean).join(' '));
+  const whyNot = String(p.waitsOnWhyNot || '').trim();
+  if (p.waitsOn != null && typeof p.waitsOn !== 'string') out.push('`waitsOn` must be words (what they owe), not ' + typeof p.waitsOn);
+  else if (has && String(p.waitsOn).trim().length < MIN_WAITS_ON) out.push('`waitsOn` "' + String(p.waitsOn).trim() + '" is too short to say what they owe');
+  if (has && !either) out.push('has `waitsOn` but the words said do not make his delivery wait on them ("if you send me X", "give me X and I will") - a condition nobody said is invented; drop `waitsOn`');
+  if (has && String(p.spokenDue || '').trim()) out.push('has `waitsOn` AND a spoken date "' + String(p.spokenDue).trim() + '": the store starts a waiting promise\'s clock two business days after their message, so the spoken date would be lost - keep one');
+  if (!has && own && whyNot.length < MIN_NOT_A_PROMISE_WHY) {
+    out.push('waits on them - ' + own + ': say what they owe in `waitsOn` (plain words), or give `waitsOnWhyNot` with a reason, or the promise goes late on a date nobody said');
+  }
+  return out;
+}
 
 function promiseRefuse(sentence) {
   const e = new Error('BUILD REFUSED — PROMISE UNRECORDED (exit ' + PROMISE_EXIT.UNRECORDED + '): ' + sentence +
@@ -1117,7 +1279,10 @@ function promiseGate(d, config, tx, crm, argBy) {
     if (p.handed_to != null && !String(typeof p.handed_to === 'string' ? p.handed_to : (p.handed_to && p.handed_to.name) || '').trim()) {
       errs.push(n + '.handed_to is present but has no name: write {"name": "<the teammate, as said>"}, or leave it out when the user does it himself');
     }
-    if (PROMISE_SOURCE_KINDS.indexOf(p.sourceKind) < 0) errs.push(n + '.sourceKind must be one of ' + PROMISE_SOURCE_KINDS.join('|'));
+    if (p.sourceKind === 'recap') errs.push(n + '.sourceKind is "recap": a transcription service\'s recap or summary is never a source. ' +
+      'Quote the full transcript (sourceKind "transcript"); with no transcript there is nothing said to record ' +
+      '(ruling dr_we_read_the_full_transcript_never_a_transcription_service_summary_20261015)');
+    else if (PROMISE_SOURCE_KINDS.indexOf(p.sourceKind) < 0) errs.push(n + '.sourceKind must be one of ' + PROMISE_SOURCE_KINDS.join('|'));
     const words = p.spokenDue == null ? '' : String(p.spokenDue).trim();
     const at = p.spokenDueAt == null ? '' : String(p.spokenDueAt).trim();
     if (at && !ISO_WITH_OFFSET.test(at)) errs.push(n + '.spokenDueAt "' + at + '" is not an ISO time with an offset');
@@ -1128,6 +1293,14 @@ function promiseGate(d, config, tx, crm, argBy) {
         normLine(tx.text.replace(/\s+/g, ' ')).indexOf(normLine(p.sourceLine)) < 0) {
       errs.push(n + '.sourceLine is not in the transcript, verbatim: "' + String(p.sourceLine).slice(0, 90) + '"');
     }
+    if (tx && tx.text && p.sourceKind === 'transcript' && String(p.contextLine || '').trim() &&
+        normLine(tx.text.replace(/\s+/g, ' ')).indexOf(normLine(p.contextLine)) < 0) {
+      errs.push(n + '.contextLine is not in the transcript, verbatim: "' + String(p.contextLine).slice(0, 90) + '"');
+    }
+    /* 2026-10-14 THE COMMITMENT TEST (see commitmentProblems). */
+    commitmentProblems(p, tx && tx.text).forEach(function (why) { errs.push(n + ' ' + why); });
+    /* 2026-10-15 A PROMISE THAT WAITS ON THEM (see waitProblems). */
+    waitProblems(p).forEach(function (why) { errs.push(n + ' ' + why); });
   });
   notPromises.forEach(function (x, i) {
     if (!x || !String(x.line || '').trim()) errs.push('notPromises[' + i + '].line is empty');
@@ -1181,16 +1354,26 @@ function promisePlan(docId, gate, leadId, paths) {
     _what_this_is: 'The promise rows for this debrief (Call-Record-Lifecycle stage 11). Run every call in order through ' +
       'the board connector AFTER the call_doc row exists (hosted step 2, settle) and in the same fire. Then run `check`, ' +
       'save its FULL result, and run `judge`. Exit 0 = every promise has its row; exit ' + PROMISE_EXIT.ROWS_SHORT +
-      ' = the debrief is NOT done. Never mark a promise delivered here: delivery is a SENT message, never a draft.',
+      ' = the debrief is NOT done. Never mark a promise delivered here: delivery is a SENT message, never a draft. ' +
+      'A call with `waitsOn` is a promise that starts only when the other person sends something: it runs the same way (on a ' +
+      'client or cloud seat, job_run_statement promise_put with values.plan = that call) and answers `wait` = waiting | not-new | ' +
+      'they-already-wrote | not-held. If the store refuses it because promise_wait_put does not exist there, run its `fallback` ' +
+      'instead (the plain promise_put): the row lands with its date, and the run detail lists it as promise_waits_not_held.',
     docId, tenant: R.TENANT, count: gate.items.length, by: gate.by, promisedAt: gate.promisedAt,
     whats: gate.items.map(function (p) { return String(p.what).trim(); }),
+    waits: gate.items.filter(waitsOnWords).length,
     calls: gate.items.map(function (p, i) {
-      return { n: i + 1, what: String(p.what).trim(), sql: PROMISE_PUT_SQL,
-        params: [R.TENANT, docId, String(p.to.name).trim(), String(p.to.email || '').trim(), leadId || '',
+      const params = [R.TENANT, docId, String(p.to.name).trim(), String(p.to.email || '').trim(), leadId || '',
           String(p.what).trim(), String(p.sourceLine), p.sourceKind, gate.promisedAt,
           p.spokenDue == null || String(p.spokenDue).trim() === '' ? null : String(p.spokenDue).trim(),
           p.spokenDueAt == null || String(p.spokenDueAt).trim() === '' ? null : String(p.spokenDueAt).trim(),
-          gate.by] };
+          gate.by];
+      const waits = waitsOnWords(p);
+      if (!waits) return { n: i + 1, what: String(p.what).trim(), sql: PROMISE_PUT_SQL, params: params };
+      /* 2026-10-15: it waits on them. Same 12 values, then what they owe and why it waits (promise_wait_put wants 12+ characters). */
+      return { n: i + 1, what: String(p.what).trim(), waitsOn: waits, sql: PROMISE_PUT_WAITING_SQL,
+        params: params.concat([waits, waitWhy(p, gate.by)]),
+        fallback: { sql: PROMISE_PUT_SQL, params: params.slice() } };
     }),
     /* 2026-10-13: the hand-offs. Run each AFTER every `calls` item (the row must exist). A hand that does not land is NEVER a failure
        of the debrief: the promise stays the user's own. Count verdict 'handed' in promise_hands_made; list every other verdict and its
@@ -1209,6 +1392,17 @@ function promisePlan(docId, gate, leadId, paths) {
     judge: 'node ' + q(path.join(__dirname, 'build-call-debrief.js')) + ' --promises-check ' + q(paths.promisesPath) +
       ' --rows promise-rows.json',
   };
+}
+
+/* What a promise item says THEY owe before his delivery can start; '' when it does not wait. */
+function waitsOnWords(p) {
+  return p && typeof p.waitsOn === 'string' ? p.waitsOn.trim() : '';
+}
+/* The sentence promise_wait_put records as waits_why: the words said, and who wrote it. */
+function waitWhy(p, by) {
+  const line = String(p.sourceLine || '').replace(/\s+/g, ' ').trim();
+  return 'The words said on the call make it wait on ' + String((p.to && p.to.name) || 'them').trim() + ' sending it first: "' +
+    (line.length > 160 ? line.slice(0, 157) + '...' : line) + '" (debrief promise plan, ' + by + ').';
 }
 
 /* The finish verdict: every planned item has its row, for THIS doc. */
@@ -1623,7 +1817,7 @@ async function main() {
       noTranscriptReason = String(argv[ni + 1] || '').trim();
       if (noTranscriptReason.length < 25) {
         console.error('build-call-debrief: --no-transcript needs a REAL reason (25+ chars), ' +
-          'e.g. --no-transcript "notetaker never joined; debrief written from the operator\'s own notes".\n' +
+          'e.g. --no-transcript "notetaker never joined; no recording of this call exists".\n' +
           'A placeholder is refused on purpose: the whole point is that a stated absence and an ' +
           'accidental one cannot look the same.');
         process.exit(1);
@@ -1821,7 +2015,8 @@ module.exports = { buildStandaloneHtml, buildBodyHtml,
                    /* 0.9.50 (B9) — the promise writer, exported so prove-promise-writer.js proves it. */
                    __promises: { promiseGate, promisePlan, promisesVerdict, uncoveredSendPromises,
                                  PROMISE_EXIT, PROMISE_PUT_SQL, PROMISE_HAND_SQL, PROMISE_CHECK_SQL, SEND_PROMISE_RX,
-                                 handedToWords, handedToIsOperator },
+                                 handedToWords, handedToIsOperator, commitmentProblems, COMMIT_RX, OFFER_RX, RHETORICAL_RX,
+                                 PROMISE_PUT_WAITING_SQL, WAITS_ON_THEM_RX, waitsOnThem, waitProblems, waitsOnWords, waitWhy },
                    /* Exported 2026-08-11 so a REPAIR can restore a question panel into a debrief
                       that already exists, without rebuilding the document around it. Three
                       debriefs shipped with their questions silently deleted; their analysis is
