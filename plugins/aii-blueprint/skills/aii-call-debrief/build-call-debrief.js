@@ -1347,7 +1347,7 @@ function handedToIsOperator(words, operator) {
 }
 
 /* One promise_put per item. Nothing here touches a database. */
-function promisePlan(docId, gate, leadId, paths) {
+function promisePlan(docId, gate, leadId, paths, tenant) {
   const q = (s) => '"' + String(s).replace(/(["\\$`])/g, '\\$1') + '"';
   const R = loadRegistrar();
   return {
@@ -1359,11 +1359,11 @@ function promisePlan(docId, gate, leadId, paths) {
       'client or cloud seat, job_run_statement promise_put with values.plan = that call) and answers `wait` = waiting | not-new | ' +
       'they-already-wrote | not-held. If the store refuses it because promise_wait_put does not exist there, run its `fallback` ' +
       'instead (the plain promise_put): the row lands with its date, and the run detail lists it as promise_waits_not_held.',
-    docId, tenant: R.TENANT, count: gate.items.length, by: gate.by, promisedAt: gate.promisedAt,
+    docId, tenant: tenant, count: gate.items.length, by: gate.by, promisedAt: gate.promisedAt,
     whats: gate.items.map(function (p) { return String(p.what).trim(); }),
     waits: gate.items.filter(waitsOnWords).length,
     calls: gate.items.map(function (p, i) {
-      const params = [R.TENANT, docId, String(p.to.name).trim(), String(p.to.email || '').trim(), leadId || '',
+      const params = [tenant, docId, String(p.to.name).trim(), String(p.to.email || '').trim(), leadId || '',
           String(p.what).trim(), String(p.sourceLine), p.sourceKind, gate.promisedAt,
           p.spokenDue == null || String(p.spokenDue).trim() === '' ? null : String(p.spokenDue).trim(),
           p.spokenDueAt == null || String(p.spokenDueAt).trim() === '' ? null : String(p.spokenDueAt).trim(),
@@ -1382,13 +1382,13 @@ function promisePlan(docId, gate, leadId, paths) {
       .filter(function (x) { return x.who && !handedToIsOperator(x.who, gate.operator); })
       .map(function (x) {
         return { n: x.i + 1, what: String(x.p.what).trim(), handed_to: x.who, sql: PROMISE_HAND_SQL,
-          params: [R.TENANT, docId, String(x.p.what).trim(), x.who,
+          params: [tenant, docId, String(x.p.what).trim(), x.who,
             [x.p.to && x.p.to.name, gate.hint].filter(Boolean).join(' '), gate.by] };
       }),
     handsSkipped: gate.items.map(function (p, i) { return { n: i + 1, what: String(p.what).trim(), handed_to: handedToWords(p) }; })
       .filter(function (x) { return x.handed_to && handedToIsOperator(x.handed_to, gate.operator); })
       .map(function (x) { return { n: x.n, what: x.what, handed_to: x.handed_to, why: 'the person it is handed to is the user himself' }; }),
-    check: { sql: PROMISE_CHECK_SQL, params: [R.TENANT, docId], save: 'promise-rows.json (the FULL result)' },
+    check: { sql: PROMISE_CHECK_SQL, params: [tenant, docId], save: 'promise-rows.json (the FULL result)' },
     judge: 'node ' + q(path.join(__dirname, 'build-call-debrief.js')) + ' --promises-check ' + q(paths.promisesPath) +
       ' --rows promise-rows.json',
   };
@@ -1559,16 +1559,58 @@ function regenRefuse(code, label, sentence) {
   return e;
 }
 
-function planRegenRead(docId) {
+/* ── THE TENANT IS CARRIED (0.9.64). ─────────────────────────────────────────────────────
+   A build names its company: config.tenant or --tenant (they must agree), which the session
+   fills from the company its Blueprint connector is signed in to. register-call-doc.js resolves
+   it (AIOS_TENANT is only an override that must AGREE) and refuses when nothing names one:
+   there is no default company. Until 0.9.64 the registrar fell back to one company's own
+   tenant on any seat that never set AIOS_TENANT. The tenant is taken OUT of config before
+   anything renders, so the page and the kept state are exactly what they were. */
+function liftTenantFlag(argv) {
+  const i = argv.indexOf('--tenant');
+  if (i < 0) return null;
+  const v = argv[i + 1] && !argv[i + 1].startsWith('--') ? String(argv[i + 1]).trim() : '';
+  argv.splice(i, v ? 2 : 1);
+  if (!v) throw new Error('REFUSED - --tenant needs <company-slug>: the company this seat\'s Blueprint connector is signed in to.');
+  return v;
+}
+function carriedTenant(flag, config) {
+  const has = !!config && Object.prototype.hasOwnProperty.call(config, 'tenant');
+  const c = has && config.tenant != null ? String(config.tenant).trim() : '';
+  if (has) delete config.tenant;
+  if (flag && c && flag !== c) {
+    throw new Error('REFUSED - config.tenant "' + c + '" and --tenant "' + flag + '" name different companies. Nothing was built.');
+  }
+  return flag || c || null;
+}
+function tenantRegistrar(R) {
+  if (typeof R.resolveTenant !== 'function') {
+    throw new Error('REFUSED - the register-call-doc.js beside this builder predates the carried tenant (0.9.64). ' +
+      'Install the matching plugin. Nothing was built.');
+  }
+  return R;
+}
+function regenTenant(R, readPlan, opts) {
+  tenantRegistrar(R);
+  const a = readPlan && readPlan.tenant ? String(readPlan.tenant).trim() : '';
+  const b = opts && opts.tenant ? String(opts.tenant).trim() : '';
+  if (a && b && a !== b) {
+    throw new Error('REFUSED - the read plan is for "' + a + '" and --tenant says "' + b + '". Nothing was regenerated.');
+  }
+  return R.resolveTenant(a || b || null, process.env);
+}
+
+function planRegenRead(docId, tenant) {
   if (!docId || typeof docId !== 'string' || docId.startsWith('--')) {
     throw regenRefuse(1, 'NO DOC ID', 'a regeneration is addressed by call_doc.doc_id. ' +
       'Usage: node build-call-debrief.js --regen-plan <docId>');
   }
-  const R = loadRegistrar();
+  const R = tenantRegistrar(loadRegistrar());
+  const T = R.resolveTenant(tenant, process.env);
   return {
     _what_this_is: 'A call-debrief REGENERATION read plan. Run its sql with its params through the board ' +
       'connector, save the FULL result, then: build-call-debrief.js --regen <thisFile> --rows <result.json>',
-    docId, tenant: R.TENANT, sql: REGEN_READ_SQL, params: [R.TENANT, docId],
+    docId, tenant: T, sql: REGEN_READ_SQL, params: [T, docId],
   };
 }
 
@@ -1577,7 +1619,7 @@ function regenerate(readPlan, rowsIn, opts) {
   const R = loadRegistrar();
   const filing = opts.filing || { cloud: false, runId: null, hostedGap: null };
   const want = readPlan && readPlan.docId;
-  const tenant = (readPlan && readPlan.tenant) || R.TENANT;
+  const tenant = regenTenant(R, readPlan, opts);
   if (!want) throw regenRefuse(REGEN_EXIT.PROVENANCE, 'PROVENANCE', 'the read plan carries no docId.');
   const rows = Array.isArray(rowsIn) ? rowsIn : (rowsIn && Array.isArray(rowsIn.rows) ? rowsIn.rows : null);
   if (!rows) throw regenRefuse(REGEN_EXIT.PROVENANCE, 'PROVENANCE', 'the rows file is not a connector result. Hand it the FULL result, unedited.');
@@ -1622,6 +1664,7 @@ function regenerate(readPlan, rowsIn, opts) {
     BUILD_STAMP + ' — ' + (r.storedHtmlSha256 ? (r.byteIdentical ? 'byte-identical to the recorded render'
       : 'NOT byte-identical to the recorded render (the builder moved since)') : 'no recorded render hash to compare');
   const plan = R.planRegistration(where.absPath, {
+    tenant,
     eventId: row.event_id, kind: 'debrief', builtBy: row.built_by, eventIdSource: row.event_id_source,
     meetingDate: row.meeting_date, person: row.person || '', domain: row.domain || '',
     channel: row.channel || 'call', callRef: row.call_ref || null,
@@ -1658,7 +1701,7 @@ function regenerate(readPlan, rowsIn, opts) {
   const planPath = where.absPath + '.plan.json';
   fs.writeFileSync(planPath, JSON.stringify(plan, null, 2), 'utf8');
   const promisesPath = where.absPath + '.promises.json';
-  const promises = pGate ? promisePlan(row.doc_id, pGate, config.leadId || row.lead_id || '', { promisesPath })
+  const promises = pGate ? promisePlan(row.doc_id, pGate, config.leadId || row.lead_id || '', { promisesPath }, plan.tenant)
     : { docId: row.doc_id, count: 0, keptStateHasPromises: Array.isArray(kc.promises), whats: [], calls: [] };
   if (pGate) fs.writeFileSync(promisesPath, JSON.stringify(promises, null, 2), 'utf8');
   const out = {
@@ -1731,7 +1774,7 @@ async function main() {
   if (argv[0] === '--print-folder-sql') {
     const val = (n) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : null; };
     console.log(JSON.stringify(loadRegistrar().folderSql({ channel: val('--channel'),
-      company: val('--company'), partner: val('--partner') }), null, 2));
+      company: val('--company'), partner: val('--partner'), tenant: val('--tenant') }), null, 2));
     return;
   }
 
@@ -1752,6 +1795,8 @@ async function main() {
 
   /* FILING MODE is lifted out FIRST so the positionals never shift. */
   const filing = filingMode(argv, process.env);
+  /* The company this build is for (0.9.64) - lifted like --cloud so the positionals never shift. */
+  const tenantFlag = liftTenantFlag(argv);
   /* 0.9.50 (B9): the transcript the promise gate reads, and who writes the promise rows. Lifted
      here, beside --cloud and --folder, so the positionals never shift and --regen ignores them. */
   const liftVal = (flag) => {
@@ -1776,7 +1821,7 @@ async function main() {
   const folderRaw = liftFolder(argv, filing);
 
   if (argv[0] === '--regen-plan') {
-    console.log(JSON.stringify(planRegenRead(argv[1]), null, 2));
+    console.log(JSON.stringify(planRegenRead(argv[1], tenantFlag), null, 2));
     return;
   }
   if (argv[0] === '--regen') {
@@ -1788,7 +1833,7 @@ async function main() {
       process.exit(1);
     }
     const out = regenerate(JSON.parse(fs.readFileSync(argv[1], 'utf8')), JSON.parse(fs.readFileSync(argv[ri + 1], 'utf8')),
-      { filing, folderRaw, outDir: oi >= 0 ? argv[oi + 1] : null, promiseBy: promiseByArg });
+      { filing, folderRaw, outDir: oi >= 0 ? argv[oi + 1] : null, promiseBy: promiseByArg, tenant: tenantFlag });
     if (out.status === 'folder_address_unresolved') { stopUnresolved(out.hosted); return; }
     console.error('✓ Regenerated ' + out.htmlChars + ' chars from kept state ' + out.fromKeptState + ' (v' + out.fromVersion + ')');
     console.error('✓ QUARANTINED at ' + out.quarantinePath + '   (' + out.pathVia + ')');
@@ -1831,13 +1876,16 @@ async function main() {
                   '         --transcript <transcript.txt> | --no-transcript "<why there is no recording>"\n' +
                   '         [--promise-by session:<id>]   (0.9.50: who writes the promise rows)\n' +
                   '         [--cloud [--folder <folder.json>] [--run-id <id>]]\n' +
-                  '       node build-call-debrief.js --print-folder-sql --channel <c> --company <x> [--partner <p>]\n' +
+                  '       node build-call-debrief.js --print-folder-sql --channel <c> --company <x> [--partner <p>] --tenant <t>\n' +
+                  '       The company is config.tenant or --tenant (they must agree): the company this seat\'s\n' +
+                  '       Blueprint connector is signed in to. With neither, the registrar refuses.\n' +
                   '       node build-call-debrief.js --regen-plan <docId>  |  --regen <readplan.json> --rows <rows.json> [...]\n' +
                   '       node build-call-debrief.js --promises-check <out.html.promises.json> --rows <promise-rows.json>');
     process.exit(1);
   }
   const d = JSON.parse(stripFences(fs.readFileSync(debriefPath, 'utf8')));
   const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  const tenantIn = carriedTenant(tenantFlag, config);
   if (!config.debriefId) config.debriefId = 'd' + Date.now();
 
   /* BOTH GATES RUN BEFORE A BYTE IS RENDERED — see each function's own header.
@@ -1884,6 +1932,7 @@ async function main() {
      born unreproducible. A writer with no reader and no red is how call_guide_state reached
      104 rows without a single debrief among them. */
   const plan = R.planRegistration(absOut, {
+    tenant:        tenantIn,
     eventId:       config.eventId,
     kind:          'debrief',
     builtBy:       config.builtBy || 'call-debrief',
@@ -1938,7 +1987,7 @@ async function main() {
   const planPath = absOut + '.plan.json';
   fs.writeFileSync(planPath, JSON.stringify(plan, null, 2), 'utf8');
   const promisesPath = absOut + '.promises.json';
-  const promises = promisePlan(plan.docId, pGate, crm.attached ? crm.leadId : '', { promisesPath });
+  const promises = promisePlan(plan.docId, pGate, crm.attached ? crm.leadId : '', { promisesPath }, plan.tenant);
   fs.writeFileSync(promisesPath, JSON.stringify(promises, null, 2), 'utf8');
 
   console.error('✓ Built ' + html.length + ' chars');

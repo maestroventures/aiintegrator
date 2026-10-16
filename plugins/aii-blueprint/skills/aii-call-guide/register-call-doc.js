@@ -153,15 +153,45 @@
  *   A disk plan (localPath absent -> defaults to the final path, or a real absolute path) is
  *   byte-for-byte the plan it was before.
  *
- * TENANT: resolved from AIOS_TENANT, else this seat's own tenant. Never hardcode a
- * tenant in a caller.
+ * TENANT: CARRIED, never guessed (0.9.64). Each mode takes the company from what the work
+ * already carries: a plan's fields.tenant (or --tenant), the call_doc row a confirm is built
+ * from, the plan a hosted handoff is built from, the ticket a stage is built for. AIOS_TENANT
+ * is an explicit override and must AGREE with the carried company when both are present
+ * (disagreement is refused). With neither, it refuses: exit 30 from the CLI, a thrown error
+ * (code E_NO_TENANT) from the module. Until 0.9.64 an unset variable fell back to one
+ * company's own tenant, and the store does not refuse that row. Never hardcode a tenant in
+ * a caller.
  */
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
 
-const TENANT = process.env.AIOS_TENANT || 'bryce';
+/* THE TENANT IS CARRIED, NEVER GUESSED (0.9.64). Resolved per use, never once at load, so a
+   builder or a server can require this module before it knows which company it serves. */
+const TENANT_EXIT = 30;
+function resolveTenant(carried, env) {
+  const c = carried == null ? '' : String(carried).trim();
+  const has = !!env && typeof env.AIOS_TENANT === 'string';
+  const v = has ? env.AIOS_TENANT.trim() : '';
+  let e = null;
+  if (c && v && c !== v) {
+    e = new Error('register-call-doc: REFUSED - the work carries tenant "' + c + '" but AIOS_TENANT is "' + v +
+      '". They must agree; one of them names the wrong company. Nothing was planned and nothing was written.');
+    e.code = 'E_TENANT_DISAGREES';
+  } else if (c || v) {
+    return c || v;
+  } else {
+    e = new Error('register-call-doc: REFUSED - no tenant. The work carries none (fields.tenant / --tenant, the row, ' +
+      'the plan or the ticket) and AIOS_TENANT is ' + (has ? 'blank' : 'not set') + '. This script never guesses which ' +
+      'company a call document belongs to. Pass the company this seat\'s Blueprint connector is signed in to, e.g. ' +
+      '"tenant": "<your-company-slug>" in the fields, --tenant <your-company-slug>, or AIOS_TENANT=<your-company-slug>. ' +
+      'Nothing was planned and nothing was written.');
+    e.code = 'E_NO_TENANT';
+  }
+  throw e;
+}
+const tenantFor = (carried) => resolveTenant(carried, process.env);
 const TERM_DOMAIN = 'call-artifact';
 const CAP_CATEGORY = 'call-doc-map';
 const CAP_ACTION = 'record_call_doc';
@@ -598,6 +628,7 @@ function planRegistration(finalFilePath, fields, opts = {}) {
   }
 
   const docId = f.docId || deriveDocId(f.kind, f.eventId);
+  const T = tenantFor(f.tenant || opts.tenant);
 
   /* KEPT STATE — added 2026-08-07 (S5). A GUIDE must carry the JSON it was built from,
      or it is born unregenerable. The flag is what the SQL reads to decide whether to
@@ -622,7 +653,7 @@ function planRegistration(finalFilePath, fields, opts = {}) {
       'connector (resolved BY CATEGORY, never by name), save the FULL result, then hand both ' +
       'to `register-call-doc.js --settle <plan.json> --result <result.json>`.',
     docId,
-    tenant: TENANT,
+    tenant: T,
     /* Present ONLY in cloud mode (true = registered with NO operator path, local_path NULL);
        settle() reads it. Absent on a disk plan so a disk plan.json stays byte-identical. */
     ...(cloud ? { cloud: true } : {}),
@@ -634,7 +665,7 @@ function planRegistration(finalFilePath, fields, opts = {}) {
     keptState: requireKept,
     sql: GUARDED_UPSERT,
     params: [
-      docId, TENANT, f.eventId, f.kind, f.callRef || '', String(f.meetingDate),
+      docId, T, f.eventId, f.kind, f.callRef || '', String(f.meetingDate),
       f.person || '', f.domain || '', f.channel || 'call', v.fileTitle, cloud ? null : f.localPath,
       v.fileId, v.viewUrl, v.hostedGap, f.builtBy, f.eventIdSource,
       guideJson, f.changeNote || null, requireKept,
@@ -751,14 +782,14 @@ function confirmHosted(row, hosted, opts = {}) {
       'no file and deletes no file — there is nothing on disk to move.',
     confirm: true,
     docId: row.doc_id,
-    tenant: TENANT,
+    tenant: tenantFor(row.tenant_id),
     // Kept so a failure can quote the sentence piece 6 wrote, and so a caller can prove
     // afterwards that a row it did NOT resolve still carries that text byte for byte — the
     // inverse acceptance test, which is the one that proves the job measures anything.
     priorHostedGap: row.hosted_gap == null ? '' : String(row.hosted_gap),
     sql: GUARDED_UPSERT,
     params: [
-      row.doc_id, TENANT, f.eventId, f.kind, f.callRef || '', String(f.meetingDate),
+      row.doc_id, tenantFor(row.tenant_id), f.eventId, f.kind, f.callRef || '', String(f.meetingDate),
       f.person, f.domain, f.channel, v.fileTitle, f.localPath,
       v.fileId, v.viewUrl, v.hostedGap, f.builtBy, f.eventIdSource,
       /* KEPT STATE: a confirm mints NONE and is required to produce NONE. It flips the
@@ -977,13 +1008,13 @@ function confirmSettle(plan, result) {
 }
 
 /* ── read side: also SQL, for the same reason ── */
-function lookupSql(eventId, kind) {
+function lookupSql(eventId, kind, tenant) {
   return {
     _what_this_is: 'Run `sql` with `params` through the board connector to read the call_doc ' +
       'pointer back. Returns zero rows when nothing is registered — which is an answer, not a ' +
       'failure.',
     sql: LOOKUP,
-    params: [TENANT, eventId, kind || null],
+    params: [tenantFor(tenant), eventId, kind || null],
   };
 }
 
@@ -1015,6 +1046,11 @@ function selfTest() {
     ['M10 eventId with whitespace', mut({ eventId: 'has space' }), true],
   ];
   let pass = 0, fail = 0;
+  /* The self-test plans as an INVENTED company and sets it for itself, so it proves the same
+     thing on every seat. TN1-TN8 prove every carried / override / neither case in child
+     processes with exactly the environment each names. */
+  const TEST_TENANT = 'example-tenant';
+  process.env.AIOS_TENANT = TEST_TENANT;
   for (const [name, fields, shouldRefuse] of cases) {
     const { errs } = validateShape(fields);
     const refused = errs.length > 0;
@@ -1088,7 +1124,7 @@ function selfTest() {
   };
 
   const stagedRow = {
-    doc_id: 'cd_guide_abc', tenant_id: 'bryce', event_id: '4p9e9u82qq2au5hl31o7tsq21d',
+    doc_id: 'cd_guide_abc', tenant_id: TEST_TENANT, event_id: '4p9e9u82qq2au5hl31o7tsq21d',
     kind: 'guide', call_ref: null, meeting_date: '20260805', person: 'Pat Doe',
     domain: 'acme.co', channel: 'call',
     file_title: '20260805_callguide_pat-doe_reconnect.html',
@@ -1111,6 +1147,74 @@ function selfTest() {
     if (ok) pass++; else fail++;
     console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${name}${ok ? '' : '  -> ' + (why || 'assertion false')}`);
   };
+
+  /* ── THE TENANT IS CARRIED, NEVER GUESSED (0.9.64). ─────────────────────────────────
+     Until 0.9.64 this module read `AIOS_TENANT || <the operator's tenant>`, so a seat that
+     never set AIOS_TENANT planned every registration under somebody else's company, and the
+     store does not refuse that row (no tenant wall on call_doc or call_guide_state, measured
+     at a client store in a rolled-back rehearsal). Now the tenant comes from what the work
+     already carries (fields.tenant / --tenant, the row, the plan, the ticket); AIOS_TENANT is
+     an explicit override that must AGREE with it; with neither, it refuses. Each case runs a
+     CHILD process with exactly the environment it names, because the defect was what happens
+     when the variable is absent, and this process cannot unset what it was started with. */
+  const childRun = (envTenant, args) => {
+    const env = Object.assign({}, process.env);
+    delete env.AIOS_TENANT;
+    if (envTenant !== undefined) env.AIOS_TENANT = envTenant;
+    return require('child_process').spawnSync(process.execPath, args, { env, encoding: 'utf8' });
+  };
+  const OTHER_TENANT = 'another-example-tenant';
+  const planIn = (envTenant, carried) => childRun(envTenant, ['-e',
+    'const R = require(process.argv[1]); const f = JSON.parse(process.argv[3]);' +
+    ' const p = R.planRegistration(process.argv[2], f);' +
+    ' process.stdout.write(JSON.stringify({ tenant: p.tenant, slot: p.params[1] }));',
+    __filename, base.localPath, JSON.stringify(carried === undefined ? base : Object.assign({}, base, { tenant: carried }))]);
+  const planned = (r) => { try { return r.status === 0 ? JSON.parse(r.stdout) : null; } catch (_) { return null; } };
+  chk('TN1 RED on old code — carried only (fields.tenant, AIOS_TENANT unset): the plan uses the carried company', () => {
+    const o = planned(planIn(undefined, TEST_TENANT));
+    return !!o && o.tenant === TEST_TENANT && o.slot === TEST_TENANT;
+  });
+  chk('TN2 AIOS_TENANT only (nothing carried): the plan uses it', () => {
+    const o = planned(planIn(TEST_TENANT, undefined));
+    return !!o && o.tenant === TEST_TENANT && o.slot === TEST_TENANT;
+  });
+  chk('TN3 carried and AIOS_TENANT AGREE: the plan uses that company', () => {
+    const o = planned(planIn(TEST_TENANT, TEST_TENANT));
+    return !!o && o.tenant === TEST_TENANT && o.slot === TEST_TENANT;
+  });
+  chk('TN4 RED on old code — carried and AIOS_TENANT DISAGREE: REFUSED, both named, no plan printed', () => {
+    const r = planIn(OTHER_TENANT, TEST_TENANT);
+    return r.status !== 0 && r.stdout === '' && r.stderr.includes(OTHER_TENANT) && r.stderr.includes(TEST_TENANT);
+  });
+  chk('TN5 RED on old code — NEITHER (unset, or blank): REFUSED naming AIOS_TENANT; the CLI exits ' + TENANT_EXIT + ' with no SQL', () => {
+    const a = planIn(undefined, undefined), b = planIn('   ', undefined);
+    const c = childRun(undefined, [__filename, '--lookup-sql', 'evt_x', 'guide']);
+    const d = childRun(undefined, [__filename, '--lookup-sql', 'evt_x', 'guide', '--tenant', TEST_TENANT]);
+    return a.status !== 0 && a.stdout === '' && /AIOS_TENANT/.test(a.stderr) && b.status !== 0 && b.stdout === ''
+      && c.status === TENANT_EXIT && !/SELECT/.test(c.stdout) && /AIOS_TENANT/.test(c.stderr)
+      && d.status === 0 && JSON.parse(d.stdout).params[0] === TEST_TENANT;
+  });
+  chk('TN6 RED on old code — the module loads with no tenant, but its TENANT (no carried value) refuses rather than default', () => {
+    const r = childRun(undefined, ['-e',
+      'const R = require(process.argv[1]); let t; try { t = R.TENANT; } catch (e) { t = "REFUSED:" + e.message; }' +
+      ' process.stdout.write(String(t));', __filename]);
+    return r.status === 0 && /^REFUSED:.*AIOS_TENANT/.test(r.stdout);
+  });
+  chk('TN7 RED on old code — a CONFIRM, a STAGE and the HOSTED steps take the tenant the row / ticket / plan carry (unset env)', () => {
+    const r = childRun(undefined, ['-e',
+      'const R = require(process.argv[1]); const row = JSON.parse(process.argv[2]); const t = process.argv[3];' +
+      ' const c = R.confirmHosted(row, { fileId: "1abc", viewUrl: "https://drive.google.com/file/d/1abc/view" });' +
+      ' const s = R.stagePlan(Buffer.from("<html>x</html>"), "cdt." + t + "." + "a".repeat(48), "run_self_test");' +
+      ' const plan = { tenant: t, docId: "cd_guide_abc", finalPath: "/x/20260805_callguide_a_b.html", sql: "x", params: [0, t, "e", "guide", 0, 0, 0, 0, 0, "20260805_callguide_a_b.html"] };' +
+      ' const h = R.hostedHandoff(plan, Buffer.from("<html>y</html>"), { resolved: true, driveFolderId: "1234567890abc", pathLabel: "x" }, { planPath: "p", resultPath: "r", runId: "run_x" });' +
+      ' process.stdout.write(JSON.stringify([c.params[1], s.statements[0].params[0], h.steps.filter(x => x.params).map(x => x.params[0] === t || x.params[1] === t)]));',
+      __filename, JSON.stringify(stagedRow), TEST_TENANT]);
+    let o = null; try { o = JSON.parse(r.stdout); } catch (_) {}
+    return !!o && o[0] === TEST_TENANT && o[1] === TEST_TENANT && o[2].length >= 3 && o[2].every(Boolean);
+  });
+  chk('TN8 every fixture row in this self-test belongs to an invented company, never a real tenant', () => {
+    return stagedRow.tenant_id === TEST_TENANT;
+  });
 
   chk('CF1 a real hosted pair CONFIRMS, and the plan carries no path to promote', () => {
     const p = confirmHosted(stagedRow, realPair);
@@ -1490,7 +1594,7 @@ function selfTest() {
   });
   chk('O6 the stage plan round-trips: chunks rejoin and gunzip to the exact bytes, each chunk within the store CHECK', () => {
     const bytes = Buffer.from('<html>' + 'x\u00e9\u2014'.repeat(40000) + require('crypto').randomBytes(30000).toString('hex') + '</html>', 'utf8');
-    const t = 'cdt.' + TENANT + '.' + 'a'.repeat(48);
+    const t = 'cdt.' + TEST_TENANT + '.' + 'a'.repeat(48);
     const sp = stagePlan(bytes, t, 'run_self_test');
     const joined = sp.statements.map((x) => x.params[5]).join('');
     const back = require('zlib').gunzipSync(Buffer.from(joined, 'base64'));
@@ -1500,13 +1604,13 @@ function selfTest() {
   });
   chk('O9 every staged chunk carries the sha256 of ITS OWN text as $8, and is at most 6,000 characters (0.9.54)', () => {
     const bytes = Buffer.from('<html>' + require('crypto').randomBytes(40000).toString('hex') + '</html>', 'utf8');
-    const sp = stagePlan(bytes, 'cdt.' + TENANT + '.' + 'c'.repeat(48), 'run_self_test');
+    const sp = stagePlan(bytes, 'cdt.' + TEST_TENANT + '.' + 'c'.repeat(48), 'run_self_test');
     const h = (c) => require('crypto').createHash('sha256').update(c, 'utf8').digest('hex');
     return sp.n_chunks > 3 && /\$8\)/.test(STAGE_SQL) && sp.statements.every((x) => x.params.length === 8 &&
       x.params[5].length <= 6000 && x.params[7] === h(x.params[5]) && x.chunk_sha256 === x.params[7]);
   });
   chk('O10 RED — a chunk altered after planning no longer matches its own $8 (what the store refuses on arrival)', () => {
-    const sp = stagePlan(Buffer.from('<html>' + 'y'.repeat(9000) + '</html>'), 'cdt.' + TENANT + '.' + 'd'.repeat(48), 'run_self_test');
+    const sp = stagePlan(Buffer.from('<html>' + 'y'.repeat(9000) + '</html>'), 'cdt.' + TEST_TENANT + '.' + 'd'.repeat(48), 'run_self_test');
     const x = sp.statements[0];
     const altered = (x.params[5][0] === 'A' ? 'B' : 'A') + x.params[5].slice(1);
     return require('crypto').createHash('sha256').update(altered, 'utf8').digest('hex') !== x.params[7];
@@ -1514,7 +1618,7 @@ function selfTest() {
   chk('O7 RED — the stage plan refuses a placeholder ticket or a missing writer', () => {
     const b = Buffer.from('x');
     const threw = (f) => { try { f(); return false; } catch (_) { return true; } };
-    return threw(() => stagePlan(b, '{{TICKET}}', 'r')) && threw(() => stagePlan(b, 'cdt.' + TENANT + '.' + 'a'.repeat(48), ''));
+    return threw(() => stagePlan(b, '{{TICKET}}', 'r')) && threw(() => stagePlan(b, 'cdt.' + TEST_TENANT + '.' + 'a'.repeat(48), ''));
   });
   chk('O8 a DISK plan gets the same seven-step handoff and keeps its absolute local path in step 1', () => {
     const plan = planRegistration('/Users/x/Calls/20260805_callguide_pat-doe_reconnect.html', base);
@@ -1559,6 +1663,80 @@ function selfTest() {
     const r = readBase({ outside_text_notice: 'wrapped between ⟦outside ab12⟧ and ⟦/outside ab12⟧', rows: [
       { state_id: '⟦outside ab12⟧cgs_x_v1⟦/outside ab12⟧', guide_json: { t: '⟦outside ab12⟧hi⟦/outside ab12⟧', u: '⟦outside ffff⟧keep⟦/outside ffff⟧' } }] });
     return r.stateId === 'cgs_x_v1' && r.guide.t === 'hi' && r.guide.u === '⟦outside ffff⟧keep⟦/outside ffff⟧';
+  });
+
+  /* THE STORED REGISTER FUNCTION (2026-10-15). Offline halves only: the store half (old statement and
+     function give byte-identical kept state; every refusal refuses in the same words and order) is proven in the run file
+     run file that creates the function, rehearsed and rolled back against a real kept state. */
+  const shPlan = () => planRegistration(base.localPath, Object.assign({}, base, { guideJson: krNew, changeNote: 'n' }));
+  chk('SH1 a short plan is ONE short call; params[1] carries every positional value under its name', () => {
+    const p = shPlan(), s = shortPlan(p);
+    const o = s.params[1];
+    return s.sql === REGISTER_CALL && s.params.length === 2 && s.params[0] === p.params[1]
+      && PARAM_KEY.every((k, i) => k === null || (k === 'guide_json' ? JSON.stringify(o[k]) === p.params[16] : o[k] === p.params[i]))
+      && Object.keys(o).length === 20 && s.docId === p.docId && s.quarantinePath === p.quarantinePath
+      && s.finalPath === p.finalPath && s.keptState === true && s.short.shortCallChars < s.short.longStatementChars / 100;
+  });
+  chk('SH2 a CONFIRM goes short too: confirm, priorHostedGap kept; guide_json null and require_kept false', () => {
+    const s = shortPlan(confirmHosted(stagedRow, realPair));
+    return s.confirm === true && s.priorHostedGap === 'not in the Drive mirror at build time'
+      && s.params[1].guide_json === null && s.params[1].require_kept === false && s.params[1].lead_id === 'lead_abc123'
+      && s.params[1].file_id === '1abc' && s.params[1].hosted_gap === '';
+  });
+  chk('SH3 short --base: the guide goes as a patch that rebuilds it, with the base id and the sha; no guide_json key', () => {
+    const s = shortPlan(shPlan(), { stateId: 'cgs_x_v1', guide: krBase });
+    const o = s.params[1];
+    return !('guide_json' in o) && o.base_state_id === 'cgs_x_v1' && /^[0-9a-f]{64}$/.test(o.want_sha256)
+      && o.want_sha256 === sha256Hex(jsonbText(krNew)) && jsonbText(applyKeptPatch(krBase, o.patch)) === jsonbText(krNew)
+      && !JSON.stringify(o).includes('long shared text');
+  });
+  chk('SH4 a --by-ref plan goes short with the SAME patch, base and sha it already carried', () => {
+    const r = byReference(shPlan(), { stateId: 'cgs_x_v1', guide: krBase });
+    const s = shortPlan(r);
+    return JSON.stringify(s.params[1].patch) === r.params[16] && s.params[1].base_state_id === r.params[21]
+      && s.params[1].want_sha256 === r.params[22] && !('guide_json' in s.params[1]) && s.byReference === undefined;
+  });
+  chk('SH5 RED - short REFUSES a plan this file did not print, a guide-less plan with --base, and a by-ref plan with --base', () => {
+    const t = (f) => { try { f(); return false; } catch (_) { return true; } };
+    const r = byReference(shPlan(), { stateId: 'cgs_x_v1', guide: krBase });
+    return t(() => shortPlan(Object.assign({}, shPlan(), { sql: 'SELECT 1' })))
+      && t(() => shortPlan(Object.assign({}, shPlan(), { params: shPlan().params.slice(0, 20) })))
+      && t(() => shortPlan(planRegistration(base.localPath, base), { stateId: 's', guide: krBase }))
+      && t(() => shortPlan(r, { stateId: 's', guide: krBase }));
+  });
+  chk('SH6 settle judges a short plan exactly as a long one: kept_state_id promotes, its absence destroys', () => {
+    const s = shortPlan(shPlan());
+    const [F1, a] = fakeFs(), [F2, b] = fakeFs();
+    settleRegistration(s, [Object.assign({}, okRow, { doc_id: s.docId, kept_state_id: 'cgs_x', kept_version: 2 })], F1);
+    let threw = false;
+    try { settleRegistration(s, [Object.assign({}, okRow, { doc_id: s.docId })], F2); } catch (_) { threw = true; }
+    return a.renamed.length === 1 && threw && b.unlinked.length === 1 && b.renamed.length === 0;
+  });
+  chk('SH7 a guide JSON that would not re-print byte for byte travels as TEXT (the store parses it as $17 was)', () => {
+    const p = shPlan(); p.params = p.params.slice(); p.params[16] = '{"sections": [{"id": "a"}], "n": 1.0}';
+    return shortPlan(p).params[1].guide_json === p.params[16]
+      && typeof shortPlan(shPlan()).params[1].guide_json === 'object';
+  });
+  chk('SH8 the function is GENERATED from the statement: ASCII, no $n left, every refusal sentence of the statement inside', () => {
+    const f = registerFunctionSql();
+    const dec = f.replace(/E'((?:[^']|'')*)'/g, (m, x) => "'" + x.replace(/\\u([0-9a-f]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16))) + "'");
+    // every string literal of the statement and the by-ref front (76 measured 2026-10-15), decoded, must be in the function
+    const lits = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').match(/'(?:[^']|'')*'/g) || [];
+    const want = [...new Set(lits(GUARDED_UPSERT).concat(lits(KR_FRONT)))];
+    return want.length >= 70 && !/[^\x00-\x7f]/.test(f) && !/\$\d/.test(f.slice(f.indexOf('AS $cdr$')))
+      && /^CREATE OR REPLACE FUNCTION public\.call_doc_register\(p_tenant text, p_plan jsonb\)/.test(f)
+      && f.includes('gap AS (SELECT reason FROM plan_gap UNION ALL SELECT reason FROM kr_gap UNION ALL SELECT reason FROM vocab_gap')
+      && want.every((l) => dec.includes(l))
+      && f.includes('INSERT INTO call_doc') && f.includes('INSERT INTO call_guide_state') && f.split('$cdr$').length === 3;
+  });
+  chk('SH9 RED - the generator STOPS when an anchor of the statement moves, rather than print a different door', () => {
+    const src = registerFunctionSql.toString();
+    return /if \(n !== 1\) throw/.test(src) && /'gap AS \(SELECT reason FROM vocab_gap UNION ALL'/.test(src)
+      && /'\\nWITH in_f AS \(\\n'/.test(src) && /'\$17::jsonb AS guide_json,'/.test(src);
+  });
+  chk('SH10 RED - the hosted handoff refuses a short plan (it reads positional params)', () => {
+    try { hostedHandoff(shortPlan(shPlan()), Buffer.from('x'), { resolved: true, driveFolderId: '1AbCdEfGhIjKlMn' }, {}); return false; }
+    catch (e) { return /long plan/.test(e.message); }
   });
 
   console.log(`\n  ${pass} passed, ${fail} failed`);
@@ -1615,7 +1793,7 @@ function folderSql(o) {
       'file and pass it to the builder with --folder. If the resolver RAISES, save ' +
       '{"error": "<the message>"} to that file instead — that is an answer, not a failure.',
     sql: FOLDER_SQL,
-    params: [TENANT, channel, company, 'calls', partner],
+    params: [tenantFor(q.tenant), channel, company, 'calls', partner],
   };
 }
 
@@ -1647,8 +1825,8 @@ function hostedHandoff(plan, bytes, folder, o) {
      document on 2026-09-24 built on disk and then ran exactly these steps (register, settle,
      mint, upload, confirm); a disk plan simply keeps its local_path while the hosted half is
      filled. What is refused is a plan that is not a registration plan at all. */
-  if (!plan || !Array.isArray(plan.params) || !plan.finalPath || plan.confirm === true) {
-    throw new Error('hosted-handoff: refused — needs the registration plan the builder just made.');
+  if (!plan || !Array.isArray(plan.params) || !plan.finalPath || plan.confirm === true || plan.sql === REGISTER_CALL) {
+    throw new Error('hosted-handoff: refused — needs the registration plan the builder just made (the long plan; --short it afterwards).');
   }
   if (!Buffer.isBuffer(bytes) || !bytes.length) {
     throw new Error('hosted-handoff: refused — needs the exact bytes that were written.');
@@ -1696,7 +1874,7 @@ function hostedHandoff(plan, bytes, folder, o) {
       { n: 2, do: 'settle', run: 'node ' + q(registrar) + ' --settle ' + q(opt.planPath) + ' --result ' + q(opt.resultPath),
         expect: 'exit 0; the file now has its real name: ' + plan.finalPath },
       { n: 3, do: 'mint one upload ticket', via: 'board connector', sql: MINT_SQL,
-        params: [TENANT, plan.docId, sha256, bytes.length, folder.driveFolderId, by],
+        params: [tenantFor(plan.tenant || plan.params[1]), plan.docId, sha256, bytes.length, folder.driveFolderId, by],
         expect: 'one row: ticket, door_url (15 minutes, one use)' },
       { n: 4, do: 'upload the bytes', run: 'node ' + q(upload) + ' --upload ' + q(plan.finalPath) +
         ' --ticket {{TICKET}} --door {{DOOR_URL}}',
@@ -1716,13 +1894,13 @@ function hostedHandoff(plan, bytes, folder, o) {
             "state is 'filed' (about 5 minutes): its file_id and view_url are {{FILE_ID}} and {{VIEW_URL}}. " +
             "State 'refused' or 'expired': mint a NEW ticket and stage again; never guess an id.",
         } },
-      { n: 5, do: 'read the row back', via: 'board connector', sql: LOOKUP, params: [TENANT, eventId, kind],
+      { n: 5, do: 'read the row back', via: 'board connector', sql: LOOKUP, params: [tenantFor(plan.tenant || plan.params[1]), eventId, kind],
         save: 'row.json (the one row, whole)' },
       { n: 6, do: 'plan the hosted half', run: 'node ' + q(registrar) + ' --confirm row.json ' +
         "'{\"fileId\":\"{{FILE_ID}}\",\"viewUrl\":\"{{VIEW_URL}}\"}'",
         then: 'run its sql with its params through the board connector, save the FULL result, then ' +
           'node ' + q(registrar) + ' --confirm-settle <confirm-plan.json> --result <confirm-result.json>' },
-      { n: 7, do: 'prove it', via: 'board connector', sql: READBACK_SQL, params: [TENANT, plan.docId],
+      { n: 7, do: 'prove it', via: 'board connector', sql: READBACK_SQL, params: [tenantFor(plan.tenant || plan.params[1]), plan.docId],
         expect: "file_id = {{FILE_ID}}, view_url = {{VIEW_URL}}, hosted_gap = ''. Anything else is INCOMPLETE, not built.",
         /* 0.9.50: the verdict is a command with an exit code, not a sentence to eyeball. */
         judge: 'save the row to readback.json, then: node ' + q(registrar) + ' --openable readback.json ' +
@@ -1787,6 +1965,7 @@ function stagePlan(bytes, ticket, by) {
   if (!by || !String(by).trim() || /\{\{/.test(String(by))) {
     throw new Error('stage-sql: refused — --by needs your job_run id or session id.');
   }
+  const T = tenantFor(String(ticket).split('.')[1]);
   const b64 = require('zlib').gzipSync(bytes).toString('base64');
   const n = Math.ceil(b64.length / STAGE_CHUNK);
   if (n > 400) throw new Error('stage-sql: refused — ' + n + ' chunks; the store takes at most 400.');
@@ -1795,7 +1974,7 @@ function stagePlan(bytes, ticket, by) {
     const chunk = b64.slice(i * STAGE_CHUNK, (i + 1) * STAGE_CHUNK);
     const chunkSha = require('crypto').createHash('sha256').update(chunk, 'utf8').digest('hex');
     statements.push({ seq: i + 1, chunk_sha256: chunkSha, sql: STAGE_SQL,
-      params: [TENANT, ticket, i + 1, n, 'gzip-base64', chunk, String(by), chunkSha] });
+      params: [T, ticket, i + 1, n, 'gzip-base64', chunk, String(by), chunkSha] });
   }
   return {
     _what_this_is: 'Run every statement in order through the board connector, copying each chunk EXACTLY. ' +
@@ -1807,7 +1986,7 @@ function stagePlan(bytes, ticket, by) {
     encoding: 'gzip-base64',
     n_chunks: n,
     statements,
-    status: { sql: STAGE_STATUS_SQL, params: [TENANT, ticket],
+    status: { sql: STAGE_STATUS_SQL, params: [T, ticket],
       expect: "state 'filed' with file_id and view_url (the filer runs every 5 minutes)" },
   };
 }
@@ -2077,19 +2256,234 @@ function byReference(plan, base) {
   });
 }
 
+/* ── THE STORED REGISTER FUNCTION (2026-10-15) ───────────────────────────────────────────────────────
+   WHY. --by-ref cut the GUIDE half of a register call, but the session still re-typed the guarded
+   statement itself (15,122 characters as printed; the KR form 17,984) on every register and every
+   confirm, and a first build had no base to patch against. Measured: plain register ~127 s, by-ref 64 s
+   and 147 s on two regens. The store answers in about 2 s; the rest is the session typing.
+
+   WHAT. public.call_doc_register(p_tenant text, p_plan jsonb) holds the statement in the store. Its body
+   is GENERATED from GUARDED_UPSERT and KR_FRONT by registerFunctionSql() below - the same CTEs, the same
+   refusal sentences, the same order of checks - with only the inputs changed: $n becomes a named key of
+   p_plan, and two new walls go first:
+     plan_gap   REGISTER-PLAN: the plan is not an object, a key is missing or unknown, require_kept is not
+                a boolean, guide_json and patch are both given, a by-ref key comes without a patch, or the
+                base is named twice. The old statement could not be handed any of these (its params were
+                positional and always complete), so these refuse only what it could never see.
+     kr_gap     only when the plan carries "patch": the by-reference walls, word for word.
+   --short turns any plan this file printed (a registration, a confirm, or a --by-ref plan) into ONE short
+   call, SELECT * FROM call_doc_register($1, $2::jsonb), and keeps every other plan field, so --settle and
+   --confirm-settle judge it exactly as before. --short --base <file> cuts the guide to a patch as well.
+   A store without the function answers "function call_doc_register(...) does not exist": run the plain
+   plan instead. The long statement stays printed by --plan; nothing old was removed. */
+const REGISTER_CALL = 'SELECT * FROM call_doc_register($1, $2::jsonb)';
+const REGISTER_KEYS = ['doc_id', 'event_id', 'kind', 'call_ref', 'meeting_date', 'person', 'domain', 'channel',
+  'file_title', 'local_path', 'file_id', 'view_url', 'hosted_gap', 'built_by', 'event_id_source', 'guide_json',
+  'change_note', 'require_kept', 'lead_id', 'no_lead_reason'];
+const REGISTER_REF_KEYS = ['patch', 'base_state_id', 'base_version', 'want_sha256'];
+/* The positional params, by name. Index 1 is the tenant, which the function takes as p_tenant. */
+const PARAM_KEY = ['doc_id', null, 'event_id', 'kind', 'call_ref', 'meeting_date', 'person', 'domain', 'channel',
+  'file_title', 'local_path', 'file_id', 'view_url', 'hosted_gap', 'built_by', 'event_id_source', 'guide_json',
+  'change_note', 'require_kept', 'lead_id', 'no_lead_reason'];
+
+/* Strip block comments outside string literals; turn any literal holding a non-ASCII character into an
+   E'' literal with \uXXXX escapes, so the run file stays ASCII and the store stores the same characters. */
+function sqlAsciiNoComments(sql) {
+  let out = '', i = 0;
+  while (i < sql.length) {
+    if (sql.startsWith('/*', i)) { const j = sql.indexOf('*/', i + 2); if (j < 0) throw new Error('unclosed comment'); i = j + 2; continue; }
+    if (sql[i] === "'") {
+      let j = i + 1;
+      for (;;) { const q = sql.indexOf("'", j); if (q < 0) throw new Error('unclosed literal'); if (sql[q + 1] === "'") { j = q + 2; continue; } j = q; break; }
+      const lit = sql.slice(i, j + 1);
+      if (/[^\x00-\x7f]/.test(lit)) {
+        if (lit.includes('\\')) throw new Error('a non-ASCII literal holds a backslash; cannot convert it safely');
+        out += 'E' + lit.replace(/[^\x00-\x7f]/g, (c) => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
+      } else out += lit;
+      i = j + 1; continue;
+    }
+    out += sql[i]; i++;
+  }
+  return out.split('\n').filter((l) => l.trim() !== '').map((l) => l.replace(/\s+$/, '')).join('\n');
+}
+
+const RF_PLAN_FRONT = `
+WITH RECURSIVE plan_gap AS (
+  SELECT 'REGISTER-PLAN: the plan is not a JSON object (got ' || coalesce(jsonb_typeof(p_plan), 'NULL')
+         || '). Print it with register-call-doc.js --short and send it unchanged. Nothing was written.' AS reason
+   WHERE coalesce(jsonb_typeof(p_plan), '') <> 'object'
+  UNION ALL
+  SELECT 'REGISTER-PLAN: the tenant is blank. Nothing was written.'
+   WHERE coalesce(btrim(p_tenant), '') = ''
+  UNION ALL
+  SELECT 'REGISTER-PLAN: the plan is missing ' || string_agg(u.k, ', ' ORDER BY u.o)
+         || '. Print it with register-call-doc.js --short and send it unchanged. Nothing was written.'
+    FROM unnest(ARRAY[${REGISTER_KEYS.filter((k) => k !== 'guide_json').map((k) => "'" + k + "'").join(', ')}]) WITH ORDINALITY u(k, o)
+   WHERE jsonb_typeof(p_plan) = 'object' AND NOT (p_plan ? u.k)
+  HAVING count(*) > 0
+  UNION ALL
+  SELECT 'REGISTER-PLAN: the plan carries key(s) this door does not know: ' || string_agg(k, ', ' ORDER BY k)
+         || '. A misspelt key would be read as empty. Nothing was written.'
+    FROM jsonb_object_keys(CASE WHEN jsonb_typeof(p_plan) = 'object' THEN p_plan ELSE '{}'::jsonb END) k
+   WHERE k <> ALL (ARRAY[${REGISTER_KEYS.concat(REGISTER_REF_KEYS).map((k) => "'" + k + "'").join(', ')}])
+  HAVING count(*) > 0
+  UNION ALL
+  SELECT 'REGISTER-PLAN: require_kept must be true or false, got ' || coalesce(jsonb_typeof(p_plan -> 'require_kept'), 'ABSENT')
+         || '. Nothing was written.'
+   WHERE jsonb_typeof(p_plan) = 'object' AND p_plan ? 'require_kept' AND jsonb_typeof(p_plan -> 'require_kept') <> 'boolean'
+  UNION ALL
+  SELECT 'REGISTER-PLAN: the plan carries BOTH guide_json and a by-reference patch. Send one: the whole guide, or the patch. Nothing was written.'
+   WHERE jsonb_typeof(p_plan) = 'object' AND p_plan ? 'patch' AND coalesce(jsonb_typeof(p_plan -> 'guide_json'), 'null') <> 'null'
+  UNION ALL
+  SELECT 'REGISTER-PLAN: base_state_id, base_version or want_sha256 came without a patch. Nothing was written.'
+   WHERE jsonb_typeof(p_plan) = 'object' AND NOT (p_plan ? 'patch')
+     AND (p_plan ? 'base_state_id' OR p_plan ? 'base_version' OR p_plan ? 'want_sha256')
+  UNION ALL
+  SELECT 'REGISTER-PLAN: name the base once - base_state_id OR base_version, not both. Nothing was written.'
+   WHERE jsonb_typeof(p_plan) = 'object' AND coalesce(jsonb_typeof(p_plan -> 'base_state_id'), 'null') <> 'null'
+     AND coalesce(jsonb_typeof(p_plan -> 'base_version'), 'null') <> 'null'
+  UNION ALL
+  SELECT 'REGISTER-PLAN: base_version must be a whole number of at most 9 digits, got ' || (p_plan ->> 'base_version')
+         || '. Nothing was written.'
+   WHERE jsonb_typeof(p_plan) = 'object' AND coalesce(jsonb_typeof(p_plan -> 'base_version'), 'null') <> 'null'
+     AND coalesce(p_plan ->> 'base_version', '') !~ '^[0-9]{1,9}$'
+),
+kr_in AS (
+  SELECT CASE WHEN jsonb_typeof(p_plan -> 'patch') = 'string' THEN (p_plan ->> 'patch')::jsonb
+              WHEN jsonb_typeof(p_plan -> 'patch') = 'null' THEN NULL ELSE p_plan -> 'patch' END AS patch,
+         coalesce(p_plan ->> 'base_state_id',
+                  CASE WHEN coalesce(p_plan ->> 'base_version', '') ~ '^[0-9]{1,9}$' THEN
+                    coalesce((SELECT s.state_id FROM call_guide_state s
+                               WHERE s.tenant_id = p_tenant AND s.doc_id = p_plan ->> 'doc_id'
+                                 AND s.version = (p_plan ->> 'base_version')::integer),
+                             'cgs_' || (p_plan ->> 'doc_id') || '_v' || (p_plan ->> 'base_version')) END) AS base_state_id,
+         lower(p_plan ->> 'want_sha256') AS want_sha, p_tenant AS tenant_id
+   WHERE jsonb_typeof(p_plan) = 'object' AND p_plan ? 'patch'
+),
+`;
+const RF_GUIDE = "CASE WHEN EXISTS (SELECT 1 FROM kr_in) THEN (SELECT g FROM kr_built)\n" +
+  "              WHEN coalesce(jsonb_typeof(p_plan -> 'guide_json'), 'null') = 'null' THEN NULL::jsonb\n" +
+  "              WHEN jsonb_typeof(p_plan -> 'guide_json') = 'string' THEN (p_plan ->> 'guide_json')::jsonb\n" +
+  "              ELSE p_plan -> 'guide_json' END AS guide_json,";
+
+/* The function, generated. Every step is an anchor counted exactly once; a miss throws, so a later edit of
+   GUARDED_UPSERT or KR_FRONT that moves an anchor stops this generator instead of shipping a different door. */
+function registerFunctionSql() {
+  const once = (s, from, to) => {
+    const n = s.split(from).length - 1;
+    if (n !== 1) throw new Error('register-function: anchor found ' + n + ' times, expected 1: ' + JSON.stringify(from));
+    return s.replace(from, () => to);
+  };
+  // 1. the by-reference front, with kr_in reading the plan instead of $17/$22/$23/$2
+  const krStart = KR_FRONT.indexOf('kr_base AS (');
+  if (krStart < 0) throw new Error('register-function: KR_FRONT has no kr_base');
+  let body = GUARDED_UPSERT;
+  body = once(body, '\nWITH in_f AS (\n', RF_PLAN_FRONT + KR_FRONT.slice(krStart));
+  // 2. the guide: the rebuilt guide in by-ref mode, else the plan's guide_json (object, or text as $17 was)
+  body = once(body, '$17::jsonb AS guide_json,', RF_GUIDE);
+  // 3. the two new walls go first, ahead of every wall the statement already had
+  body = once(body, 'gap AS (SELECT reason FROM vocab_gap UNION ALL',
+    'gap AS (SELECT reason FROM plan_gap UNION ALL SELECT reason FROM kr_gap UNION ALL SELECT reason FROM vocab_gap UNION ALL');
+  // 4. the inputs: $2 is the tenant, $19 the boolean, every other $n the plan key of the same name
+  const inF = body.slice(body.indexOf('in_f AS (\n'), body.indexOf('\nterms AS ('));
+  let inF2 = inF.replace(/\/\*[\s\S]*?\*\//g, '');
+  inF2 = inF2.replace(/\$(\d+)::(text|boolean|jsonb)/g, (m, n, t) => {
+    const key = PARAM_KEY[Number(n) - 1];
+    if (Number(n) === 2) return 'p_tenant';
+    if (t === 'boolean') return "CASE WHEN jsonb_typeof(p_plan -> '" + key + "') = 'boolean' THEN (p_plan ->> '" + key + "')::boolean END";
+    if (t !== 'text') throw new Error('register-function: unexpected input ' + m);
+    return "(p_plan ->> '" + key + "')";
+  });
+  body = once(body, inF, inF2);
+  body = sqlAsciiNoComments(body);
+  if (/\$\d/.test(body)) throw new Error('register-function: a positional $n survived: ' + body.match(/.{0,40}\$\d.{0,20}/)[0]);
+  if (/[^\x00-\x7f]/.test(body)) throw new Error('register-function: the body is not ASCII');
+  if (body.includes('$cdr$')) throw new Error('register-function: the body holds the quote tag');
+  return 'CREATE OR REPLACE FUNCTION public.call_doc_register(p_tenant text, p_plan jsonb)\n' +
+    ' RETURNS TABLE(outcome text, doc_id text, update_count integer, first_built_at timestamp with time zone,\n' +
+    '               updated_at timestamp with time zone, was_insert boolean, resolved_via text, reason text,\n' +
+    '               kept_state_id text, kept_version integer)\n' +
+    ' LANGUAGE sql\nAS $cdr$\n' +
+    '-- == THE STORED REGISTER STATEMENT: public.call_doc_register(p_tenant, p_plan), one short call instead of the long statement.\n' +
+    '-- GENERATED by register-call-doc.js registerFunctionSql() from GUARDED_UPSERT + KR_FRONT: the same guarded write, the same\n' +
+    '-- refusal sentences, the same order of checks; $n became a named key of p_plan. plan_gap and kr_gap go first. Do not edit by\n' +
+    '-- hand: change register-call-doc.js and regenerate, or the store and the printed statement drift apart. The reasons for every\n' +
+    '-- CTE are written beside it in register-call-doc.js. Invoker rights, the caller\'s search_path: exactly what the statement had.\n' +
+    body.replace(/^\n+/, '') + '\n$cdr$';
+}
+
+/* Any plan this file printed -> the short call. Keeps docId, quarantinePath, finalPath, keptState, confirm, priorHostedGap,
+   so --settle / --confirm-settle judge it unchanged. base: a readBase() result -> the guide goes as a patch. */
+function shortPlan(plan, base) {
+  if (!plan || !Array.isArray(plan.params)) throw new Error('short: refused - that is not a plan this file printed.');
+  const isPlain = plan.sql === GUARDED_UPSERT && plan.params.length === 21;
+  const isRef = !isPlain && plan.byReference && plan.params.length === 23 && typeof plan.sql === 'string'
+    && plan.sql.includes('WITH RECURSIVE kr_in AS (') && plan.sql.endsWith(GUARDED_UPSERT.slice(GUARDED_UPSERT.indexOf('ins AS (')));
+  if (!isPlain && !isRef) throw new Error('short: refused - that is not a registration, confirm or --by-ref plan this file printed (sql or params differ).');
+  if (isRef && base) throw new Error('short: refused - the plan is already by reference; pass it without --base.');
+  const p = plan.params;
+  const o = {};
+  PARAM_KEY.forEach((k, i) => { if (k) o[k] = p[i]; });
+  const asJson = (s) => {
+    if (s == null) return null;
+    const v = JSON.parse(s);
+    /* Carry an object only when it re-prints byte for byte; otherwise the text, which the store parses as $17 was. */
+    return JSON.stringify(v) === s ? v : s;
+  };
+  let ref = null;
+  if (isRef) {
+    delete o.guide_json;
+    o.patch = asJson(p[16]);
+    if (p[21] != null) o.base_state_id = p[21];
+    o.want_sha256 = p[22];
+    ref = { baseStateId: p[21], wantSha256: p[22] };
+  } else if (base) {
+    if (p[16] == null) throw new Error('short: refused - the plan carries no guide JSON ($17 is null); there is nothing to reference.');
+    const r = byReference(plan, base);
+    delete o.guide_json;
+    o.patch = asJson(r.params[16]);
+    o.base_state_id = r.params[21];
+    o.want_sha256 = r.params[22];
+    ref = r.byReference;
+  } else {
+    o.guide_json = asJson(p[16]);
+  }
+  const out = Object.assign({}, plan, {
+    _what_this_is: 'A call_doc registration plan, SHORT FORM: run `sql` with `params` through the board connector exactly ' +
+      'as for the long plan (params[1] is the plan as JSON), save the FULL result, then --settle (or --confirm-settle for a ' +
+      'confirm). The store runs the same guarded statement as public.call_doc_register. If the store answers that ' +
+      'call_doc_register does not exist, run the long plan instead.',
+    sql: REGISTER_CALL,
+    params: [p[1], o],
+  });
+  delete out.byReference;
+  out.short = {
+    longStatementChars: plan.sql.length,
+    shortCallChars: REGISTER_CALL.length,
+    longParamsChars: JSON.stringify(plan.params).length,
+    shortParamsChars: JSON.stringify(out.params).length,
+    ...(ref ? { byReference: ref } : {}),
+  };
+  return out;
+}
+
 module.exports = { planRegistration, settleRegistration, quarantinePathFor, lookupSql,
                    confirmHosted, confirmSettle, cleanupSettleScratch,
                    validateShape, deriveDocId, GUARDED_UPSERT,
                    /* TENANT is exported so a caller never types a tenant literal twice.
                       A tenant literal in a second file is the drift this module refuses
-                      everywhere else; build-call-guide.js --regen reads it from here. */
-                   TENANT,
+                      everywhere else; build-call-guide.js --regen reads it from here.
+                      A GETTER since 0.9.64: it carries nothing, so it is AIOS_TENANT or a
+                      refusal (E_NO_TENANT). Callers that hold a plan or a row use its tenant. */
+                   get TENANT() { return tenantFor(null); }, resolveTenant, TENANT_EXIT,
                    /* HOSTED HANDOFF (2026-09-17) — see the block above module.exports. */
                    folderSql, readFolderAddress, hostedHandoff, HOSTED_EXIT_UNRESOLVED,
                    /* OPENABLE + STAGED UPLOAD (0.9.50) — see the blocks above module.exports. */
                    openableVerdict, OPENABLE_EXIT, stagePlan, STAGE_SQL, STAGE_STATUS_SQL,
                    /* KEPT STATE BY REFERENCE (2026-10-15) — see the block above module.exports. */
-                   byReference, keptPatch, applyKeptPatch, jsonbText, readBase };
+                   byReference, keptPatch, applyKeptPatch, jsonbText, readBase,
+                   /* THE STORED REGISTER FUNCTION (2026-10-15) — see the block above module.exports. */
+                   shortPlan, registerFunctionSql, REGISTER_CALL, KR_FRONT };
 
 if (require.main === module) {
   const argv = process.argv.slice(2);
@@ -2103,7 +2497,9 @@ if (require.main === module) {
       const finalPath = argv[1];
       const raw = argv[2];
       const fields = raw && raw.trim().startsWith('{') ? JSON.parse(raw) : readJson(raw);
-      const opts = { allowMissingCallRef: argv.includes('--allow-missing-call-ref') };
+      const ti = argv.indexOf('--tenant');
+      const opts = { allowMissingCallRef: argv.includes('--allow-missing-call-ref'),
+                     tenant: ti >= 0 ? argv[ti + 1] : undefined };
       console.log(JSON.stringify(planRegistration(finalPath, fields, opts), null, 2));
       process.exit(0);
     }
@@ -2151,7 +2547,7 @@ if (require.main === module) {
       // --folder-sql --channel <c> --company <x> [--partner <p>]
       const val = (n) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : null; };
       console.log(JSON.stringify(folderSql({ channel: val('--channel'), company: val('--company'),
-        partner: val('--partner') }), null, 2));
+        partner: val('--partner'), tenant: val('--tenant') }), null, 2));
       process.exit(0);
     }
 
@@ -2185,8 +2581,29 @@ if (require.main === module) {
       process.exit(0);
     }
 
+    if (cmd === '--short') {
+      // --short <plan.json> [--base <rows.json|row.json>] [--out <file>]   (2026-10-15, the stored register function)
+      if (!argv[1] || argv[1].startsWith('--')) { console.error('--short needs the plan.json first.'); process.exit(64); }
+      const bi = argv.indexOf('--base');
+      const oi = argv.indexOf('--out');
+      const out = oi >= 0 && argv[oi + 1] ? argv[oi + 1] : argv[1].replace(/(\.plan)?\.json$/, '') + '.short.plan.json';
+      const p2 = shortPlan(readJson(argv[1]), bi >= 0 && argv[bi + 1] ? readBase(readJson(argv[bi + 1])) : null);
+      fs.writeFileSync(out, JSON.stringify(p2, null, 2));
+      console.log(JSON.stringify(Object.assign({ out, sql: p2.sql }, p2.short), null, 2));
+      process.exit(0);
+    }
+
+    if (cmd === '--register-function-sql') {
+      // prints the CREATE FUNCTION public.call_doc_register the run file carries, generated from this file
+      console.log(registerFunctionSql());
+      process.exit(0);
+    }
+
     if (cmd === '--lookup-sql') {
-      console.log(JSON.stringify(lookupSql(argv[1], argv[2]), null, 2));
+      // --lookup-sql <eventId> [kind] [--tenant <t>]
+      const ti = argv.indexOf('--tenant');
+      const kind = argv[2] && !argv[2].startsWith('--') ? argv[2] : undefined;
+      console.log(JSON.stringify(lookupSql(argv[1], kind, ti >= 0 ? argv[ti + 1] : undefined), null, 2));
       process.exit(0);
     }
 
@@ -2202,7 +2619,9 @@ if (require.main === module) {
       '                                            hosted.json = {fileId, viewUrl} read THIS run)\n' +
       '  --confirm-settle <plan.json> --result <res.json>\n' +
       '                                           judge a confirmation. Touches no file.\n' +
-      '  --lookup-sql <eventId> [kind]            emit the read SQL\n' +
+      '  --lookup-sql <eventId> [kind] [--tenant <t>]  emit the read SQL\n' +
+      '  (--plan, --lookup-sql and --folder-sql take --tenant <t>; AIOS_TENANT is an override that must\n' +
+      '   agree with it. With neither, every mode that needs a company refuses, exit 30.)\n' +
       '  --folder-sql --channel <c> --company <x> [--partner <p>]\n' +
       '                                           emit the Calls-folder read a cloud build needs\n' +
       '  --openable <readback.json>               exit 0 OPENABLE (file_id + view_url, no gap),\n' +
@@ -2210,6 +2629,11 @@ if (require.main === module) {
       '  --stage-sql <settledFile> --ticket <t> --by <id>\n' +
       '                                           the no-egress upload: chunk statements for the\n' +
       '                                           board connector, then the status read\n' +
+      '  --short <plan.json> [--base <rows.json>] [--out <f>]\n' +
+      '                                           the same plan as ONE short call to the stored\n' +
+      '                                           function call_doc_register($1, $2::jsonb); with\n' +
+      '                                           --base the guide goes as a patch. Settle as before\n' +
+      '  --register-function-sql                  print the CREATE FUNCTION the store holds\n' +
       '  --by-ref <plan.json> --base <rows.json> [--out <f>]\n' +
       '                                           the same plan with $17 cut to a patch against a\n' +
       '                                           kept state the store holds; the store rebuilds it\n' +
@@ -2218,5 +2642,8 @@ if (require.main === module) {
       'the board connector, resolved BY CATEGORY (Core §11 rule 4), and hand the result back.'
     );
     process.exit(64);
-  } catch (e) { console.error('\n' + e.message + '\n'); process.exit(1); }
+  } catch (e) {
+    console.error('\n' + e.message + '\n');
+    process.exit(e && (e.code === 'E_NO_TENANT' || e.code === 'E_TENANT_DISAGREES') ? TENANT_EXIT : 1);
+  }
 }

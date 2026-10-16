@@ -2033,20 +2033,62 @@ function crmRecordGate(config) {
   return { attached: false, leadId: '', noLeadReason: reason };
 }
 
-function planRegenRead(docId) {
+/* ── THE TENANT IS CARRIED (0.9.64). ─────────────────────────────────────────────────────
+   A build names its company: config.tenant or --tenant (they must agree), which the session
+   fills from the company its Blueprint connector is signed in to. register-call-doc.js resolves
+   it (AIOS_TENANT is only an override that must AGREE) and refuses when nothing names one:
+   there is no default company. Until 0.9.64 the registrar fell back to one company's own
+   tenant on any seat that never set AIOS_TENANT. The tenant is taken OUT of config before
+   anything renders, so the page and the kept state are exactly what they were. */
+function liftTenantFlag(argv) {
+  const i = argv.indexOf('--tenant');
+  if (i < 0) return null;
+  const v = argv[i + 1] && !argv[i + 1].startsWith('--') ? String(argv[i + 1]).trim() : '';
+  argv.splice(i, v ? 2 : 1);
+  if (!v) throw new Error('REFUSED - --tenant needs <company-slug>: the company this seat\'s Blueprint connector is signed in to.');
+  return v;
+}
+function carriedTenant(flag, config) {
+  const has = !!config && Object.prototype.hasOwnProperty.call(config, 'tenant');
+  const c = has && config.tenant != null ? String(config.tenant).trim() : '';
+  if (has) delete config.tenant;
+  if (flag && c && flag !== c) {
+    throw new Error('REFUSED - config.tenant "' + c + '" and --tenant "' + flag + '" name different companies. Nothing was built.');
+  }
+  return flag || c || null;
+}
+function tenantRegistrar(R) {
+  if (typeof R.resolveTenant !== 'function') {
+    throw new Error('REFUSED - the register-call-doc.js beside this builder predates the carried tenant (0.9.64). ' +
+      'Install the matching plugin. Nothing was built.');
+  }
+  return R;
+}
+function regenTenant(R, readPlan, opts) {
+  tenantRegistrar(R);
+  const a = readPlan && readPlan.tenant ? String(readPlan.tenant).trim() : '';
+  const b = opts && opts.tenant ? String(opts.tenant).trim() : '';
+  if (a && b && a !== b) {
+    throw new Error('REFUSED - the read plan is for "' + a + '" and --tenant says "' + b + '". Nothing was regenerated.');
+  }
+  return R.resolveTenant(a || b || null, process.env);
+}
+
+function planRegenRead(docId, tenant) {
   if (!docId || typeof docId !== 'string') {
     throw regenRefuse(1, 'NO DOC ID', 'a regeneration is addressed by call_doc.doc_id. ' +
       'Usage: node build-call-guide.js --regen-plan <docId>');
   }
-  const R = loadRegistrar();
+  const R = tenantRegistrar(loadRegistrar());
+  const T = R.resolveTenant(tenant, process.env);
   return {
     _what_this_is: 'A call-guide REGENERATION read plan. Run its sql with its params through ' +
       'the board connector (resolved BY CATEGORY, never by name), save the FULL result, ' +
       'then hand both to: build-call-guide.js --regen <thisFile> --rows <result.json>',
     docId,
-    tenant: R.TENANT,
+    tenant: T,
     sql: REGEN_READ_SQL,
-    params: [R.TENANT, docId],
+    params: [T, docId],
   };
 }
 
@@ -2098,7 +2140,7 @@ function regenerate(readPlan, rowsIn, opts) {
   opts = opts || {};
   const R = loadRegistrar();
   const want = readPlan && readPlan.docId;
-  const tenant = (readPlan && readPlan.tenant) || R.TENANT;
+  const tenant = regenTenant(R, readPlan, opts);
   if (!want) {
     throw regenRefuse(REGEN_EXIT.PROVENANCE, 'PROVENANCE',
       'the read plan carries no docId, so there is nothing to check the rows against. ' +
@@ -2320,6 +2362,7 @@ function regenerate(readPlan, rowsIn, opts) {
   const reproducedStored = storedSha ? (storedSha === htmlSha256) : null;
 
   const plan = R.planRegistration(where.absPath, {
+    tenant,
     eventId:       row.event_id,
     kind:          'guide',
     builtBy:       row.built_by,
@@ -2574,12 +2617,14 @@ async function main() {
   if (argv[0] === '--print-folder-sql') {
     const val = (n) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : null; };
     console.log(JSON.stringify(loadRegistrar().folderSql({ channel: val('--channel'),
-      company: val('--company'), partner: val('--partner') }), null, 2));
+      company: val('--company'), partner: val('--partner'), tenant: val('--tenant') }), null, 2));
     return;
   }
 
   /* FILING MODE is lifted out FIRST, like --gate below, so the positionals never shift. */
   const filing = filingMode(argv, process.env);
+  /* The company this build is for (0.9.64) - lifted like --cloud so the positionals never shift. */
+  const tenantFlag = liftTenantFlag(argv);
 
   /* --folder is lifted out here, beside --cloud, for the same reason: the positionals must
      never shift. Added 2026-09-17 (hosted handoff — see register-call-doc.js). OPTIONAL in cloud
@@ -2590,7 +2635,7 @@ async function main() {
 
   /* REGENERATION — two doors, both pure until the very last write. See the block above. */
   if (argv[0] === '--regen-plan') {
-    console.log(JSON.stringify(planRegenRead(argv[1]), null, 2));
+    console.log(JSON.stringify(planRegenRead(argv[1], tenantFlag), null, 2));
     return;
   }
   if (argv[0] === '--regen') {
@@ -2613,7 +2658,7 @@ async function main() {
     const out = regenerate(readPlan, rows,
       { workspaceRoot: wi >= 0 ? argv[wi + 1] : null,
         gateRaw: gi >= 0 ? JSON.parse(fs.readFileSync(argv[gi + 1], 'utf8')) : undefined,
-        filing, folderRaw, outDir: oi >= 0 ? argv[oi + 1] : null });
+        filing, folderRaw, outDir: oi >= 0 ? argv[oi + 1] : null, tenant: tenantFlag });
     if (out.status === 'folder_address_unresolved') { stopUnresolved(out.hosted); return; }
     console.error('✓ Regenerated ' + out.htmlChars + ' chars from kept state ' +
                   out.fromKeptState + ' (v' + out.fromVersion + ')');
@@ -2650,11 +2695,14 @@ async function main() {
                   '         gate.json = {"rows": [...asset_build_gate rows], "newestEmail": {...}} (SKILL.md Step 4)\n' +
                   '         [--cloud [--folder <folder.json>] [--run-id <id>]]\n' +
                   '       node build-call-guide.js --print-gate-sql --tenant <tenant>\n' +
-                  '       node build-call-guide.js --print-folder-sql --channel <c> --company <x> [--partner <p>]');
+                  '       node build-call-guide.js --print-folder-sql --channel <c> --company <x> [--partner <p>] --tenant <t>\n' +
+                  '       The company is config.tenant or --tenant (they must agree): the company this seat\'s\n' +
+                  '       Blueprint connector is signed in to. With neither, the registrar refuses.');
     process.exit(1);
   }
   const g = JSON.parse(stripFences(fs.readFileSync(guidePath, 'utf8')));
   const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  const tenantIn = carriedTenant(tenantFlag, config);
   if (!config.guideId) config.guideId = 'g' + Date.now();
 
   /* ── THE GUIDE MUST KNOW ITS OWN doc_id, or its refresh button has no address ──────
@@ -2699,6 +2747,7 @@ async function main() {
 
   /* PLAN FIRST — every shape refusal happens before a single byte is written. */
   const plan = R.planRegistration(absOut, {
+    tenant:        tenantIn,
     eventId:       config.eventId,
     kind:          'guide',
     builtBy:       config.builtBy || 'call-guide',

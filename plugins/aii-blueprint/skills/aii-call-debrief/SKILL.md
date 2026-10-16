@@ -216,9 +216,16 @@ Write the JSON to a temp file, e.g. `debrief.json`.
 
 1. Write `config.json`:
 ```json
-{ "debriefId":"<person-slug>-<YYYYMMDD>", "eventId":"<calendar event id>", "meetingDate":"<YYYYMMDD>", "callRef":"<the call/transcript id>", "prospect":"<Name>", "company":"<Company>", "domain":"<their email domain>", "leadId":"<crm lead id — REQUIRED, see below>", "noLeadReason":"<omit entirely unless leadId is empty>", "email":"<their email or empty>", "crmName":"<your CRM>", "callEndedAt":"<ISO time with offset — REQUIRED when there are promises>", "operatorSpeaker":"<the user's name as the transcript labels them — optional>" }
+{ "tenant":"<your company: see below>", "debriefId":"<person-slug>-<YYYYMMDD>", "eventId":"<calendar event id>", "meetingDate":"<YYYYMMDD>", "callRef":"<the call/transcript id>", "prospect":"<Name>", "company":"<Company>", "domain":"<their email domain>", "leadId":"<crm lead id — REQUIRED, see below>", "noLeadReason":"<omit entirely unless leadId is empty>", "email":"<their email or empty>", "crmName":"<your CRM>", "callEndedAt":"<ISO time with offset — REQUIRED when there are promises>", "operatorSpeaker":"<the user's name as the transcript labels them — optional>" }
 ```
 `callEndedAt` is when the call ended; the promise store counts the default due date from it. With `operatorSpeaker` set, the builder scans only the user's own turns for send-promises.
+**`tenant` IS REQUIRED (0.9.64).** It is the company this seat's Blueprint connector is signed in to: the
+`house_tier.for_client` value that **Read my working instructions** (`read_my_working_instructions`, the
+`skill_overlay` read you made at the start of the session) returns. Copy it exactly; never type a company from memory
+or from a file. The builder hands it to the registrar, and a build that names no company is refused
+(`REFUSED - no tenant`): nothing assumes one for you. Pass the same value as `--tenant <it>` to `--print-folder-sql`
+and to `--regen-plan`. (`AIOS_TENANT`, if a seat sets it, must agree with it or the build is refused.)
+
 **The link keys are REQUIRED (2026-08-05, L3).** `eventId` and `meetingDate` are not optional
 extras — they are what the finished document is filed under, and **a document that cannot be filed
 does not get to exist.** That is deliberate: an unregistered call document is invisible to the
@@ -251,7 +258,7 @@ node "<skill-folder>/build-call-debrief.js" debrief.json config.json out.html --
    and `view_url` are set and `hosted_gap` is empty (blueprint-core v1.210; Call-Record-Lifecycle-SPEC stages 4
    and 8). A local copy is not done, and neither is a row that says "filing pending". So **always build with
    `--folder`**:
-   - Get the Calls folder first: `node "<skill-folder>/build-call-debrief.js" --print-folder-sql --channel <c> --company <x> [--partner <p>]`.
+   - Get the Calls folder first: `node "<skill-folder>/build-call-debrief.js" --print-folder-sql --channel <c> --company <x> [--partner <p>] --tenant <your company>`.
      Run that SQL through the board connector and save the rows to `folder.json`. If the resolver raised, save
      `{"error": "<message>"}` instead.
    - Add `--folder folder.json` to the build. On a desktop that's all you add. On a cloud seat, or anywhere with
@@ -284,6 +291,20 @@ node "<skill-folder>/build-call-debrief.js" debrief.json config.json out.html --
    CATEGORY (Core §11 rule 4) — never by a connector name. **Save the FULL result** to the
    `resultPath` the plan gave you. The statement returns exactly one row: `outcome='registered'`
    or `outcome='refused'` with the reason. Do not summarise it; hand the whole thing back.
+
+   **Send the SHORT call, never the statement (0.9.64).** Before (b), turn the plan into one short call:
+```
+node "<skill-folder>/register-call-doc.js" --short "<planPath>"
+```
+   It writes `<plan>.short.plan.json` and prints its sizes. Its `sql` is
+   `SELECT * FROM call_doc_register($1, $2::jsonb)` (46 characters; the plan's statement is 15,122) and its
+   `params` are `[tenant, plan]`: send `params[1]` as the JSON object it is, unchanged. The store function runs the
+   SAME guarded write, with the same refusals in the same words, so (b) and (c) do not change: run the short `sql`
+   with its `params`, save the FULL result, and `--settle` with the SHORT plan file. Do the same for `hosted.steps`
+   step 1, and for step 6's confirm (`--short <confirm-plan.json>`, then `--confirm-settle` with the short file).
+   `refused` with `REGISTER-PLAN: ...` means the plan changed on the way: print it again and send it unchanged.
+   **If the store answers that `call_doc_register` does not exist** (42883: a company store the house catch-up has
+   not reached yet), nothing was written: run the long plan exactly as before.
 
    **(c) Settle.** This is the only step that gives the document its real name:
 ```
@@ -340,7 +361,7 @@ If a debrief built without a transcript already exists and the transcript now ar
 
 **Re-file a debrief that was built but never filed, and don't re-author it (v0.9.50).** Every debrief built since 2026-09-17 keeps its content as kept state. To re-file one from any seat, cloud included:
 ```
-node "<skill-folder>/build-call-debrief.js" --regen-plan <docId>
+node "<skill-folder>/build-call-debrief.js" --regen-plan <docId> --tenant <your company>
 node "<skill-folder>/build-call-debrief.js" --regen <readplan.json> --rows <result.json> --folder folder.json [--cloud --run-id <id> [--out-dir <dir>]]
 ```
 Run the first command's SQL through the board connector and save the FULL result for `--rows`. When the kept content carries `promises`, the regen prints the same `promises` plan as a build. Run it after settle: it is idempotent, so it also writes any row an earlier run missed. A cloud job's rows write as `job:<built_by>`; a session passes `--promise-by session:<id>`. A promise that was reworded makes a new row, and the old row stays until it is delivered or waived. Never delete one. The regen renders from kept state under the row's own `file_title`, keeps its `local_path` and any `NO TRANSCRIPT:` declaration, and prints the same `hosted.steps` as Step 6. It says whether the bytes match the recorded render (`reproducedStored`). Exit 0 means it produced a ready handoff. **Exit 20 = NOT OPENABLE** (no `--folder`). Exit 4 = the folder is unresolved. Exit 4 with **NO KEPT STATE** (a debrief from before 2026-09-17) means there is nothing to re-render: file the existing local copy through the hosted steps from the seat that holds it, or re-author it.

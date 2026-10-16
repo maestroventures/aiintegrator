@@ -70,7 +70,9 @@ function gateFor(c) {
 }
 const config = { guideId: 'pat-doe-20260918', eventId: '4p9e9u82qq2au5hl31o7tsq21d', meetingDate: '20260918',
   prospect: 'Pat Doe', company: 'Acme Co', domain: 'acme.com', leadId: 'lead_abc', crmName: 'Close' };
-const configPath = w('config.json', config);
+/* The company is CARRIED in config (0.9.64): an invented one, never a real tenant. */
+const TENANT_FIX = 'example-tenant';
+const configPath = w('config.json', Object.assign({}, config, { tenant: TENANT_FIX }));
 
 /* Since 0.9.50 a build is SUCCESS (exit 0) only when it carries its hosted handoff, so every build
    here is given a resolved Calls folder. Without it a build exits 20 NOT OPENABLE — that contract is
@@ -97,14 +99,14 @@ function regenCase(B, edit, gate) {
   const html = B.buildStandaloneHtml(content, cfg, rendered);
   const kept = B.keptEnvelope(content, rendered.cfg, html);
   if (edit) edit(kept);
-  const row = { doc_id: 'guide_x', tenant_id: R.TENANT, event_id: config.eventId, kind: 'guide', call_ref: null,
+  const row = { doc_id: 'guide_x', tenant_id: TENANT_FIX, event_id: config.eventId, kind: 'guide', call_ref: null,
     meeting_date: '20260918', person: 'Pat Doe', domain: 'acme.com', channel: 'call',
     file_title: '20260918_callguide_pat-doe_intro.html',
     local_path: path.join(dir, '20260918_callguide_pat-doe_intro.html'), built_by: 'call-guide',
     event_id_source: 'build', update_count: 0, lead_id: 'lead_abc', no_lead_reason: null,
     state_id: 'cgs_1', kept_version: 1, guide_json: kept };
   try {
-    return { out: B.regenerate({ docId: 'guide_x', tenant: R.TENANT }, [row], { gateRaw: gate }), files: fs.readdirSync(dir) };
+    return { out: B.regenerate({ docId: 'guide_x', tenant: TENANT_FIX }, [row], { gateRaw: gate }), files: fs.readdirSync(dir) };
   } catch (e) { return { err: e, files: fs.readdirSync(dir) }; }
 }
 function loadBuilder(p) { const B = require(p); B.__file = p; return B; }

@@ -268,6 +268,7 @@ const LABEL = {
     const dir = path.join(tmp, 'cli'); fs.mkdirSync(dir);
     const out = path.join(dir, '20260924_callguide_pat-doe_intro.html');
     const c2 = Object.assign({}, cfg); delete c2.health; delete c2.docId;
+    c2.tenant = 'example-tenant';   /* the company is carried in config (0.9.64); an invented one */
     const r = spawnSync(process.execPath, [BUILDER, w('g.json', content), w('c.json', c2), out, '--gate', w('gate.json', gate), '--folder', FOLDER],
       { encoding: 'utf8', env: Object.assign({}, process.env, { AII_FILING: '' }) });
     let j = null; try { j = JSON.parse(r.stdout); } catch (_) { /* */ }
@@ -290,6 +291,7 @@ const LABEL = {
        so with no transcript the debrief records no promises; this check is about the badge, not the promises (J6 covers due dates). */
     d.promises = [];
     const c2 = Object.assign({}, cfg); delete c2.health; delete c2.docId;
+    c2.tenant = 'example-tenant';   /* the company is carried in config (0.9.64); an invented one */
     const dir = path.join(tmp, 'cli'); fs.mkdirSync(dir);
     const out = path.join(dir, '20260924_debrief_pat-doe_intro.html');
     const r = spawnSync(process.execPath, [BUILDER, w('d.json', d), w('c.json', c2), out, '--no-transcript', 'no recorder joined; built from the recap email Gemini sent',

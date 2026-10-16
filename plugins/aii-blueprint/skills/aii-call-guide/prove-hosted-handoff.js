@@ -72,8 +72,10 @@ function w(name, obj) { const p = path.join(tmp, name); fs.writeFileSync(p, JSON
 
 /* ── fixtures: the smallest documents each builder accepts ── */
 let docPath, extra = [];
+/* The company is CARRIED in config (0.9.64): an invented one, never a real tenant. */
+const TENANT_FIX = 'example-tenant';
 const config = { eventId: '4p9e9u82qq2au5hl31o7tsq21d', meetingDate: '20260918', prospect: 'Pat Doe',
-  company: 'Acme Co', domain: 'acme.com', leadId: 'lead_abc', crmName: 'Close' };
+  company: 'Acme Co', domain: 'acme.com', leadId: 'lead_abc', crmName: 'Close', tenant: TENANT_FIX };
 if (IS_GUIDE) {
   const md = '**TITLE:**\nQuick access\n\n**HOW TO USE:**\nOpen one.\n\n---\n' +
     ['asp-bg', 'asp-ai', 'asp-vr', 'asp-diff'].map(function (id) {
@@ -218,12 +220,35 @@ try {
   check('H8 AII_FILING=cloud reaches the same ready handoff',
     envCloud.rc === 0 && envCloud.json && envCloud.json.hosted && envCloud.json.hosted.status === 'ready', envCloud.stderr);
 
+  /* T1-T2 (0.9.64): the company is carried, never guessed. Run with AIOS_TENANT removed from the
+     environment, because a seat that never set it is exactly the seat the old default misfiled. */
+  {
+    const envNoT = Object.assign({}, process.env, { AII_FILING: '' }); delete envNoT.AIOS_TENANT;
+    const noT = Object.assign({}, config); delete noT.tenant;
+    const dirT = path.join(tmp, 'tenant-none'); fs.mkdirSync(dirT);
+    const rT = spawnSync(process.execPath, [BUILDER, docPath, w('config-no-tenant.json', noT),
+      path.join(dirT, '20260918_' + TAG + '_pat-doe_intro.html')].concat(extra, ['--folder', FOLDER_OK]), { encoding: 'utf8', env: envNoT });
+    check('T1 no config.tenant and no AIOS_TENANT: REFUSED by name, and nothing was written',
+      rT.status !== 0 && fs.readdirSync(dirT).length === 0 && /no tenant/i.test(rT.stderr), rT.status + ' ' + rT.stderr.slice(0, 300));
+    const dirD = path.join(tmp, 'tenant-disagree'); fs.mkdirSync(dirD);
+    const rD = spawnSync(process.execPath, [BUILDER, docPath, configPath,
+      path.join(dirD, '20260918_' + TAG + '_pat-doe_intro.html')].concat(extra, ['--folder', FOLDER_OK]),
+      { encoding: 'utf8', env: Object.assign({}, envNoT, { AIOS_TENANT: 'another-example-tenant' }) });
+    check('T2 config.tenant and AIOS_TENANT disagree: REFUSED, and nothing was written',
+      rD.status !== 0 && fs.readdirSync(dirD).length === 0 && /must agree/.test(rD.stderr), rD.status + ' ' + rD.stderr.slice(0, 300));
+    const okT = build(['--folder', FOLDER_OK], { AIOS_TENANT: '' });
+    check('T3 config.tenant alone (AIOS_TENANT blank): the plan and every hosted step carry that company',
+      okT.rc === 0 && okT.json && okT.json.params[1] === TENANT_FIX && okT.json.hosted &&
+      okT.json.hosted.steps.filter(function (x) { return x.params; }).every(function (x) { return x.params[0] === TENANT_FIX || x.params[1] === TENANT_FIX; }),
+      okT.rc + ' ' + okT.stderr.slice(0, 300));
+  }
+
   /* H9 */
-  const fsql = spawnSync(process.execPath, [BUILDER, '--print-folder-sql', '--channel', 'ai-integrator', '--company', 'Acme Co'], { encoding: 'utf8' });
+  const fsql = spawnSync(process.execPath, [BUILDER, '--print-folder-sql', '--channel', 'ai-integrator', '--company', 'Acme Co', '--tenant', TENANT_FIX], { encoding: 'utf8' });
   let fj = null; try { fj = JSON.parse(fsql.stdout); } catch (_) { /* */ }
   check('H9 --print-folder-sql prints the resolver read, purpose calls',
     fsql.status === 0 && fj && /resolve_folder_address/.test(fj.sql) &&
-    JSON.stringify(fj.params.slice(1)) === JSON.stringify(['ai-integrator', 'Acme Co', 'calls', null]), fsql.stdout + fsql.stderr);
+    fj.params[0] === TENANT_FIX && JSON.stringify(fj.params.slice(1)) === JSON.stringify(['ai-integrator', 'Acme Co', 'calls', null]), fsql.stdout + fsql.stderr);
 
   /* H10 */
   if (IS_GUIDE) {
@@ -239,7 +264,7 @@ try {
     fs.writeFileSync(oc.json.resultPath, JSON.stringify([{ outcome: 'registered', doc_id: oc.json.docId, kept_state_id: 'cgs_prove_1' }]));
     const st = spawnSync(oh.steps[1].run, { shell: true, encoding: 'utf8' });
     settledOk = st.status === 0 && fs.existsSync(oc.json.finalPath) && sha(oc.json.finalPath) === oh.sha256;
-    const ticket = 'cdt.' + require(REGISTRAR).TENANT + '.' + 'b'.repeat(48);
+    const ticket = 'cdt.' + TENANT_FIX + '.' + 'b'.repeat(48);
     const sp = spawnSync(process.execPath, [REGISTRAR, '--stage-sql', oc.json.finalPath, '--ticket', ticket, '--by', 'run_prove_o'], { encoding: 'utf8' });
     let spj = null; try { spj = JSON.parse(sp.stdout); } catch (_) { /* */ }
     if (sp.status === 0 && spj) {
@@ -277,15 +302,16 @@ try {
   const R = require(REGISTRAR);
   const content = JSON.parse(fs.readFileSync(docPath, 'utf8'));
   const cfg = Object.assign({ docId: 'cd_' + KIND + '_regen' }, config);
+  delete cfg.tenant;   /* the builder takes the tenant OUT of config; the kept state never held it */
   const rendered = {};
   const html = B.buildStandaloneHtml(content, cfg, rendered);
   const kept = IS_GUIDE ? B.keptEnvelope(content, rendered.cfg, html) : B.keptEnvelope(content, rendered.cfg, html, rendered.sections);
   const title = '20260918_' + TAG + '_pat-doe_intro.html';
-  const regenRow = { doc_id: cfg.docId, tenant_id: R.TENANT, event_id: config.eventId, kind: KIND, call_ref: IS_GUIDE ? null : 'ff_abc123',
+  const regenRow = { doc_id: cfg.docId, tenant_id: TENANT_FIX, event_id: config.eventId, kind: KIND, call_ref: IS_GUIDE ? null : 'ff_abc123',
     meeting_date: '20260918', person: 'Pat Doe', domain: 'acme.com', channel: 'call', file_title: title, local_path: null,
     built_by: IS_GUIDE ? 'call-guide' : 'call-debrief', event_id_source: 'build', update_count: 0, lead_id: 'lead_abc', no_lead_reason: '',
     hosted_gap: 'no local copy - filing pending (run_old)', state_id: 'cgs_regen_1', kept_version: 1, guide_json: kept };
-  const readPlan = w('readplan.json', { docId: cfg.docId, tenant: R.TENANT });
+  const readPlan = w('readplan.json', { docId: cfg.docId, tenant: TENANT_FIX });
   const rowsFile = w('rows.json', [regenRow]);
   function regen(flags) {
     const dir = path.join(tmp, 'regen' + (++n)); fs.mkdirSync(dir);

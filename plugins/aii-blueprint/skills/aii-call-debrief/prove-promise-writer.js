@@ -67,6 +67,8 @@ const LINE_US = 'I’ll send you the one-page summary and the terms by Friday.';
 const LINE_THEM = 'I’ll send you our lead numbers from last quarter.';
 const TX_PATH = w('transcript.txt', TX);
 const FOLDER_OK = w('folder-ok.json', [{ drive_folder_id: '1AbCdEfGhIjKlMnOpQrStUvWxYz012345', path_label: '02 — Clients/Acme Co/Calls' }]);
+/* The company is CARRIED in config (0.9.64): an invented one, never a real tenant. */
+const TENANT_FIX = 'example-tenant';
 const BASE_CONFIG = { eventId: '4p9e9u82qq2au5hl31o7tsq21d', meetingDate: '20260918', prospect: 'Pat Doe', company: 'Acme Co',
   domain: 'acme.com', leadId: 'lead_abc', crmName: 'Close', debriefId: 'pat-doe-20260918', callRef: 'ff_abc123',
   callEndedAt: '2026-09-18T10:30:00-06:00' };
@@ -82,7 +84,7 @@ function build(d, opts) {
   opts = opts || {};
   const dir = path.join(tmp, 'run' + (++seq)); fs.mkdirSync(dir);
   const out = path.join(dir, '20260918_debrief_pat-doe_intro.html');
-  const args = [opts.builder || BUILDER, w('doc' + seq + '.json', d), w('cfg' + seq + '.json', Object.assign({}, BASE_CONFIG, opts.config || {})), out]
+  const args = [opts.builder || BUILDER, w('doc' + seq + '.json', d), w('cfg' + seq + '.json', Object.assign({}, BASE_CONFIG, { tenant: TENANT_FIX }, opts.config || {})), out]
     .concat(opts.tx === false ? [] : ['--transcript', opts.txPath || TX_PATH])
     .concat(opts.folder === false ? [] : ['--folder', FOLDER_OK])
     .concat(opts.by === false ? [] : ['--promise-by', opts.by || 'session:prove_promise'])
@@ -127,7 +129,7 @@ try {
   const p = w4b.json && w4b.json.promises;
   const c0 = p && p.calls && p.calls[0];
   const R = require(REGISTRAR);
-  const WANT = [R.TENANT, w4b.json && w4b.json.docId, 'Pat Doe', 'pat@acme.com', 'lead_abc', 'One-page summary and terms', LINE_US,
+  const WANT = [TENANT_FIX, w4b.json && w4b.json.docId, 'Pat Doe', 'pat@acme.com', 'lead_abc', 'One-page summary and terms', LINE_US,
     'transcript', '2026-09-18T10:30:00-06:00', 'by Friday', '2026-09-19T17:00:00-06:00', 'session:prove_promise'];
   check('W5a stdout `promises` carries one promise_put call for this doc', p && p.count === 1 && p.calls.length === 1 &&
     /promise_put\(\$1, \$2/.test(c0.sql) && /call_guide_state_current_v/.test(c0.sql), w4b.stdout.slice(0, 400));
@@ -234,11 +236,11 @@ try {
   const rendered = {};
   const html = B.buildStandaloneHtml(content, cfg, rendered);
   const kept = B.keptEnvelope(content, rendered.cfg, html, rendered.sections);
-  const row = { doc_id: cfg.docId, tenant_id: R.TENANT, event_id: cfg.eventId, kind: 'debrief', call_ref: 'ff_abc123', meeting_date: '20260918',
+  const row = { doc_id: cfg.docId, tenant_id: TENANT_FIX, event_id: cfg.eventId, kind: 'debrief', call_ref: 'ff_abc123', meeting_date: '20260918',
     person: 'Pat Doe', domain: 'acme.com', channel: 'call', file_title: '20260918_debrief_pat-doe_intro.html', local_path: null,
     built_by: 'call-debrief', event_id_source: 'build', update_count: 0, lead_id: 'lead_abc', no_lead_reason: '',
     hosted_gap: 'no local copy - filing pending (run_old)', state_id: 'cgs_regen_p', kept_version: 1, guide_json: kept };
-  const readPlan = w('readplan.json', { docId: cfg.docId, tenant: R.TENANT });
+  const readPlan = w('readplan.json', { docId: cfg.docId, tenant: TENANT_FIX });
   const rowsFile = w('regen-rows.json', [row]);
   function regen(flags) {
     const dir = path.join(tmp, 'regen' + (++seq)); fs.mkdirSync(dir);

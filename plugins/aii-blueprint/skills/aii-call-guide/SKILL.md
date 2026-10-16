@@ -309,7 +309,7 @@ recipient READS; the talk track is what the operator SAYS. They are never the sa
 
 1. Write `config.json`:
 ```json
-{ "guideId":"<person-slug>-<YYYYMMDD>", "eventId":"<calendar event id>", "meetingDate":"<YYYYMMDD>", "prospect":"<Name>", "company":"<Company>", "domain":"<their email domain>", "leadId":"<crm lead id — REQUIRED, see below>", "noLeadReason":"<omit entirely unless leadId is empty>", "email":"<their email or empty>", "crmName":"<your CRM>" }
+{ "tenant":"<your company: see below>", "guideId":"<person-slug>-<YYYYMMDD>", "eventId":"<calendar event id>", "meetingDate":"<YYYYMMDD>", "prospect":"<Name>", "company":"<Company>", "domain":"<their email domain>", "leadId":"<crm lead id — REQUIRED, see below>", "noLeadReason":"<omit entirely unless leadId is empty>", "email":"<their email or empty>", "crmName":"<your CRM>" }
 
 > ⚠ **`leadId` IS REQUIRED. THE BUILD IS REFUSED WITHOUT IT — changed 2026-08-11, and this REVERSES what this line used to say.** It read `"<crm lead id or empty>"`, so a session doing exactly as instructed produced a guide whose **"Log Call Notes" button silently copied to the clipboard instead of saving** — the operator discovered it mid-call. Measured on real files: **12 of 20 guides** on disk carried an empty one, 8 of them from a single build run. Look up the lead in the CRM before you build; the id exists for almost every call.
 >
@@ -317,6 +317,13 @@ recipient READS; the talk track is what the operator SAYS. They are never the sa
 >
 > **What this reverses, named so nobody re-derives the old line as a rule.** `Log-Call-Notes-Modal-SPEC` §4 rule 4 listed *"a guide with no `leadId` on it"* among *"the only legitimate fallbacks"* — which is why this was not treated as a bug for six days: the builder was obeying the spec. Eleven lines below it, in the same section, sits the operator's own ruling from the same day: *"The user should never have to DO something extra the AI should be able to do for them."* A guide that tells him to paste his notes into Claude by hand is what that ruling forbids. The section contradicted itself and the permissive half shipped. The spec is corrected in the same batch as this line.
 ```
+**`tenant` IS REQUIRED (0.9.64).** It is the company this seat's Blueprint connector is signed in to: the
+`house_tier.for_client` value that **Read my working instructions** (`read_my_working_instructions`, the
+`skill_overlay` read you made at the start of the session) returns. Copy it exactly; never type a company from memory
+or from a file. The builder hands it to the registrar, and a build that names no company is refused
+(`REFUSED - no tenant`): nothing assumes one for you. Pass the same value as `--tenant <it>` to `--print-folder-sql`
+and to `--regen-plan`. (`AIOS_TENANT`, if a seat sets it, must agree with it or the build is refused.)
+
 **The link keys are REQUIRED (2026-08-05, L3).** `eventId` and `meetingDate` are not optional
 extras — they are what the finished document is filed under, and **a document that cannot be filed
 does not get to exist.** That is deliberate: an unregistered call document is invisible to the
@@ -390,7 +397,7 @@ node "<skill-folder>/build-call-guide.js" guide.json config.json out.html --gate
    and `view_url` are set and `hosted_gap` is empty (blueprint-core v1.210; Call-Record-Lifecycle-SPEC stages 4
    and 8). A local copy is not done, and neither is a row that says "filing pending". So **always build with
    `--folder`**:
-   - Get the Calls folder first: `node "<skill-folder>/build-call-guide.js" --print-folder-sql --channel <c> --company <x> [--partner <p>]`.
+   - Get the Calls folder first: `node "<skill-folder>/build-call-guide.js" --print-folder-sql --channel <c> --company <x> [--partner <p>] --tenant <your company>`.
      Run that SQL through the board connector and save the rows to `folder.json`. If the resolver raised, save
      `{"error": "<message>"}` instead.
    - Add `--folder folder.json` to the build. On a desktop that's all you add. On a cloud seat, or anywhere with
@@ -414,6 +421,20 @@ node "<skill-folder>/build-call-guide.js" guide.json config.json out.html --gate
    CATEGORY (Core §11 rule 4) — never by a connector name. **Save the FULL result** to the
    `resultPath` the plan gave you. The statement returns exactly one row: `outcome='registered'`
    or `outcome='refused'` with the reason. Do not summarise it; hand the whole thing back.
+
+   **Send the SHORT call, never the statement (0.9.64).** Before (b), turn the plan into one short call:
+```
+node "<skill-folder>/register-call-doc.js" --short "<planPath>" [--base <result.json from Step 5 (b), unedited, on a regen>]
+```
+   It writes `<plan>.short.plan.json` and prints its sizes. Its `sql` is
+   `SELECT * FROM call_doc_register($1, $2::jsonb)` (46 characters; the plan's statement is 15,122) and its
+   `params` are `[tenant, plan]`: send `params[1]` as the JSON object it is, unchanged. The store function runs the
+   SAME guarded write, with the same refusals in the same words, so (b) and (c) do not change: run the short `sql`
+   with its `params`, save the FULL result, and `--settle` with the SHORT plan file. Do the same for `hosted.steps`
+   step 1, and for step 6's confirm (`--short <confirm-plan.json>`, then `--confirm-settle` with the short file).
+   `refused` with `REGISTER-PLAN: ...` means the plan changed on the way: print it again and send it unchanged.
+   **If the store answers that `call_doc_register` does not exist** (42883: a company store the house catch-up has
+   not reached yet), nothing was written: run the long plan exactly as before.
 
    **(c) Settle.** This is the only step that gives the document its real name:
 ```
@@ -487,7 +508,7 @@ Only do this if the user asked for calendar reach. **Hard rule: no potential att
 
 **(a) Ask for the read plan.**
 ```
-node "<skill-folder>/build-call-guide.js" --regen-plan <docId>
+node "<skill-folder>/build-call-guide.js" --regen-plan <docId> --tenant <your company>
 ```
 It prints `{sql, params}`. `docId` is `call_doc.doc_id` — it is on the guide page itself as `CONFIG.docId`, and the daily brief carries it.
 
@@ -503,7 +524,7 @@ It re-renders from the stored content, bumps the kept version, and stamps the ch
 ```
 node "<skill-folder>/register-call-doc.js" --by-ref <planPath> --base <result.json from (b), unedited>
 ```
-It writes `<plan>.byref.plan.json` and prints `{out, baseStateId, wantSha256, fullGuideChars, patchChars}`. **Run THAT plan's `sql` with its `params`** in Step 4 (b) — and as `hosted.steps` step 1 — instead of the plain plan, then `--settle` with it. The store rebuilds the guide from the base plus the patch and writes NOTHING unless it hashes to `wantSha256`. `refused` with `KEPT-REF-CHANGED-IN-TRANSIT` = a character changed on the way: send the same sql and params again, copied exactly. If `--by-ref` itself refuses, run the plain plan as before.
+It writes `<plan>.byref.plan.json` and prints `{out, baseStateId, wantSha256, fullGuideChars, patchChars}`. **Run THAT plan's `sql` with its `params`** in Step 4 (b) — and as `hosted.steps` step 1 — instead of the plain plan, then `--settle` with it. The store rebuilds the guide from the base plus the patch and writes NOTHING unless it hashes to `wantSha256`. `refused` with `KEPT-REF-CHANGED-IN-TRANSIT` = a character changed on the way: send the same sql and params again, copied exactly. If `--by-ref` itself refuses, run the plain plan as before. **From 0.9.64, prefer `register-call-doc.js --short <planPath> --base <result.json from (b), unedited>`**: it sends the same patch WITHOUT the 17,984-character statement (a measured 50K-character guide regen: 58,630 characters sent down to 39,245), and a first build (no base) goes short as the whole guide. Keep `--by-ref` for a store that answers 42883 (no `call_doc_register` yet).
 
 **Regenerate with `--folder` too (v0.9.50), and `--cloud` on a seat with no operator folder:** `--regen <readplan.json> --rows <result.json> [--gate <gate.json>] --folder folder.json [--cloud --run-id <id> [--out-dir <dir>]]`. In cloud mode it never looks for the stored local path. It renders the kept state onto this disk (`--out-dir`, or a fresh temp folder by default) under the row's own `file_title`, keeps the row's `local_path` as it is (NULL for a cloud-born row), and prints the same `hosted.steps`. That's how a row stranded with "filing pending" or "NO DEVICE BRIDGE" gets re-filed from any seat. The exit codes are the same as a build: 0 with a ready handoff, **20 NOT OPENABLE** without `--folder`, and 4 when the folder is unresolved. The refusals also stay: 3–7 when kept state is missing or unusable, 12–15 for the open-loop gate.
 
