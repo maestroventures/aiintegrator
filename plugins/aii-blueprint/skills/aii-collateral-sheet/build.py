@@ -3,7 +3,8 @@
 
 Brand source of truth (SPEC GATE, domain='brand-visual'):
   - AI-Integrator-Brand-Guide  -> palette + one-pager zone structure
-  - Type: Archivo everywhere; IBM Plex Mono for labels/eyebrows only
+  - Type: the SENDING company's own, read from its brand rows (company_asset kind 'type') -
+    see load_type(). Since 2026-10-18; it was Archivo + IBM Plex Mono for every company before.
   - Teal appears exactly ONCE per view  (asserted below)
   - Logo: embedded from brand/logo/, never redrawn
 Collateral & Messaging Standard v1.0:
@@ -108,15 +109,23 @@ def palette_sql(tenant, brand_key):
     """The SELECT that produces --palette. Printed by --print-sql, run by the caller through
     the board, handed back as rows. Same two-step door as --frame and --gate, and for the same
     reason: this program holds no credential and never will."""
+    # ⭐ 2026-10-18 (dr_the_sheet_builder_uses_each_companys_own_fonts_greycliff_not_bought_yet_20261018):
+    #    the same read now carries the company's TYPE rows and its PALETTE RULES, and says which kind each
+    #    row is. Type, because the fonts are the sending company's exactly as the colours are; rules,
+    #    because the accent is found by its ROLE (the company's "<colour>-once" / highlight rule), not by
+    #    what the colour happens to be called. One read, so the type can never be skipped while the
+    #    colours are fetched. A --palette saved from the older SELECT (no asset_kind) is refused.
     return (
-        "-- 3 of 3 - THE PALETTE. The SENDING company's colours, out of the store.\n"
+        "-- 3 of 3 - THE BRAND ROWS. The SENDING company's colours, colour roles and type, out of the store.\n"
         "--   `candidate` rows are DERIVED (sampled off that company's own website) and are a\n"
         "--   PASS: representative, not canonical, is the standard. `retired` is refused below.\n"
-        "SELECT ca.asset_key, ca.value, b.status AS brand_status, ca.status AS element_status\n"
+        "SELECT ca.asset_kind, ca.asset_key, ca.value, ca.file_path, ca.notes,\n"
+        "       b.status AS brand_status, ca.status AS element_status\n"
         "  FROM company_asset ca\n"
         "  JOIN brand b ON b.tenant_id = ca.tenant_id AND b.brand_key = ca.company\n"
         " WHERE ca.tenant_id = %s AND ca.company = %s\n"
-        "   AND ca.asset_kind = 'palette' AND ca.status <> 'retired' AND b.active;\n"
+        "   AND ca.asset_kind IN ('palette', 'palette-rule', 'type') AND ca.status <> 'retired' AND b.active\n"
+        " ORDER BY ca.asset_kind, ca.asset_key;\n"
         "-- params: tenant=%s brand=%s"
         % (_q(tenant), _q(brand_key), tenant, brand_key))
 
@@ -155,6 +164,39 @@ SLOT_KEYS = {
 NEUTRAL = {"BLACK": "#111111", "OFFWHITE": "#FFFFFF", "MUTED": "#6B6B6B",
            "RULE": "#E3E3E3", "RULE2": "#EDEDED", "FOOTRULE": "#111111"}
 FALLBACK_OF = {"ACCENT": "PRIMARY"}
+
+# ⭐ THE ACCENT IS FOUND BY ITS ROLE — 2026-10-18, recorded as a session reading under
+#    dr_the_sheet_builder_uses_each_companys_own_fonts_greycliff_not_bought_yet_20261018.
+#    SLOT_KEYS finds ACCENT by what the colour is CALLED (accent, teal, lime). A company whose brand
+#    guide calls its accent "orange" got PRIMARY instead, and the accent-once assertion then fired on
+#    a sheet that was never wrong. Every brand guide in the store already states the accent's ROLE as a
+#    palette-rule: a highlight rule (`highlight` = lime) or a once-per-view rule named for the colour
+#    (`teal-once-per-view`, `lime-once`, `orange-once`). That rule is read first. The name chain stays
+#    as the FALLBACK, in the same order, so a company with no such rule paints exactly as before.
+ACCENT_ROLE_KEYS = ("accent", "highlight")
+ACCENT_ONCE = re.compile(r"\A(.+?)-once(?:-per-view)?\Z")
+HEX = re.compile(r"\A#[0-9A-Fa-f]{6}\Z")
+
+
+def accent_by_role(rules, have):
+    """(hex, how) for the colour the company's own palette rules name as its accent, or None."""
+    for k in ACCENT_ROLE_KEYS:
+        v = (rules.get(k) or "").strip()
+        if HEX.match(v):
+            return v, "palette-rule %r (role)" % k
+        if v.lower() in have:
+            return have[v.lower()], "palette-rule %r -> %s (role)" % (k, v.lower())
+    found = []
+    for k in sorted(rules):
+        m = ACCENT_ONCE.match(k)
+        if m and m.group(1) in have:
+            found.append((have[m.group(1)], "palette-rule %r -> %s (role)" % (k, m.group(1))))
+    if len({f[0].upper() for f in found}) == 1:
+        return found[0]
+    if found:
+        print("   ⚠ %d once-per-view rules name DIFFERENT colours (%s) - not a role; the name chain decides"
+              % (len(found), ", ".join(f[1] for f in found)), file=sys.stderr)
+    return None
 
 
 def load_palette():
@@ -204,12 +246,32 @@ def load_palette():
             "An empty palette and a palette nobody looked up are the same file, so this cannot\n"
             "be read as 'they have no colours'. Either that brand is unregistered - derive it -\n"
             "or the SELECT was never run.")
-    have = {}
+    global TYPE_ROWS
+    if any(isinstance(r, dict) and "asset_kind" not in r for r in rows):
+        raise SystemExit(
+            "build.py: REFUSED - --palette %s was saved from the OLDER statement 3, which read colours only\n"
+            "and never asked for the company's TYPE rows. No sheet was written. A read that did not ask for\n"
+            "the fonts and a company with no fonts are the same file, so this cannot be built as either.\n"
+            "Re-run --print-sql --brand %s, put statement 3 through the board, and pass the new rows."
+            % (p, b))
+    have, rules, TYPE_ROWS = {}, {}, {}
     for r in rows:
-        if isinstance(r, dict) and r.get("asset_key") and r.get("value"):
-            have[str(r["asset_key"]).lower()] = r["value"]
+        if not (isinstance(r, dict) and r.get("asset_key")):
+            continue
+        kind, key = str(r.get("asset_kind")), str(r["asset_key"]).lower()
+        if kind == "palette" and r.get("value"):
+            have[key] = r["value"]
+        elif kind == "palette-rule" and r.get("value"):
+            rules[key] = str(r["value"])
+        elif kind == "type":
+            TYPE_ROWS[key] = r
     picked, how = {}, {}
+    role = accent_by_role(rules, have)
+    if role:
+        picked["ACCENT"], how["ACCENT"] = role
     for slot in SLOTS:
+        if slot in picked:
+            continue
         for k in SLOT_KEYS[slot]:
             if k in have:
                 picked[slot], how[slot] = have[k], k
@@ -245,11 +307,219 @@ def load_palette():
     return picked
 
 
-BRAND_FILES = ["assets/Archivo-400.ttf", "assets/Archivo-600.ttf", "assets/Archivo-700.ttf",
-               "assets/PlexMono.ttf", "assets/logo-dark.png"]
+# ⛔ ONLY THE LOGO IS A REQUIRED FILE NOW — 2026-10-18. Until then this list also named four font files,
+#    Archivo-400/600/700.ttf and PlexMono.ttf: AI Integrator's type, compiled into a builder every client
+#    runs, so every company's sheet came out in AI Integrator's fonts (a partner company's draft of
+#    2026-10-17 did, and said so in its notes). The fonts are the SENDING company's and come off its
+#    brand rows now — see load_type().
+BRAND_FILES = ["assets/logo-dark.png"]
 
-A400 = A600 = A700 = PLEX = LOGO_DARK = None
+LOGO_DARK = None
 CSS = None
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+# ⭐ THE TYPE IS THE SENDING COMPANY'S, READ FROM ITS BRAND ROWS — 2026-10-18.
+#    Ruling dr_the_sheet_builder_uses_each_companys_own_fonts_greycliff_not_bought_yet_20261018 (the
+#    operator, by pop-up): "Yes" - the builder takes its fonts from each company's brand rows, the way it
+#    already takes its colours; and for a font the company has not bought, "use backup".
+#
+#    TWO FACES, because the layout has two: BODY (every headline and every line of text) and LABEL
+#    (eyebrows, row numbers, step keys, meta - the .mono class). Each is read from the company's `type`
+#    rows by ROLE KEY (TYPE_ROLE_KEYS). A row's value names the family first; the rest of the row names
+#    the BACKUP, either as the rest of a CSS stack ("Archivo, system-ui, ...") or in words ("fallback ...:
+#    system sans (...)").
+#
+#    THE FILE. A face is EMBEDDED only when its font file is ON HAND: the row's own file_path (resolved
+#    against --workspace-root, then --work, then --work/assets), else a file in --work/assets named for the
+#    family (foundry word optional: "IBM Plex Mono" finds PlexMono.ttf). When the file is NOT on hand the
+#    sheet uses the BACKUP THE COMPANY'S OWN ROW NAMES and the build log says so, line by line. There is no
+#    builder-wide default face: a company with no type rows gets the neutral system sans, said in the log,
+#    which is paper and ink, not somebody else's brand.
+#
+#    ⚠ NOT LOOKED UP ON THE MACHINE. A font installed on this Mac is never used by name: the sheet would
+#    then change with the machine it was built on. Embedded, or the named backup. Nothing in between.
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+TYPE_ROWS = {}
+TYPE_ROLE_KEYS = {"BODY": ("display-and-body", "body", "display", "text"),
+                  "LABEL": ("label", "labels", "eyebrow", "mono")}
+TYPE_DEFAULT_WEIGHT = {"BODY": 400, "LABEL": 500}
+# The builder's own last-resort tail BEHIND AN EMBEDDED FACE. It never draws (the face is in the file);
+# it is what a viewer would fall to for a missing glyph. Unchanged from the stylesheet before 2026-10-18.
+TAIL_SANS = "Helvetica, Arial, sans-serif"
+TAIL_MONO = "'Courier New', monospace"
+SYSTEM_SANS = ["system-ui", "-apple-system", "BlinkMacSystemFont", '"Segoe UI"', "Helvetica", "Arial", "sans-serif"]
+GENERIC_FAMILIES = {"sans-serif", "serif", "monospace", "ui-monospace", "system-ui", "-apple-system",
+                    "blinkmacsystemfont", "ui-sans-serif", "ui-serif", "cursive", "fantasy"}
+WEIGHT_WORDS = {"thin": 100, "hairline": 100, "extralight": 200, "ultralight": 200, "light": 300,
+                "regular": 400, "normal": 400, "book": 400, "medium": 500, "semibold": 600, "demibold": 600,
+                "bold": 700, "extrabold": 800, "ultrabold": 800, "black": 900, "heavy": 900}
+FONT_TYPES = {".ttf": ("font/ttf", "truetype"), ".otf": ("font/otf", "opentype"),
+              ".woff2": ("font/woff2", "woff2"), ".woff": ("font/woff", "woff")}
+FONT_FACES = ""                                  # the @font-face block, built by load_type()
+BODY_FAMILY = LABEL_FAMILY = LABEL_FAMILY_TIGHT = None
+LABEL_WEIGHT = None
+
+
+def _norm(s):
+    return re.sub(r"[^a-z0-9]", "", str(s).lower())
+
+
+def parse_type_value(value, notes=None):
+    """(family, weight or None, backup as a list of CSS families or None, how the backup was found).
+    The family is the row's first name, with a trailing weight word taken off it ("Encode Sans Condensed
+    SemiBold" -> "Encode Sans Condensed", 600)."""
+    v = (value or "").strip()
+    head = re.split(r"\s+-\s+|,|\(|;|:|\.\s", v, maxsplit=1)[0].strip().strip('"\'')
+    words, weight = head.split(), None
+    while len(words) > 1 and _norm(words[-1]) in WEIGHT_WORDS:
+        weight = weight or WEIGHT_WORDS[_norm(words[-1])]
+        words = words[:-1]
+    family = " ".join(words)
+    said = _backup_in_words(v)                       # 1. the row's value says it in words
+    if said:
+        return family, weight, _stack_from_words(said), "named in the row: %r" % said
+    rest = v[len(v.split(",", 1)[0]):].lstrip(",").strip() if "," in v else ""
+    items = [x.strip() for x in rest.split(",") if x.strip()]
+    if items and all(re.fullmatch(r"\"[^\"]+\"|'[^']+'|[A-Za-z0-9 -]+", x) and len(x) <= 40 for x in items) \
+            and any(_norm(x) in {_norm(g) for g in GENERIC_FAMILIES} for x in items):
+        return family, weight, items, "the rest of the row's own stack"   # 2. the value is a CSS stack
+    said = _backup_in_words(notes or "")             # 3. the row's notes say it in words
+    if said:
+        return family, weight, _stack_from_words(said), "named in the row's notes: %r" % said
+    return family, weight, None, None
+
+
+def _backup_in_words(text):
+    """The words after 'fallback'/'backup' up to the end of that sentence; after its colon when it has one."""
+    m = re.search(r"fall\s*-?\s*back|backup", text or "", re.I)
+    if not m:
+        return None
+    seg = re.split(r"\.(?:\s|\Z)", text[m.end():], maxsplit=1)[0]
+    if ":" in seg:
+        seg = seg.split(":", 1)[1]
+    seg = seg.strip(" ,;-")
+    return seg or None
+
+
+def _stack_from_words(text):
+    """'system sans (San Francisco, Segoe, Helvetica)' or 'Myriad Pro, then system sans' -> CSS families."""
+    t = re.sub(r"\([^)]*\)", " ", text)
+    out = []
+    for tok in re.split(r",|\bthen\b|\bor\b|\band\b", t):
+        tok = tok.strip().strip('"\'')
+        if not tok:
+            continue
+        if _norm(tok) in ("systemsans", "systemsansserif", "system", "systemfont", "systemui"):
+            out += SYSTEM_SANS
+        elif _norm(tok) in {_norm(g) for g in GENERIC_FAMILIES}:
+            out.append(tok)
+        else:
+            out.append('"%s"' % tok if " " in tok else tok)
+    if not any(_norm(x) in {_norm(g) for g in GENERIC_FAMILIES} for x in out):
+        out.append("sans-serif")
+    seen, uniq = set(), []
+    for x in out:
+        if _norm(x) not in seen:
+            seen.add(_norm(x))
+            uniq.append(x)
+    return uniq
+
+
+def _file_weight(stem, family_part, default):
+    rest = stem[len(family_part):].lstrip("-_ ")
+    if re.fullmatch(r"\d{3}", rest):
+        return int(rest)
+    if _norm(rest) in WEIGHT_WORDS:
+        return WEIGHT_WORDS[_norm(rest)]
+    return default if not rest else None      # an unreadable suffix (Italic, a variable range) is not used
+
+
+def font_files_for(family, row, default_weight):
+    """[(weight, alias, path)] for the faces of `family` that are ON HAND, lightest first, one per weight."""
+    found = []
+    fp = (row or {}).get("file_path") or ""
+    for raw in [x.strip() for x in re.split(r"[;|]", fp) if x.strip()]:
+        cands = [pathlib.Path(raw)] if pathlib.PurePath(raw).is_absolute() else \
+                [workspace_root() / raw, WORK / raw, WORK / "assets" / pathlib.PurePath(raw).name]
+        hit = next((c for c in cands if c.is_file()), None)
+        if hit and hit.suffix.lower() in FONT_TYPES:
+            part = re.split(r"[-_]", hit.stem, maxsplit=1)[0]
+            w = _file_weight(hit.stem, part, default_weight)
+            if w:
+                found.append((w, part, hit))
+    if not found and (WORK / "assets").is_dir():
+        words = family.split()
+        names = {_norm(" ".join(words[i:])) for i in range(len(words)) if i == 0 or len(words) - i >= 2}
+        for f in sorted((WORK / "assets").iterdir()):
+            if f.suffix.lower() not in FONT_TYPES:
+                continue
+            part = re.split(r"[-_]", f.stem, maxsplit=1)[0]
+            if _norm(part) in names and len(_norm(part)) >= 4:
+                w = _file_weight(f.stem, part, default_weight)
+                if w:
+                    found.append((w, part, f))
+    by_w = {}
+    for w, part, f in found:
+        by_w.setdefault(w, (w, part, f))
+    alias = by_w[min(by_w)][1] if by_w else None
+    return [(w, alias, f) for w, _p, f in sorted(by_w.values(), key=lambda x: x[0])]
+
+
+def _face_css(alias, weight, path):
+    mime, fmt = FONT_TYPES[path.suffix.lower()]
+    data = base64.b64encode(path.read_bytes()).decode()
+    return ("@font-face {{ font-family:'{a}'; src:url(data:{m};base64,{d}) format('{f}');\n"
+            "             font-weight:{w}; font-style:normal; }}").format(a=alias, m=mime, d=data, f=fmt, w=weight)
+
+
+def load_type():
+    """Resolve the BODY and LABEL faces from TYPE_ROWS (set by load_palette from the same store read)."""
+    global FONT_FACES, BODY_FAMILY, LABEL_FAMILY, LABEL_FAMILY_TIGHT, LABEL_WEIGHT
+    b = _flag("--brand")
+    print("type for %r, read from the store (%d type row(s): %s)"
+          % (b, len(TYPE_ROWS), ", ".join(sorted(TYPE_ROWS)) or "none"), file=sys.stderr)
+    faces, fam, wt = [], {}, {}
+    body_backup = None
+    for role in ("BODY", "LABEL"):
+        key = next((k for k in TYPE_ROLE_KEYS[role] if k in TYPE_ROWS), None)
+        row = TYPE_ROWS.get(key) if key else None
+        if not row and role == "LABEL" and "BODY" in fam:
+            fam["LABEL"], wt["LABEL"] = fam["BODY"], TYPE_DEFAULT_WEIGHT["LABEL"]
+            print("   LABEL     no label row - labels use the body face (%s)" % fam["BODY"], file=sys.stderr)
+            continue
+        if not row:
+            fam[role], wt[role] = ", ".join(SYSTEM_SANS), TYPE_DEFAULT_WEIGHT[role]
+            print("   %-9s NO type row - the neutral system sans, not anybody's brand" % role, file=sys.stderr)
+            continue
+        family, weight, backup, backup_how = parse_type_value(row.get("value"), row.get("notes"))
+        if role == "BODY":
+            body_backup = (backup, backup_how)
+        files = font_files_for(family, row, weight or TYPE_DEFAULT_WEIGHT[role])
+        if files:
+            for w, alias, f in files:
+                faces.append(_face_css(alias, w, f))
+            mono = bool(backup) and any("mono" in _norm(x) for x in backup)
+            tail = TAIL_MONO if (role == "LABEL" and mono) else TAIL_SANS
+            fam[role] = "'%s', %s" % (files[0][1], tail)
+            wts = [w for w, _a, _f in files]
+            want = weight or TYPE_DEFAULT_WEIGHT[role]
+            wt[role] = min(wts, key=lambda x: (abs(x - want), x))
+            print("   %-9s %s <- row %r, EMBEDDED from %s"
+                  % (role, family, key, ", ".join("%s (%d)" % (f.name, w) for w, _a, f in files)), file=sys.stderr)
+            continue
+        if not backup and role == "LABEL" and body_backup and body_backup[0]:
+            backup, backup_how = body_backup[0], "the company's body backup (%s)" % body_backup[1]
+        if not backup:
+            backup, backup_how = list(SYSTEM_SANS), "the row names no backup - the neutral system sans"
+        fam[role], wt[role] = ", ".join(backup), weight or TYPE_DEFAULT_WEIGHT[role]
+        print("   %-9s %s <- row %r: ITS FILE IS NOT ON HAND, so the sheet uses the BACKUP - %s, %s"
+              % (role, family, key, ", ".join(backup), backup_how), file=sys.stderr)
+    FONT_FACES = "\n".join(faces)
+    BODY_FAMILY = fam["BODY"]
+    LABEL_FAMILY = fam["LABEL"]
+    LABEL_FAMILY_TIGHT = ",".join(x.strip() for x in fam["LABEL"].split(","))
+    LABEL_WEIGHT = wt["LABEL"]
+    return fam
 
 
 def require_work():
@@ -262,7 +532,8 @@ def require_work():
             "build.py: REFUSED — no --work given, and no sheet was written.\n"
             "--work is the folder for THIS delivery. It must hold:\n"
             "  content.py   the SHEETS for this prospect, which you write\n"
-            "  assets/      the SENDING company's fonts and logo (5 files, see BRAND_FILES)\n"
+            "  assets/      the SENDING company's logo (see BRAND_FILES) and any font files its\n"
+            "               type rows name (a font not on hand falls to the backup its row names)\n"
             "and out/ is created inside it. There is no default: the one copy of this program\n"
             "ships in the plugin and does not know whose delivery it is being run for.")
     # ⛔ RESOLVED TO AN ABSOLUTE PATH — 2026-09-14, operator-approved safety fix. A relative --work reached Chrome as
@@ -405,22 +676,21 @@ def b64(p):
 
 
 def load_brand():
-    """The sending company's fonts and logo, from --work/assets. FAILS LOUD and NAMES every
-    missing file, because a half-loaded brand renders a sheet that looks finished."""
-    global A400, A600, A700, PLEX, LOGO_DARK, CSS
+    """The sending company's logo from --work/assets, and its type from its brand rows (load_type).
+    FAILS LOUD and NAMES a missing logo, because a half-loaded brand renders a sheet that looks finished.
+    A font whose file is not on hand is NOT a refusal: the company's own row names its backup, and the
+    build log says which face was embedded and which fell to its backup."""
+    global LOGO_DARK, CSS
     missing = [f for f in BRAND_FILES if not (WORK / f).exists()]
     if missing:
         raise SystemExit(
             "build.py: REFUSED — %d of %d brand file(s) missing under %s. NO SHEET WRITTEN.\n"
             "  MISSING: %s\n"
-            "These are the SENDING company's fonts and logo and they are deliberately not shipped\n"
-            "with this program: a default set would render another company's identity onto this\n"
-            "sheet and it would look perfect on the way out."
+            "This is the SENDING company's logo and it is deliberately not shipped with this\n"
+            "program: a default would render another company's identity onto this sheet and it\n"
+            "would look perfect on the way out."
             % (len(missing), len(BRAND_FILES), WORK, ", ".join(missing)))
-    A400 = b64("assets/Archivo-400.ttf")
-    A600 = b64("assets/Archivo-600.ttf")
-    A700 = b64("assets/Archivo-700.ttf")
-    PLEX = b64("assets/PlexMono.ttf")
+    load_type()
     LOGO_DARK = b64("assets/logo-dark.png")
     CSS = _css()
     return CSS
@@ -431,19 +701,14 @@ REPNOTE_CSS = (".repnote{font-family:'PlexMono',ui-monospace,monospace;font-size
 
 
 def _css():
+    # The faces and the two families come from load_type() (the SENDING company's type rows). For a company
+    # whose fonts are all on hand this renders the same bytes the literal Archivo/PlexMono stylesheet did.
     return f"""
-@font-face {{ font-family:'Archivo'; src:url(data:font/ttf;base64,{A400}) format('truetype');
-             font-weight:400; font-style:normal; }}
-@font-face {{ font-family:'Archivo'; src:url(data:font/ttf;base64,{A600}) format('truetype');
-             font-weight:600; font-style:normal; }}
-@font-face {{ font-family:'Archivo'; src:url(data:font/ttf;base64,{A700}) format('truetype');
-             font-weight:700; font-style:normal; }}
-@font-face {{ font-family:'PlexMono'; src:url(data:font/ttf;base64,{PLEX}) format('truetype');
-             font-weight:500; font-style:normal; }}
+{FONT_FACES}
 @page {{ size:letter; margin:0; }}
 * {{ box-sizing:border-box; margin:0; padding:0; }}
 html,body {{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }}
-body {{ font-family:'Archivo', Helvetica, Arial, sans-serif; color:{BLACK}; }}
+body {{ font-family:{BODY_FAMILY}; color:{BLACK}; }}
 .page {{ width:8.5in; height:11in; overflow:hidden; position:relative;
          display:flex; flex-direction:column; page-break-after:always; background:#fff; }}
 .page:last-child {{ page-break-after:auto; }}
@@ -454,7 +719,7 @@ body {{ font-family:'Archivo', Helvetica, Arial, sans-serif; color:{BLACK}; }}
 .bar img {{ height:20px; }}
 .bar .logos {{ display:flex; align-items:center; gap:14px; }}
 .bar .logos .sep {{ width:1px; height:18px; background:{MUTED}; }}
-.mono {{ font-family:'PlexMono', 'Courier New', monospace; font-weight:500;
+.mono {{ font-family:{LABEL_FAMILY}; font-weight:{LABEL_WEIGHT};
          letter-spacing:.10em; text-transform:uppercase; }}
 .bar .mono {{ font-size:6.6pt; color:{MUTED}; text-align:right; line-height:1.5; }}
 
@@ -471,7 +736,7 @@ h2 {{ font-size:13.4pt; font-weight:700; letter-spacing:-.012em; margin-bottom:.
 .note {{ font-size:8.2pt; line-height:1.4; color:{MUTED}; margin-bottom:.115in; max-width:6.4in; }}
 
 .leak {{ display:grid; grid-template-columns:.30in 1fr; margin-bottom:.058in; }}
-.leak .n {{ font-family:'PlexMono','Courier New',monospace; font-weight:500; font-size:8pt;
+.leak .n {{ font-family:{LABEL_FAMILY_TIGHT}; font-weight:{LABEL_WEIGHT}; font-size:8pt;
             color:{PRIMARY}; padding-top:.022in; }}
 .leak h3 {{ font-size:9.1pt; font-weight:700; line-height:1.26; margin-bottom:.028in; }}
 .leak .what {{ font-size:7.7pt; line-height:1.35; color:{MUTED}; margin-bottom:.032in; }}
@@ -479,14 +744,14 @@ h2 {{ font-size:13.4pt; font-weight:700; letter-spacing:-.012em; margin-bottom:.
           border-left:2px solid {PRIMARY}; }}
 .orch > div {{ padding:.05in .11in .055in; }}
 .orch > div + div {{ border-left:1px solid {RULE2}; }}
-.orch .k {{ font-family:'PlexMono','Courier New',monospace; font-weight:500; font-size:5.9pt;
+.orch .k {{ font-family:{LABEL_FAMILY_TIGHT}; font-weight:{LABEL_WEIGHT}; font-size:5.9pt;
             letter-spacing:.09em; text-transform:uppercase; color:{PRIMARY}; margin-bottom:.028in; }}
 .orch > div + div .k {{ color:{MUTED}; }}
 .orch p {{ font-size:7.6pt; line-height:1.34; color:{BLACK}; }}
 
 /* ---- questions ---- */
 .q {{ display:grid; grid-template-columns:.32in 1fr; margin-bottom:.185in; }}
-.q .n {{ font-family:'PlexMono','Courier New',monospace; font-weight:500; font-size:8pt;
+.q .n {{ font-family:{LABEL_FAMILY_TIGHT}; font-weight:{LABEL_WEIGHT}; font-size:8pt;
          color:{PRIMARY}; padding-top:.03in; }}
 .q h3 {{ font-size:10.6pt; font-weight:700; line-height:1.28; margin-bottom:.035in; }}
 .q p {{ font-size:8.8pt; line-height:1.42; color:{MUTED}; }}
@@ -1312,6 +1577,7 @@ def selftest_frame_refusal():
     else:
         ok = False; print("  FAIL  token resolved wrong: %r" % R["frame-closer"])
     ok = selftest_root_fix() and ok
+    ok = selftest_type_and_accent() and ok
     print("SELF-TEST %s" % ("PASS" if ok else "FAIL"))
     return 0 if ok else 1
 
@@ -1398,6 +1664,74 @@ def selftest_root_fix():
         judge_pdf_text("x.pdf", "Your website is full of future members."); print("  pass  ordinary sheet text is ACCEPTED")
     finally:
         os.chdir(cwd); sys.argv = saved_argv; WORK, OUT = saved_work, saved_out
+    return ok
+
+
+def selftest_type_and_accent():
+    """INVERSE CONTROLS for the 2026-10-18 type-and-accent change. Each direction is watched: a font file on hand
+    is EMBEDDED, the same row with no file falls to the BACKUP ITS ROW NAMES, a company with no type rows gets the
+    neutral system sans, and the accent comes by ROLE with the old name chain still deciding when no rule names one.
+    Writes only into a temporary folder; touches no sheet."""
+    global WORK, TYPE_ROWS
+    import tempfile, io, contextlib
+    ok = True
+
+    def check(label, cond, detail=""):
+        nonlocal ok
+        ok = ok and bool(cond)
+        print("  %s  %s%s" % ("pass" if cond else "FAIL", label, (" (%s)" % detail) if detail and not cond else ""))
+
+    have = {"orange": "#FF7A1A", "blue": "#1F5BD8", "teal": "#00D4AA", "lime": "#B5F44A"}
+    r = accent_by_role({"orange-once": "a single highlight"}, have)
+    check("accent by ROLE: an 'orange-once' rule names orange", r and r[0] == "#FF7A1A", r)
+    r = accent_by_role({"highlight": "lime"}, have)
+    check("accent by ROLE: a 'highlight' rule naming lime", r and r[0] == "#B5F44A", r)
+    check("no accent rule -> None, so the name chain (accent, teal, lime) decides as before",
+          accent_by_role({"fill": "blue"}, have) is None)
+    check("two once-rules naming different colours are not a role",
+          accent_by_role({"orange-once": "x", "teal-once-per-view": "y"}, have) is None)
+    fam, w, bk, how = parse_type_value("Greycliff CF - Bold for headlines. Web fallback until a licence: system sans "
+                                       "(San Francisco, Segoe, Helvetica).")
+    check("a prose row: family Greycliff CF, backup the system sans it names",
+          fam == "Greycliff CF" and bk and bk[0] == "system-ui", (fam, bk))
+    fam, w, bk, how = parse_type_value("Encode Sans Condensed SemiBold, UPPERCASE, letter-spaced.")
+    check("a weight word comes off the family: Encode Sans Condensed, 600", (fam, w) == ("Encode Sans Condensed", 600), (fam, w))
+    fam, w, bk, how = parse_type_value('"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace')
+    check("a CSS-stack row: family IBM Plex Mono, backup the rest of the stack",
+          fam == "IBM Plex Mono" and bk == ["ui-monospace", '"SF Mono"', "Menlo", "monospace"], (fam, bk))
+    saved_work, saved_rows, saved_argv = WORK, dict(TYPE_ROWS), list(sys.argv)
+    d = pathlib.Path(tempfile.mkdtemp())
+    try:
+        (d / "assets").mkdir()
+        WORK = d
+        sys.argv = [sys.argv[0], "--brand", "selftest", "--workspace-root", str(d)]
+        rows = {"display-and-body": {"value": "Greycliff CF - Bold. Web fallback: system sans."},
+                "label": {"value": "Encode Sans Condensed SemiBold, UPPERCASE.",
+                          "file_path": "fonts/EncodeSansCondensed-SemiBold.ttf"}}
+        TYPE_ROWS = rows
+        log = io.StringIO()
+        with contextlib.redirect_stderr(log):
+            load_type()
+        check("file NOT on hand -> the label uses the backup and the log says so",
+              "encode" not in LABEL_FAMILY.lower() and "NOT ON HAND" in log.getvalue() and not FONT_FACES, LABEL_FAMILY)
+        (d / "fonts").mkdir()
+        (d / "fonts" / "EncodeSansCondensed-SemiBold.ttf").write_bytes(b"not a real font - selftest bytes")
+        with contextlib.redirect_stderr(io.StringIO()):
+            load_type()
+        check("file ON HAND at the row's file_path -> EMBEDDED as 'EncodeSansCondensed' 600, body still on its backup",
+              LABEL_FAMILY.startswith("'EncodeSansCondensed'") and LABEL_WEIGHT == 600
+              and "font-family:'EncodeSansCondensed'" in FONT_FACES and "font-weight:600" in FONT_FACES
+              and BODY_FAMILY.startswith("system-ui"), (LABEL_FAMILY, LABEL_WEIGHT))
+        TYPE_ROWS = {"label": {"value": '"IBM Plex Mono", ui-monospace, monospace'}}
+        (d / "assets" / "PlexMono.ttf").write_bytes(b"selftest")
+        with contextlib.redirect_stderr(io.StringIO()):
+            load_type()
+        check("a file in --work/assets named for the family, foundry word optional (PlexMono.ttf for IBM Plex Mono)",
+              LABEL_FAMILY == "'PlexMono', 'Courier New', monospace" and LABEL_WEIGHT == 500, LABEL_FAMILY)
+        check("no body row -> the neutral system sans, never another company's face", BODY_FAMILY.startswith("system-ui"),
+              BODY_FAMILY)
+    finally:
+        WORK, TYPE_ROWS, sys.argv = saved_work, saved_rows, saved_argv
     return ok
 
 
