@@ -1507,16 +1507,23 @@ PROBE_JS = """() => [...document.querySelectorAll('.page')].map(p => {
 #   --html-only   THE DEFAULT. Writes each sheet's HTML (and words/) and stops, exit 8. No PDF, so no page check
 #                 and no filing plan: the filing plan waits for a PDF.
 #   --pdf cloud   sends each sheet's HTML, with PROBE_JS, to the house's print door (PDF_DOOR, the aii-site
-#                 function api/collateral/print-pdf) with the PUBLISH TOKEN from the local keys file
-#                 (AIOS_PUBLISH_TOKEN in KEYS_FILES). The door prints it at Letter and answers the PDF, its page
-#                 count, the error-page check and this probe's numbers. verify_pdfs() then judges the PDF that
-#                 came back, here, before anything is filed.
-# No token on this machine -> --pdf cloud says so and stops before a byte is written.
+#                 function api/collateral/print-pdf) with the PRINT TOKEN from the local keys file
+#                 (AIOS_COLLATERAL_PRINT_TOKEN in KEYS_FILES). The door prints it at Letter and answers the PDF, its
+#                 page count, the error-page check and this probe's numbers. verify_pdfs() then judges the PDF
+#                 that came back, here, before anything is filed.
+# No print token on this machine -> --pdf cloud says so and stops (exit 10) before a byte is written.
+#
+# ⛔ THE PRINT DOOR HAS ITS OWN TOKEN — 2026-10-18 (0.9.67). 0.9.66 sent the video publish token to this door.
+#    Store Ops ruled the same day that the print door gets its OWN explicitly scoped token ('collateral-print-pdf'),
+#    minted by one run file into ~/aios-workshop/aios-bootstrap.env as AIOS_COLLATERAL_PRINT_TOKEN, and that the
+#    publish token must not gain print power. So this file reads ONLY the print key. There is deliberately NO
+#    fallback to the publish token: a fallback here is exactly how the publish token would gain print power.
 PDF_DOOR = "https://app.aiintegratorhq.com/api/collateral/print-pdf"
 KEYS_FILES = ("~/aios-workshop/aios-bootstrap.env", "~/.aios/aios-bootstrap.env")
-TOKEN_KEY = "AIOS_PUBLISH_TOKEN"
+TOKEN_KEY = "AIOS_COLLATERAL_PRINT_TOKEN"   # the ONLY key read. Never the publish token, never a fallback.
 PDF_MODES = ("cloud",)
 EXIT_HTML_ONLY = 8
+EXIT_NO_PRINT_TOKEN = 10
 
 
 def pdf_mode():
@@ -1532,8 +1539,8 @@ def pdf_mode():
     return m or "html-only"
 
 
-def publish_token():
-    """The publish token from the local keys file, or None. Read only; never printed, never logged."""
+def print_token():
+    """The print token (TOKEN_KEY) from the local keys file, or None. Read only; never printed, never logged."""
     for f in KEYS_FILES:
         p = pathlib.Path(f).expanduser()
         try:
@@ -1549,15 +1556,17 @@ def publish_token():
     return None
 
 
-def require_publish_token():
-    t = publish_token()
+def require_print_token():
+    t = print_token()
     if not t:
-        raise SystemExit(
-            "build.py: STOPPED - --pdf cloud needs the publish token, and it is not on this machine.\n"
+        print(
+            "build.py: STOPPED - --pdf cloud needs the print token, and it is not on this Mac yet.\n"
             "  Looked for %s in: %s\n"
-            "  The token is written by the run file that sets up publishing on this machine; until that has run,\n"
-            "  no PDF can be made here and none is faked. Nothing was written.\n"
-            "  Build with --html-only (the default) to get the sheets' HTML now." % (TOKEN_KEY, ", ".join(KEYS_FILES)))
+            "  One run file makes it: it mints the print door's own token and writes it to the keys file. Until that\n"
+            "  has run, no PDF can be made here and none is faked. The publish token is not used for this. Nothing\n"
+            "  was written. Build with --html-only (the default) to get the sheets' HTML now."
+            % (TOKEN_KEY, ", ".join(KEYS_FILES)), file=sys.stderr)
+        raise SystemExit(EXIT_NO_PRINT_TOKEN)
     return t
 
 
@@ -1566,7 +1575,7 @@ def _door_call(token, payload):
     door = os.environ.get("AII_PRINT_PDF_DOOR") or PDF_DOOR
     # The token goes to the house's own door and nowhere else: an override may only name this machine (the proof's stand-in door).
     if door != PDF_DOOR and not re.match(r"\Ahttp://127\.0\.0\.1:\d+/", door):
-        raise SystemExit("build.py: REFUSED - AII_PRINT_PDF_DOOR %r is not the house's print door; the publish token is "
+        raise SystemExit("build.py: REFUSED - AII_PRINT_PDF_DOOR %r is not the house's print door; the print token is "
                          "never sent anywhere else. Nothing was written." % door)
     req = urllib.request.Request(door, data=json.dumps(payload).encode("utf-8"), method="POST",
                                  headers={"Content-Type": "application/json", "Authorization": "Bearer " + token})
@@ -1845,7 +1854,7 @@ def main():
     #   writes no file" true rather than aspirational.
     require_work()
     MODE = pdf_mode()
-    TOKEN = require_publish_token() if MODE == "cloud" else None   # before a byte is written, so a missing token writes nothing
+    TOKEN = require_print_token() if MODE == "cloud" else None   # before a byte is written, so a missing token writes nothing
     if "--dry-route" in sys.argv:
         # Reads content.py and the flags only - no store rows, no fonts, no render - and writes nothing.
         _sheets = load_sheets()
