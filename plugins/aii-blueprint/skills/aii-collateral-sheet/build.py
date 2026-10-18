@@ -53,7 +53,7 @@ Collateral & Messaging Standard v1.0:
    deliverable that was never written to disk. Neither of them is a write door on
    `assets`; there is still no asset_put.
 """
-import base64, json, os, pathlib, re, sys, asyncio
+import base64, hashlib, json, os, pathlib, re, sys
 
 # ⛔ content.py IS NOT IMPORTED AT MODULE LEVEL — GENERICIZED 2026-09-09, same reason
 #    as the frame below. content.py holds the SHEETS for ONE prospect and is written
@@ -1390,9 +1390,10 @@ def judge_pdf_text(name, text):
                              "sheet." % (name, needle))
 
 
-def verify_pdfs(items, expect):
-    """After EITHER render path. The page count must equal the template's page count, and the text may not be a
-    browser error page. A bad PDF is DELETED and the build exits non-zero — it must never sit in out/ looking built."""
+def verify_pdfs(items, expect, door=None):
+    """After the cloud print. The page count must equal the template's page count, the text may not be a browser
+    error page, and (with the door's answer) no page may overflow or collide: PROBE_JS's ov must be 0 and slack
+    >= 0 on every page. A bad PDF is DELETED and the build exits non-zero — it must never sit in out/ looking built."""
     for name, _p in items:
         pdf = OUT / ("%s.pdf" % name)
         want = expect[name]
@@ -1402,6 +1403,18 @@ def verify_pdfs(items, expect):
                 pdf.unlink()
             raise SystemExit("build.py: REFUSED — %s.pdf has %d page(s); this template renders %d. The PDF was "
                              "DELETED. No sheet delivered." % (name, got, want))
+        ans = (door or {}).get(name)
+        if ans is not None:
+            bad = [i + 1 for i, pg in enumerate(ans.get("probe") or []) if not (pg.get("ov") == 0 and (pg.get("slack") or 0) >= 0
+                                                                                 and isinstance(pg.get("slack"), (int, float)))]
+            if len(ans.get("probe") or []) != want:
+                bad = bad or ["the probe read %d page(s), not %d" % (len(ans.get("probe") or []), want)]
+            if bad or ans.get("error_page"):
+                pdf.unlink()
+                raise SystemExit("build.py: REFUSED — %s.pdf: %s. The PDF was DELETED. No sheet delivered."
+                                 % (name, ("page(s) %s overflow or collide (ov must be 0, slack >= 0): %s"
+                                           % (", ".join(str(b) for b in bad), ans.get("probe"))) if bad
+                                  else "the print door read a browser ERROR PAGE (%r)" % ans.get("error_page")))
         txt = pdf_text(pdf)
         if txt is None:
             print("  ⚠ %s.pdf: PDF TEXT COULD NOT BE READ on this machine (no PDFKit) — the error-page check is "
@@ -1412,7 +1425,8 @@ def verify_pdfs(items, expect):
             except SystemExit:
                 pdf.unlink()
                 raise
-        print("  %s.pdf: %d page(s) = template, no error page" % (name, got), file=sys.stderr)
+        print("  %s.pdf: %d page(s) = template, no error page%s" % (name, got, ", no overflow (cloud probe)" if ans else ""),
+              file=sys.stderr)
 
 
 def file_name(s):
@@ -1480,54 +1494,114 @@ PROBE_JS = """() => [...document.querySelectorAll('.page')].map(p => {
             })"""
 
 
-def render_via_chrome(items):
-    """FALLBACK, ADDED 2026-09-10 (a session that day) because
-    Playwright is NOT on this operator's Mac and the plugin install shipped no build.py
-    either, so the contracted path could not run at all.
+# ══════════════════════════════════════════════════════════════════════════════
+# ⛔ NO BROWSER RUNS ON THIS MACHINE. THE PDF IS MADE IN THE CLOUD — 2026-10-18 (0.9.66).
+# ══════════════════════════════════════════════════════════════════════════════
+# Card neon_chrome_exits_2_after_writing_the_pdf_so_the_sheet_builder_skips_its_page_check_20261018. Until today
+# this file printed its PDFs with a local browser: Playwright when it was installed, else the Mac's own Chrome
+# (--print-to-pdf). That Chrome exited 2 after writing the PDF whenever the owner's Chrome was open, and its path
+# never ran the overflow probe at all — so the page check was silently skipped, a false green. The owner,
+# 2026-10-18: "It should be a cloud element yes, nothing should be running because my Mac is needed, that I
+# don't know about". So render_via_chrome() and render() (the Playwright launch) are GONE, and so is every way
+# this file had of starting a browser:
+#   --html-only   THE DEFAULT. Writes each sheet's HTML (and words/) and stops, exit 8. No PDF, so no page check
+#                 and no filing plan: the filing plan waits for a PDF.
+#   --pdf cloud   sends each sheet's HTML, with PROBE_JS, to the house's print door (PDF_DOOR, the aii-site
+#                 function api/collateral/print-pdf) with the PUBLISH TOKEN from the local keys file
+#                 (AIOS_PUBLISH_TOKEN in KEYS_FILES). The door prints it at Letter and answers the PDF, its page
+#                 count, the error-page check and this probe's numbers. verify_pdfs() then judges the PDF that
+#                 came back, here, before anything is filed.
+# No token on this machine -> --pdf cloud says so and stops before a byte is written.
+PDF_DOOR = "https://app.aiintegratorhq.com/api/collateral/print-pdf"
+KEYS_FILES = ("~/aios-workshop/aios-bootstrap.env", "~/.aios/aios-bootstrap.env")
+TOKEN_KEY = "AIOS_PUBLISH_TOKEN"
+PDF_MODES = ("cloud",)
+EXIT_HTML_ONLY = 8
 
-    ⛔ THIS PATH PRODUCES THE PDF AND DOES NOT RUN THE ASSERTION. Chrome's --print-to-pdf
-    gives no page handle, so the ov/slack probe cannot run here. It therefore REFUSES to
-    report a pass. PROBE_JS above is the probe, lifted verbatim out of render() so there is
-    exactly one copy of it: run it against the emitted HTML in a real browser and read the
-    numbers yourself. A build that silently skipped a layout assertion and printed nothing
-    about it is the failure this whole family exists to prevent."""
-    import shutil, subprocess
-    chrome = next((c for c in [
-        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-        "/Applications/Chromium.app/Contents/MacOS/Chromium",
-        "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-        shutil.which("google-chrome"), shutil.which("chromium")] if c and pathlib.Path(c).exists()), None)
-    if not chrome:
+
+def pdf_mode():
+    """'html-only' (the default) or 'cloud'. Anything else is refused before a byte is written."""
+    m = _flag("--pdf")
+    if "--pdf" in sys.argv and m is None:
+        raise SystemExit("build.py: REFUSED - --pdf needs a value: --pdf cloud. Nothing was written.")
+    if m is not None and m not in PDF_MODES:
+        raise SystemExit("build.py: REFUSED - --pdf %r is not a way this builder makes a PDF. The one way is --pdf cloud "
+                         "(the house's print door). No browser runs on this machine. Nothing was written." % m)
+    if m and "--html-only" in sys.argv:
+        raise SystemExit("build.py: REFUSED - --html-only and --pdf cloud were both given; pick one. Nothing was written.")
+    return m or "html-only"
+
+
+def publish_token():
+    """The publish token from the local keys file, or None. Read only; never printed, never logged."""
+    for f in KEYS_FILES:
+        p = pathlib.Path(f).expanduser()
+        try:
+            lines = p.read_text(encoding="utf-8").splitlines()
+        except Exception:
+            continue
+        for line in lines:
+            m = re.match(r"\s*(?:export\s+)?%s\s*=\s*(.*?)\s*$" % TOKEN_KEY, line)
+            if m:
+                v = m.group(1).strip().strip("'\"")
+                if v:
+                    return v
+    return None
+
+
+def require_publish_token():
+    t = publish_token()
+    if not t:
         raise SystemExit(
-            "build.py: REFUSED - playwright is not installed and no Chrome/Chromium was found.\n"
-            "Install one, or run: python3 -m pip install playwright && python3 -m playwright install chromium")
+            "build.py: STOPPED - --pdf cloud needs the publish token, and it is not on this machine.\n"
+            "  Looked for %s in: %s\n"
+            "  The token is written by the run file that sets up publishing on this machine; until that has run,\n"
+            "  no PDF can be made here and none is faked. Nothing was written.\n"
+            "  Build with --html-only (the default) to get the sheets' HTML now." % (TOKEN_KEY, ", ".join(KEYS_FILES)))
+    return t
+
+
+def _door_call(token, payload):
+    import urllib.request, urllib.error
+    door = os.environ.get("AII_PRINT_PDF_DOOR") or PDF_DOOR
+    # The token goes to the house's own door and nowhere else: an override may only name this machine (the proof's stand-in door).
+    if door != PDF_DOOR and not re.match(r"\Ahttp://127\.0\.0\.1:\d+/", door):
+        raise SystemExit("build.py: REFUSED - AII_PRINT_PDF_DOOR %r is not the house's print door; the publish token is "
+                         "never sent anywhere else. Nothing was written." % door)
+    req = urllib.request.Request(door, data=json.dumps(payload).encode("utf-8"), method="POST",
+                                 headers={"Content-Type": "application/json", "Authorization": "Bearer " + token})
+    try:
+        with urllib.request.urlopen(req, timeout=180) as r:
+            return json.loads(r.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        try:
+            said = json.loads(e.read().decode("utf-8"))
+        except Exception:
+            said = {}
+        raise SystemExit("build.py: REFUSED - the print door said no (HTTP %d %s): %s No PDF was made."
+                         % (e.code, said.get("error", ""), said.get("message", "")))
+    except Exception as e:
+        raise SystemExit("build.py: REFUSED - the print door could not be reached (%s). No PDF was made."
+                         % type(e).__name__)
+
+
+def render_via_cloud(items, token):
+    """Each sheet to the house's print door. Writes OUT/<name>.pdf from the answer and returns {name: door answer}.
+    The door's verdict is not taken on trust: verify_pdfs() judges the returned PDF here."""
+    want_probe = hashlib.sha256(PROBE_JS.encode("utf-8")).hexdigest()
+    seen = {}
     for name, path in items:
-        pdf = OUT / f"{name}.pdf"
-        subprocess.run([chrome, "--headless", "--disable-gpu", "--no-pdf-header-footer",
-                        f"--print-to-pdf={pdf}", f"file://{path}"],
-                       check=True, capture_output=True)
-        print(f"  {name:>52}  PDF via Chrome", file=sys.stderr)
-    print("\n⚠ LAYOUT ASSERTION NOT RUN ON THIS PATH - Chrome --print-to-pdf exposes no page\n"
-          "  handle. The PDFs above are built and UNVERIFIED for overflow/collision. Run\n"
-          "  build.PROBE_JS against each emitted .html in a browser and read ov/slack.\n"
-          "  ov must be 0 and slack must be >= 0 on every page.", file=sys.stderr)
-    return None   # NOT 0. 0 would read as "zero bad pages" and this path cannot know that.
-
-
-async def render(items):
-    from playwright.async_api import async_playwright
-    async with async_playwright() as p:
-        b = await p.chromium.launch()
-        pg = await b.new_page()
-        for name, path in items:
-            await pg.goto(f"file://{path}")
-            await pg.wait_for_timeout(350)
-            over = await pg.evaluate(PROBE_JS)
-            print(f"  {name[-28:]:>28}  {over}", file=sys.stderr)
-            pdf = OUT / f"{name}.pdf"
-            await pg.pdf(path=str(pdf), format="Letter", print_background=True,
-                         margin={"top": "0", "bottom": "0", "left": "0", "right": "0"})
-        await b.close()
+        ans = _door_call(token, {"html": pathlib.Path(path).read_text(encoding="utf-8"), "probe_js": PROBE_JS, "name": name})
+        if not isinstance(ans, dict) or ans.get("ok") is not True or not ans.get("pdf_b64"):
+            raise SystemExit("build.py: REFUSED - the print door answered without a PDF for %s. No sheet delivered." % name)
+        if ans.get("probe_sha256") != want_probe:
+            raise SystemExit("build.py: REFUSED - the print door ran a different overflow probe than this builder's PROBE_JS "
+                             "for %s. No sheet delivered." % name)
+        (OUT / ("%s.pdf" % name)).write_bytes(base64.b64decode(ans["pdf_b64"]))
+        print("  %52s  PDF via the cloud print door: %s page(s), probe %s"
+              % (name[-52:], ans.get("pages"), ans.get("probe")), file=sys.stderr)
+        seen[name] = ans
+    return seen
 
 
 def selftest_frame_refusal():
@@ -1770,6 +1844,8 @@ def main():
     #   the guard: load_frame() above any write_text() is what makes "REFUSES and
     #   writes no file" true rather than aspirational.
     require_work()
+    MODE = pdf_mode()
+    TOKEN = require_publish_token() if MODE == "cloud" else None   # before a byte is written, so a missing token writes nothing
     if "--dry-route" in sys.argv:
         # Reads content.py and the flags only - no store rows, no fonts, no render - and writes nothing.
         _sheets = load_sheets()
@@ -1834,23 +1910,27 @@ def main():
                               "recipient_company": s.get("recipient_company") if s["kind"] == "personalized" else None,
                               "recipient_terms": list(s.get("recipient_terms") or []) if s["kind"] == "personalized" else None,
                               "audience_label": s.get("audience_label") or s.get("audience") or ""}
-    try:
-        import playwright  # noqa: F401
-        bad = asyncio.run(render(items))
-    except ModuleNotFoundError:
-        bad = render_via_chrome(items)
-    verify_pdfs(items, EXPECT)
+    if MODE == "html-only":
+        # ⛔ HTML ONLY (the default since 0.9.66): no PDF, so no page check and no filing plan. exit 8, never 0.
+        print("built (HTML only):")
+        for n, p in items:
+            print("  ", p, "\n     words:", WORK / "words" / ("%s.html" % n))
+        print()
+        print("⛔ HTML ONLY — exit %d. No PDF was made, so the page check, the error-page check and the" % EXIT_HTML_ONLY)
+        print("   overflow probe have NOT run, and nothing is planned for filing (the filing plan waits for a PDF).")
+        print("   No browser ran on this machine. To make the PDFs and run their checks in the cloud: --pdf cloud.")
+        raise SystemExit(EXIT_HTML_ONLY)
+    DOOR = render_via_cloud(items, TOKEN)
+    verify_pdfs(items, EXPECT, DOOR)
     (OUT / "_audience.json").write_text(json.dumps(AUD, ensure_ascii=False, indent=1), encoding="utf-8")
     print("built:")
     for n, _ in items:
         print("  ", (OUT / f"{n}.pdf").name)
     # The layout proof prints HERE, before the exit-9 block below. Until 2026-09-11 these lines sat
     # AFTER `raise SystemExit(9)` and never ran, so "no layout overflow on any page" (the collateral
-    # skill's Step 5 proof) never reached the person running the build.
-    if bad is None:
-        print("layout overflow/collision pages: UNVERIFIED (see the warning above)")
-    else:
-        print("layout overflow/collision pages:", bad)
+    # skill's Step 5 proof) never reached the person running the build. Since 0.9.66 the probe RUNS on every
+    # PDF (in the cloud) and verify_pdfs() refuses a page that overflows, so reaching this line means none did.
+    print("layout overflow/collision pages: none (PROBE_JS run by the cloud print door on %d sheet(s))" % len(items))
 
     # ══════════════════════════════════════════════════════════════════════════════
     # ⛔ A BUILD IS NOT A DELIVERY. THIS PROGRAM NO LONGER EXITS 0 HERE.

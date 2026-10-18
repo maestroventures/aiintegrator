@@ -307,9 +307,12 @@ label, use it. If it does not, say so plainly rather than leaving the question o
 You write the content. The builder writes the file. It owns the layout, the brand assertions and
 the layout probes; the type and the palette are the sending company's, read from its brand rows.
 
-**Where it runs.** Resolve it. A builder that renders through a headless browser needs one to be
-present, and the runtime that has one is not always the runtime you are in. If you are on a surface
-that cannot run it, **say so and stop** — do not hand-roll the output.
+**Where it runs.** The builder writes each sheet's HTML on the machine you are in — that is its default
+(`--html-only`), and nothing starts a browser there. The PDF and its checks (page count, error page,
+overflow probe) run in the cloud: `--pdf cloud` sends each sheet to the house's print door with the
+publish token from the local keys file, and the builder judges the PDF that comes back. If the token is
+not on the machine, or the door cannot be reached, the builder **says so and stops** — do not hand-roll
+the output or print it with a local browser.
 
 **Where each sheet lands — you pass it, the builder never guesses.** One build can hold more than one
 kind of sheet, so the builder takes one destination per kind: `--folder-personalized`,
