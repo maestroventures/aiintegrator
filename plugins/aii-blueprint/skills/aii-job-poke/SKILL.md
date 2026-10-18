@@ -6,7 +6,7 @@ description: >
   NO schedule — it asks the tenant's queue what is due, claims ONE job, does it with the whole run's
   time, beats, and stops. Identical text on every platform.
   Install once per platform; never edit again.
-  Installed AI Integrator Blueprint plugin version: 0.9.66.
+  Installed AI Integrator Blueprint plugin version: 0.9.67.
 ---
 
 # Job Poke — install this once per AI platform, then forget it
