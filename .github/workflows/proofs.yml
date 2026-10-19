@@ -1,0 +1,35 @@
+# proofs.yml - the required check named `proofs` that guards main on this repository.
+#
+# WHY: until 2026-10-19 nothing on this repository could go red before a change reached main. Bryce ruled
+# (dr_owner_key_off_sessions_strict_main_protect_three_repos_20261019) that main is protected the same way as aii-site:
+# the check `proofs` must pass, the branch must be up to date before merging (strict), admins included, auto-merge on green.
+# The job id and name are both `proofs` - the protection requires that exact name, so do not rename either.
+#
+# It keeps no list of files: .github/scripts/proofs.mjs walks `git ls-files` and runs whatever
+# .github/proofs.list names, so a file or proof added tomorrow is picked up without touching this workflow.
+name: proofs
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: proofs-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  proofs:
+    name: proofs
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run the proofs
+        run: node .github/scripts/proofs.mjs

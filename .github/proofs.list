@@ -1,0 +1,10 @@
+# Proofs the required `proofs` check runs (each from the repository root, must exit 0). Add a line to add a proof.
+plugins/aii-blueprint/skills/aii-call-debrief/prove-call-doc-health.js
+plugins/aii-blueprint/skills/aii-call-debrief/prove-debrief-speakable.js
+plugins/aii-blueprint/skills/aii-call-debrief/prove-hosted-handoff.js
+plugins/aii-blueprint/skills/aii-call-debrief/prove-promise-writer.js
+plugins/aii-blueprint/skills/aii-call-guide/prove-call-doc-health.js
+plugins/aii-blueprint/skills/aii-call-guide/prove-call-guide-links.js
+plugins/aii-blueprint/skills/aii-call-guide/prove-guide-speakable.js
+plugins/aii-blueprint/skills/aii-call-guide/prove-hosted-handoff.js
+plugins/aii-blueprint/skills/aii-call-guide/prove-open-loop-refusal.js
