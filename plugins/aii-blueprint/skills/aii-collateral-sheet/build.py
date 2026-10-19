@@ -1497,7 +1497,7 @@ PROBE_JS = """() => [...document.querySelectorAll('.page')].map(p => {
 # ══════════════════════════════════════════════════════════════════════════════
 # ⛔ NO BROWSER RUNS ON THIS MACHINE. THE PDF IS MADE IN THE CLOUD — 2026-10-18 (0.9.66).
 # ══════════════════════════════════════════════════════════════════════════════
-# Card neon_chrome_exits_2_after_writing_the_pdf_so_the_sheet_builder_skips_its_page_check_20261018. Until today
+# Until 2026-10-18
 # this file printed its PDFs with a local browser: Playwright when it was installed, else the Mac's own Chrome
 # (--print-to-pdf). That Chrome exited 2 after writing the PDF whenever the owner's Chrome was open, and its path
 # never ran the overflow probe at all — so the page check was silently skipped, a false green. The owner,

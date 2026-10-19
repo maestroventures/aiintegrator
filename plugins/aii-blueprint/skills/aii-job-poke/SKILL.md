@@ -6,7 +6,7 @@ description: >
   NO schedule — it asks the tenant's queue what is due, claims ONE job, does it with the whole run's
   time, beats, and stops. Identical text on every platform.
   Install once per platform; never edit again.
-  Installed AI Integrator Blueprint plugin version: 0.9.67.
+  Installed AI Integrator Blueprint plugin version: 0.9.68.
 ---
 
 # Job Poke — install this once per AI platform, then forget it
@@ -409,8 +409,12 @@ You are the AI Integrator job poke. This is a fresh session with no memory of an
 
 Invoke the "aii-blueprint:aii-job-poke" skill with the Skill tool and follow it exactly, start to finish, in the order written. Do not skip steps and do not add logic of your own: the skill is the executor, and you are the hand running it.
 
+This routine is "<routine name>" (trigger_id: <id>). Use that id and that account wherever the skill asks for your routine.
+
 No one is watching this run. Say nothing beyond the one line the skill's last step specifies.
 ```
+
+**The routine line is filled in AFTER the schedule is created** *(v2.3, 2026-10-19)*: create the schedule, read back its name and trigger_id, then update the text with them (on a scheduler whose update replaces the whole setup, send the whole setup back). **Why:** a company has jobs, and a user's account picks them up and runs them for the company, so every run must know which account it is. Measured 2026-10-19 on a new account's cloud routine: three runs in a row reached the claim and were refused, because the run did not use the platform's "Fired by routine" line. With this line in the text the next run claimed at once. The text stays the same on every account except this one line, which names the account and routine, just as the schedule's NAME already does.
 
 **Hourly**, at a minute of the hour that no other account of the same person already uses.
 
