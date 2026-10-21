@@ -1,12 +1,12 @@
 ---
 name: aii-job-poke
-version: v2.2 (2026-10-12)
+version: v2.4 (2026-10-21)
 description: >
   The ONE recurring task installed on each AI platform a tenant uses. It carries NO job logic and
   NO schedule — it asks the tenant's queue what is due, claims ONE job, does it with the whole run's
   time, beats, and stops. Identical text on every platform.
   Install once per platform; never edit again.
-  Installed AI Integrator Blueprint plugin version: 0.9.68.
+  Installed AI Integrator Blueprint plugin version: 0.9.69.
 ---
 
 # Job Poke — install this once per AI platform, then forget it
@@ -196,7 +196,7 @@ and still never the Blueprint sign-in:
 (never the Blueprint sign-in), and put `fallback` in your Step 5 line.
 
 `claimed` gives you `claim.r_run_id`, `claim.r_lease_expires`, `claim.r_body_ref` and `claim.r_seat`. `nothing_due`
-is success: say so in one line and stop.
+is success: do Step 2c, then say so in one line and stop.
 
 A fallback claim records no routine id, which is exactly how
 the store sees that this poke could not be traced — so never hide it.
@@ -221,11 +221,55 @@ reads as EMPTY, so a dedup pass concludes nothing exists and rebuilds everything
 
 - **One row back** → it is yours. Note `r_run_id` and `r_lease_expires`. Continue.
 - **Zero rows back** → nothing is due, or another executor already holds everything due.
-  **This is success, not failure.** Reply with one line — "nothing due" or "all due work already
-  claimed elsewhere" — and stop. Do not retry. Do not claim again.
+  **This is success, not failure.** Do Step 2c, then reply with one line — "nothing due" or "all due
+  work already claimed elsewhere" — and stop. Do not retry. Do not claim again.
 
 You are ALIVE the moment you claim: the claim itself writes the alive beat. You do not write one,
 and you cannot forget to. A job that dies in its very next breath still proves it woke up.
+
+---
+
+## Step 2c — Read your own meter and post it, on EVERY knock *(v2.4, 2026-10-21)*
+
+**Run this right after the claim answers, whatever it answered: a job, `nothing_due`, or a refusal.**
+Every AI account reports its own 5-hour and weekly allowance at its check-in, so the company can use
+every account it pays for to the full (ruling `dr_every_ai_account_reports_its_own_usage_at_check_in_20261021`).
+
+**This step never blocks the knock, never fails it, and is silent.** It changes nothing about the claim,
+the job, the beat or the outcome. If anything in it errors, drop it and carry on. Say nothing about it
+except the numbers on your one line (3 below).
+
+1. **Read your own meter, the way your own platform shows it.** On Claude Code (a cloud routine), run
+   this once with your shell tool:
+
+   ```
+   timeout 90 claude -p 'reply with the single word ok' --output-format stream-json --verbose 2>&1 | grep -m1 '"rate_limit_event"'
+   ```
+
+   The line it prints is JSON. Read `rate_limit_info.unifiedWindows.five_hour` (the 5-hour window) and
+   `rate_limit_info.unifiedWindows.seven_day` (the week). Each has `utilization`, from 0 to 1, and
+   `resetsAt`, in epoch seconds. The used percent is utilization × 100, rounded to a whole number; the
+   reset time is resetsAt as an ISO time in UTC.
+
+   Another AI platform reads its own meter its own way. A platform with no meter you can read, or a run
+   with no shell, reads nothing: that is source `none`.
+
+2. **Post it through the Blueprint connector**: "Do one thing in one of my tools", verb `Edit`, noun
+   `ai account` ("Edit an AI account reading"), with these args:
+   - `account`: `r_seat` from the claim; on `nothing_due` or a refused claim, the account in your
+     routine's NAME (the part right after the platform). Never the Blueprint sign-in.
+   - `platform`: your AI platform as one word (`claude` on Claude Code).
+   - `source`: `self`, because you read it yourself.
+   - `window_used_pct` and `window_resets_at` from the 5-hour window; `weekly_used_pct` and
+     `weekly_resets_at` from the week.
+
+   **No event, a command that failed or timed out, or a number that does not parse: post `source`
+   `none` with no percents and no times.** Never invent a number, never estimate one, and never carry
+   one over from an earlier run. A meter nobody read is recorded empty, and that is the honest answer.
+   If the post itself is refused or errors, drop it and carry on. Do not retry.
+
+3. **Your one line carries the numbers.** End the nothing-due line, or the Step 5 line, with
+   ` · 5H <window_used_pct>% · WEEKLY <weekly_used_pct>%`, or ` · meter none` when nothing was read.
 
 ---
 
