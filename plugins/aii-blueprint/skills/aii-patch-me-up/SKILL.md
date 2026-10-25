@@ -287,11 +287,13 @@ Seen 2026-09-11 on an operator's own accounts, and it is the same drift every ac
 
 **Look** with the scheduling tool's own list call — the one this account's chat is handed. A chat sees
 only its own account's schedules, so this item is always about THIS account. Find the schedules whose name
-starts `AII Poke`. **Sort** into one bucket:
+starts `AII Wake` — or `AII Poke`, the older name of the same routine. **Sort** into one bucket:
 
 - **Live** — exactly one, switched on, its text matches the block word for word, its name is the
-  standard `AII Poke · <platform> · <account email>` with nothing added, and its allowed tools contain
-  every name in `aii-job-poke`'s allowed-tools block *(added 2026-09-19)*.
+  standard `AII Wake · <platform> · <account email>` with nothing added, and its allowed tools contain
+  every name in `aii-job-poke`'s allowed-tools block *(added 2026-09-19)*. The older name
+  `AII Poke · <platform> · <account email>` is ALSO the standard name *(v1.12)*: the same routine under
+  its old name, still **Live** and never a defect. Do not flag it; Step 3 offers the rename in one line.
 - **Will stop to ask** — everything above is right except that one or more names in that block are not
   in its allowed tools. Every run stops at the first one and waits for a click nobody gives. Name the
   missing tools. If you cannot read the schedule's allowed tools, say **unknown** — never Live.
@@ -299,7 +301,7 @@ starts `AII Poke`. **Sort** into one bucket:
   added), or its name carries more than those three parts (for example a trailing `· auth <email>`).
   Say what differs in one plain sentence, never the whole prompt.
 - **Missing** — none. The account runs none of the company's scheduled work.
-- **More than one** — two or more poke schedules on one account. Name each by its minute of the hour.
+- **More than one** — two or more of these schedules on one account, counting both names. Name each by its minute of the hour.
 
 If the list call is refused or not there, say so in one line and skip this item — never guess the answer.
 
@@ -395,7 +397,7 @@ is being asked. Nygard — a silent non-answer must never read as a decline.)*
   keep stays exactly as it was.
 - **The poke schedule — the ONE thing this skill may change itself, and only on a yes** *(ruled
   `dr_every_account_runs_the_one_poke_install_20260911_100645`)*. For *not the way you set it*, offer:
-  "replace this schedule's text with the standard poke text" — say which account and which minute. On
+  "replace this schedule's text with the standard wake routine text" — say which account and which minute. On
   the person's explicit yes, replace ONLY the text, with the platform's own update tool; keep its minute,
   whether it is on, and its allowed tools. ⚠ *(2026-09-19)* On Claude that update REPLACES the schedule's
   whole setup: `get` it first and send back the whole setup with only the text changed, never the prompt
@@ -404,8 +406,12 @@ is being asked. Nygard — a silent non-answer must never read as a decline.)*
   offer — as its own yes — to rename it to the standard three parts: the name is what the person reads
   (which of their accounts acts for them), and a system fact such as the Blueprint connector's sign-in
   belongs in the store, never in a name *(`dr_poke_schedule_name_carries_the_connector_20260911_104829`)*.
-  Keep the name unchanged when they skip. For *missing*, offer to create
-  it with the name `AII Poke · <platform> · <account email>` at a free minute, the same way, on a yes —
+  Keep the name unchanged when they skip. If it is **Live** but still named `AII Poke · …`, offer in one
+  line, as its own yes and never as a problem: "rename it to `AII Wake · <platform> · <account email>`
+  so it matches the Wake key". On a yes change ONLY the name (on Claude, `get` it and send back the whole
+  setup with only the name changed), then read it back; on a skip it stays Live as it is *(v1.12)*.
+  For *missing*, offer to create
+  it with the name `AII Wake · <platform> · <account email>` at a free minute, the same way, on a yes —
   and with `aii-job-poke`'s allowed-tools block passed in the create call itself, never added after.
   For *will stop to ask*, do not update the schedule to add tools: hand the person the fix that is
   theirs — Settings → Connectors → AI Integrator - Blueprint → **Always allow** on each missing tool,
@@ -494,6 +500,8 @@ reconnect, remove, or install anything on its own, even when the right fix looks
 is the user's yes.
 
 ---
+
+*v1.12 — 2026-10-25. The routine a person sees is named **AII Wake**, the same word as its key (`dr_people_see_wake_the_routine_is_named_for_its_key_20261025`; approved by the operator in his own typed words, 2026-10-25). Step 2f now finds schedules named `AII Wake` or `AII Poke` and accepts BOTH as the standard name: an older `AII Poke · …` is the same routine, Live, never a defect. Step 3 offers to rename it in one line, on its own yes, and a new install is named `AII Wake · <platform> · <account email>`. The three-part format is unchanged; only the first word a person reads changed. Sibling: `aii-job-poke` v2.5 (the install name). Internal names (the skill id `aii-job-poke`, tables, job names) are unchanged.*
 
 *v1.11 — 2026-09-20. New **Step 5 — finish on the company's own platform picture**: open `/api/cc/my-company?view=picture`, say in one line what they are looking at, and leave the page's own three questions (*Which part of your business? / What should it run? / Where does your team work?*, folded behind **Personalize it more** or **Make it yours**) unasked unless the company says it wants to change what it sees. A tool they name is a candidate for the company's tool record, reviewed like any Step 2e asset and never written straight from a page. Carries its own red: step 1 of the picture must name at least one tool from the company's own records, or this run never reached their systems. Additive: no step renumbered, no bucket changed, no behavior removed, detect-and-offer unchanged, Step 4's Tune-Up offer unchanged. The frontmatter description was measured and left alone — it stands at 1,015 of the 1,024-character cap and never enumerated steps. Approved by pop-up 2026-09-20 (`dr_patch_me_up_ends_on_the_platform_picture_20260920_040000`). Sibling: the `blueprint-skills.md` §4 row, which restated the handoff as the ending. Lens: Krug (never make them work it out), Nygard (fail honest).*
 
