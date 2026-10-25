@@ -1,12 +1,12 @@
 ---
 name: aii-job-poke
-version: v2.4 (2026-10-21)
+version: v2.5 (2026-10-25)
 description: >
   The ONE recurring task installed on each AI platform a tenant uses. It carries NO job logic and
   NO schedule — it asks the tenant's queue what is due, claims ONE job, does it with the whole run's
   time, beats, and stops. Identical text on every platform.
   Install once per platform; never edit again.
-  Installed AI Integrator Blueprint plugin version: 0.9.69.
+  Installed AI Integrator Blueprint plugin version: 0.9.70.
 ---
 
 # Job Poke — install this once per AI platform, then forget it
@@ -159,8 +159,9 @@ call `my_context` to find out who you are.
 **2a — Verify your own routine, every run, before claiming.** Read YOUR routine with your scheduling
 tool's list call (the entry whose id equals your trigger_id): its cron expression, whether it is
 enabled, its updated_at, and the time zone the cron is evaluated in. Take the account from the
-routine's NAME — the part right after the platform in `AII Poke · <platform> · <account>`, and never any
-other email in the name or the text *(v1.5)*. Then:
+routine's NAME — the part right after the platform in `AII Wake · <platform> · <account>` (an older routine
+still named `AII Poke · <platform> · <account>` reads the same way), and never any other email in the name
+or the text *(v1.5; name v2.5)*. Then:
 
 Call `job_poke_verify_routine` with the values you just read from your own routine: `account` (from the routine's
 name), `cron`, `trigger_id`, `trigger_updated_at`, `enabled`, `routine_name` and `cron_tz`. If it answers
@@ -436,15 +437,22 @@ retyping anything.
 **The schedule's NAME** carries the account, because that is where a run finds it when it must fall back:
 
 ```
-AII Poke · <platform> · <account email>
+AII Wake · <platform> · <account email>
 ```
 
-**Those three parts and nothing more.** *(v1.5, `dr_poke_schedule_name_carries_the_connector_20260911_104829`.)*
-The name is what a PERSON reads, and what they need from it is that this is the AII Poke and which of
-their accounts is acting for them or their company. A fact the SYSTEM needs in order to check the work —
+**Those three parts and nothing more.** *(v1.5, `dr_poke_schedule_name_carries_the_connector_20260911_104829`; the first
+word is Wake since v2.5, 2026-10-25, `dr_people_see_wake_the_routine_is_named_for_its_key_20261025`.)*
+The name is what a PERSON reads, and what they need from it is that this is the AII Wake — the routine
+that wakes this account to pick up the company's scheduled work, the same word the person sees on its
+key — and which of their accounts is acting for them or their company. Only the name a person sees
+says Wake: this skill's id `aii-job-poke` and every word under the hood are unchanged. A fact the SYSTEM needs in order to check the work —
 which account the Blueprint connector signed in with, which routine fired, which model ran — is recorded
 in the store, never added to a name. A name with an extra part (for example `· auth <email>`) is not the
 standard one.
+
+**An older routine named `AII Poke · <platform> · <account email>` is the same routine** under its old
+name and runs exactly as before; it is renamed to `AII Wake · …` from a chat signed in to that account
+(the setup check, `aii-patch-me-up` Step 2f, offers the rename).
 
 **The schedule's TEXT**, word for word — the prompt body only, never with a header of your own:
 
