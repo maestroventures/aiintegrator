@@ -240,8 +240,8 @@ not reach that person.
    is a property of the JOBS the framework performs for this client, read from the capability floor;
    never inferred from what happens to be installed.
    Read your own skill listing and record what is really on with `record_my_skills_observed`, one call per provider. Say whether the listing is complete. Read any `uncovered` names back to them: those are skills that are on but that the setup does not know about.
-7. **Turn on the check-in that runs the company's scheduled work, on this account — from Claude Code.**
-   The check-in is a routine, and a routine can only be made from a Claude Code session; a Cowork task
+7. **Turn on the wake routine that runs the company's scheduled work, on this account — from Claude Code.**
+   The wake routine is a routine, and a routine can only be made from a Claude Code session; a Cowork task
    cannot make one. Say that first, in one line, and have them open Claude Code on this same account.
    **Before you start, check the two things a fresh account is missing** — on a real walk (2026-10-09)
    the session stopped on both: (a) the plugin is installed in that Claude Code session (its skills are
@@ -255,10 +255,15 @@ not reach that person.
    `aii-job-poke` *Installing it on an account* exactly: one hourly schedule, the standard name and
    text, and its allowed-tools block passed IN THE CREATE CALL — a schedule missing one of those tools
    stops at the first run and never says so. On their yes, create it; then `get` it and read its allowed
-   tools back against the block. If a schedule named `AII Poke` already exists, do not create a second
+   tools back against the block. If a schedule named `AII Wake` or `AII Poke` already exists, do not create a second
    and do not update it: run `aii-patch-me-up` Step 2f for this account. Tell them it is proven only
    when the first beat lands (a `job_run` row for their company whose detail starts `door=`), and say
    which outside tools their company's jobs will reach so they can allow those too.
+   **Then the Ask routine, the same way, on their yes** — `aii-patch-me-up` Step 2f and Step 3 own how
+   (its spec, its name, registering it with the store). **Close the item with the two steps that are
+   theirs and nobody else's:** press **Generate token** on each routine, Wake first, and paste each one
+   straight onto its key line in Tools. Say plainly that a routine with no key is set up but cannot be
+   woken.
 
 **This step ends when the last of these is done and verified, or, for an item that blocks nothing after
 it, noted as not done and carried to the report.** Nothing that asks the client a question
@@ -608,6 +613,8 @@ Not for a client who is already stood up and running — that is `aii-patch-me-u
 run, once, for a new client.
 
 ---
+
+*v1.22 — 2026-10-27. Approved by the operator through the locked-file pop-up, "Yes, make it" (`dr_the_ai_sets_up_each_accounts_routines_and_the_person_only_makes_the_keys_20261027`). Step 2 item 7: the routine is called the wake routine, the word a person sees on its key (`dr_people_see_wake_the_routine_is_named_for_its_key_20261025`), and an existing schedule is found under either name, `AII Wake` or `AII Poke`. The item now also makes the Ask routine, the same way and on their yes, pointing at `aii-patch-me-up` Step 2f and Step 3 for how rather than restating it, and closes on the only two steps that are the person's: Generate token on each routine, and pasting each key in Tools. Nothing else changed; nothing renumbered. Sibling: `aii-patch-me-up` v1.13. Lens: Krug (the person does only what no tool can), Evans (one home for how).*
 
 *v1.21 — 2026-10-11. Approved by the operator in chat. Asked which of four edits to the locked onboarding skill he approved, he answered "1a, co-creation, all four edits approved" (`dr_four_onboarding_skill_edits_approved_20261011`); edit five carries his separate ruling `dr_a_proctored_walk_patches_small_or_skips_and_patches_later_20261011`. Five edits, all from the 2026-09-22 to 2026-10-09 walks, nothing renumbered: (1) new section *When a proctor is on the call*, rule 2: when a partner meeting starts turning into an install, the proctor says so and books a separate install session; (2) Step 2 item 7: the check-in routine is made from Claude Code, after checking the plugin is installed there and the Claude Code Remote connector is added, with the two connector addresses handed over and the "Default" environment used; (3) new Step 5b: onboarding ends with the Command Center link and the one top card of the person's own board; (4) Step 3b asks where the company keeps its shared files before creating anything, never assumes Google Drive, and records one of three storage choices (Google Drive, Dropbox, local), with a local folder when there is no connector yet; (5) *When a proctor is on the call*, rule 1, the stop rule in his words: a small patch first, otherwise skip the section and queue a small Patch Me Up for that function, run when the operator says so — and a pointer to it from *Fail loud*. Also says "framework tier" in Step 3b, where it said "house tier". Lens: Allen (one next action), Nygard (a live fix stays small), Krug (ask, never assume).*
 
