@@ -1,6 +1,6 @@
 ---
 name: aii-call-guide
-version: v1.5 (2026-10-12)
+version: v1.6 (2026-10-26 — 3.5c reads the buyer's own words kept by earlier debriefs from the same kind of person; dr_debrief_keeps_buyer_words_20261026_173407)
 description: >
   AI Integrator Blueprint: Call Guide. Builds a deep, advisor-driven sales call guide for an
   upcoming meeting and saves it as a standalone interactive HTML file in the client folder. Use
@@ -289,6 +289,11 @@ recipient READS; the talk track is what the operator SAYS. They are never the sa
    what we could build together (co-creation, a product in their name). **Read the newest debrief's
    shape answers first** (`aii-call-debrief` Step 4e — a CRM note titled *Shape answers*): the
    track must get better every call, so what the operator told us last time outranks what we guessed.
+   **Then read the buyer's own words** that earlier debriefs kept (`aii-call-debrief` Step 4f,
+   `buyerWords`) **from people of the same kind as this person** (same title, responsibility or
+   level), not only from this person. When the guide names their problem, an objection or a
+   reason to act now, use the buyers' words for it, not ours. When no earlier call holds words from
+   this kind of person, say so in one line; that is not a gap to fill by guessing. (Added 2026-10-26.)
    Set `from_telling`, `set_by`, `set_at`. **Rewrite** when the telling, the recipient, or what we
    know has changed since `from_telling` / `set_at` — **and when the purpose of THIS call has
    changed.** Re-read every existing row against this call's purpose and what they have already

@@ -305,6 +305,18 @@ starts `AII Wake` — or `AII Poke`, the older name of the same routine. **Sort*
 
 If the list call is refused or not there, say so in one line and skip this item — never guess the answer.
 
+**Then the ASK routine on this account, and both KEYS** *(v1.13)*. The Ask routine answers a question
+someone asks under a video made for them. It has no schedule, because the website wakes it. Its
+settings and its saved prompt live in ONE place — the Ask routine's spec, found through the spec map
+(slice `ask-routine`) — so read them there, never from memory. Find the routine whose name starts
+`AII Ask` and sort it the same way: **Live** (exactly one, switched on, its text matches that spec word
+for word, named `AII Ask · <platform> · <account email>`, and the store has it registered for this
+account), **Not the way you set it**, **Missing**, or **More than one**. Then each KEY, for the Wake
+routine and for the Ask routine: read the hint of the key the store holds for that routine (never the
+key itself) and the routine's own token hint from the list call. The same → **Live**. Different, or no
+key held → **Needs a new key**. Last, anything else on this account named `AII …`, or a paused copy of
+either routine → **Left over**.
+
 ## Steps 2g–2i — And the PLUGIN, the INSTRUCTIONS BOX, and WHO CAN SEE WHAT *(added 2026-09-16)*
 
 Three more inventories, same job as Step 2: **look, sort into one plain bucket, hand the fix to Step 3.**
@@ -395,7 +407,7 @@ is being asked. Nygard — a silent non-answer must never read as a decline.)*
   settings. So for a leftover AI Integrator connector from before the one-connector plugin, or any installed-but-unused connector, this skill **flags it and hands the removal
   step; it never removes anything itself**, and it always asks first. A connector the user says to
   keep stays exactly as it was.
-- **The poke schedule — the ONE thing this skill may change itself, and only on a yes** *(ruled
+- **The Wake and Ask routines — the ONLY things this skill may change itself, and only on a yes** *(ruled
   `dr_every_account_runs_the_one_poke_install_20260911_100645`)*. For *not the way you set it*, offer:
   "replace this schedule's text with the standard wake routine text" — say which account and which minute. On
   the person's explicit yes, replace ONLY the text, with the platform's own update tool; keep its minute,
@@ -419,6 +431,16 @@ is being asked. Nygard — a silent non-answer must never read as a decline.)*
   For *more than one*, never delete: say which one to keep and hand the removal step. Why this one is
   allowed: a schedule's text can only be changed by retyping it, and retyping by hand is exactly how
   these schedules drift.
+- **The Ask routine, the keys, and what is left over** *(v1.13)*. Which of these a session may do, and
+  whether it asks first, is the Claude tool's answer in the catalog (`what_can_i_do`) — read it, never
+  assume it. For *missing*, on a yes, create it from its spec with the name
+  `AII Ask · <platform> · <account email>`, register it with the store's Ask-routine door
+  (`page_ask_routine_put`), then read both back. For *needs a new key*, the step is theirs, because only
+  a person can make a routine's key: open that routine, press **Generate token**, and paste it straight
+  onto that routine's key line in Tools (Settings → Admin → Company tools → Claude → the account). Re-read
+  the hint afterwards. For *left over*, on a yes, turn it off and put `DELETE · ` at the front of its
+  name, then hand the one click that is theirs — **⋯ → Delete** on its card — because no tool can delete
+  a routine.
 
 A user whose setup is already clean gets the honest, useful result: **"You're current — nothing to
 fix."** That's a valid, complete run. Pair it with the coverage note from Step 1: this checked the
@@ -500,6 +522,8 @@ reconnect, remove, or install anything on its own, even when the right fix looks
 is the user's yes.
 
 ---
+
+*v1.13 — 2026-10-27. The AI sets up each account's routines; the person only makes the keys (`dr_the_ai_sets_up_each_accounts_routines_and_the_person_only_makes_the_keys_20261027`; approved by the operator through the locked-file pop-up, "Yes, make it", after asking in his own words that it "should be a part of the onboarding and patch me up function so that users don't have to do it themselves"). Step 2f gains the Ask routine (found by name, sorted with the same buckets, its settings read from its one spec through the spec map), a key check for both routines (the store's key hint against the routine's own), and a **Left over** bucket. Step 3's carve-out widens from the Wake routine to both routines, still only on a yes: create a missing Ask routine and register it, turn a left-over routine off and mark it `DELETE · `. The two steps no tool can do stay the person's and are named: Generate token, and ⋯ → Delete. What a session may do is read from the Claude tool's acts in the catalog, never assumed. Additive: no step renumbered, no bucket removed, the Wake routine's rules unchanged. Found when one of the operator's own accounts had run for weeks with no Ask routine and nothing said so. Sibling: `aii-onboard-client` v1.22. Lens: Krug (do not make the person do what the system can), Nygard (a missing routine was silent), Evans (the catalog is the one home for what may be done).*
 
 *v1.12 — 2026-10-25. The routine a person sees is named **AII Wake**, the same word as its key (`dr_people_see_wake_the_routine_is_named_for_its_key_20261025`; approved by the operator in his own typed words, 2026-10-25). Step 2f now finds schedules named `AII Wake` or `AII Poke` and accepts BOTH as the standard name: an older `AII Poke · …` is the same routine, Live, never a defect. Step 3 offers to rename it in one line, on its own yes, and a new install is named `AII Wake · <platform> · <account email>`. The three-part format is unchanged; only the first word a person reads changed. Sibling: `aii-job-poke` v2.5 (the install name). Internal names (the skill id `aii-job-poke`, tables, job names) are unchanged.*
 

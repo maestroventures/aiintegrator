@@ -1,6 +1,6 @@
 ---
 name: aii-call-debrief
-version: v1.7 (2026-10-15 — what was said comes only from the full transcript, never a notetaker's summary; dr_we_read_the_full_transcript_never_a_transcription_service_summary_20261015)
+version: v1.8 (2026-10-26 — Step 4f keeps the buyer's own words, buyerWords, tagged by kind and person type; dr_debrief_keeps_buyer_words_20261026_173407). Previously v1.7 (2026-10-15 — what was said comes only from the full transcript, never a notetaker's summary; dr_we_read_the_full_transcript_never_a_transcription_service_summary_20261015)
 description: >
   AI Integrator Blueprint: Call Debrief. Builds a deep, advisor-driven debrief of a call that
   already happened and saves it as a standalone interactive HTML file in the client folder. Use
@@ -178,6 +178,27 @@ reads the lead's notes. No lead → say so out loud; the answers have no home un
 
 ---
 
+## Step 4f — Keep the buyer's own words (added 2026-10-26)
+
+**Why:** the other side's words are the best material the next guide can have. That's true for this
+person, and for the next person like them. Today the next guide only hears from the user. This keeps
+the buyer's half, so every call teaches the next call with a similar buyer, in the buyer's own
+language instead of ours.
+
+From the **transcript** (a recap email is not enough), keep **up to five** of the other side's own
+lines in `buyerWords`:
+- **Their turns only, quoted exactly, never paraphrased.** No quote, nothing kept.
+- **Tag each line** with what it is: how they named the problem, an objection, what had just
+  happened that made them take the call, or a sign they want to move or not.
+- **Tag each line with the kind of person who said it:** title, responsibility or level, the same
+  person type the prospecting engine uses.
+- **Zero is a valid answer.** A call with nothing worth keeping writes `buyerWords: []`.
+
+The lines travel inside the debrief's own content, so they are kept with its stored record and need
+no other home. The call guide reads them for the next buyer of the same kind (`aii-call-guide` 3.5c).
+
+---
+
 ## Step 5 — Produce the debrief JSON (the locked schema)
 
 Output ONE valid JSON object in exactly this shape. All keys present; arrays may be empty (`conflicts` especially). Use `\n\n` for paragraph breaks; `<strong></strong>` allowed inside `point`/`draft`/`why`.
@@ -200,6 +221,7 @@ Output ONE valid JSON object in exactly this shape. All keys present; arrays may
   },
   "followups": [ {"channel":"Email|Text|Call","to":"<name>","subject":"<if email>","draft":"the full draft text (this becomes the real Gmail/email draft body in Step 7), use \\n\\n for breaks"} ],
   "nextGuideSeed": "one tight paragraph seeding the next call guide — goal + where they're stuck + the play",
+  "buyerWords": [ {"quote":"<the other side's own line, VERBATIM from the transcript>","kind":"problem|objection|trigger|signal","said_by":"<name>","person_type":"<their title, responsibility or level>","at":"<mm:ss>"} ],
   "crmLog": "the clean summary to log to the CRM — outcome, what held/slipped, blocker, next, any watch-out",
   "promises": [ {"to":{"name":"<who it was promised to>","email":"<their address, or empty when the lead is attached>"},"what":"<the thing promised, short, one per row>","sourceLine":"<the user's own words, VERBATIM from the transcript>","sourceKind":"transcript","deliverable":"<the thing, in the words said>","contextLine":"<the line that names it, verbatim> | null","acceptedBy":"<their yes to an offer, verbatim> | null","spokenDue":"<the words said, e.g. 'by Friday'> | null","spokenDueAt":"<ISO time with offset, only when a date was said> | null","waitsOn":"<what THEY owe before he can deliver, plain words, only when his words wait on them> | null","waitsOnWhyNot":"<why a line that reads conditional does not wait on them> | null","handed_to":{"name":"<the teammate who will do it, as said>"} | null} ],
   "notPromises": [ {"line":"<a send-promise line from the transcript that is not the user's promise>","why":"<why: the other side's promise, already kept on the call, an offer they did not take up, or talk (a turn of phrase, a hypothetical)>"} ]
