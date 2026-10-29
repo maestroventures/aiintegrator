@@ -1,9 +1,9 @@
 ---
 name: aii-call-guide
-version: v1.6 (2026-10-26 — 3.5c reads the buyer's own words kept by earlier debriefs from the same kind of person; dr_debrief_keeps_buyer_words_20261026_173407)
+version: v1.7 (2026-10-29 — Step 1.5 researches the company and fits the company's offers to theirs before the advisors run; questions are earned by evidence; only proven claims are said; the guide is filed through the connector and never saved on the user's computer). Previously v1.6 (2026-10-26 — 3.5c reads the buyer's own words kept by earlier debriefs from the same kind of person)
 description: >
   AI Integrator Blueprint: Call Guide. Builds a deep, advisor-driven sales call guide for an
-  upcoming meeting and saves it as a standalone interactive HTML file in the client folder. Use
+  upcoming meeting and files it as an interactive page through the connector. Use
   whenever the user says "call guide," "prep me for my call with [person/company]," "build a guide
   for my meeting with [name]," "guide for [company]," or when a scheduled sweep finds an upcoming
   meeting with no guide yet. Reads the prospect + company + meeting from the CRM and the calendar,
@@ -50,6 +50,62 @@ You may be triggered three ways: (a) the user asks in chat, (b) the artifact han
 
 ---
 
+## Step 1.5 — Research the company, then fit your offers to theirs (before the advisors)
+
+**Why:** a guide written only from the CRM pitches the company's default offer to everyone. The
+person on the call already sells something to someone. The guide that wins starts from what they
+sell, how they earn, and which of your offers makes THEM money. *(Added 2026-10-29: a guide built
+overnight with no outside research pitched the default offer to a partner who resells to agencies;
+rebuilt from research, it led with the one offer that fit their model.)*
+
+**1 · Research them first, with `aii-research`.** Run it for this company, scoped to the call: what
+they sell and to whom, how they earn, what changed this year, who they partner with, and what they
+say about themselves against what their customers say. That skill owns how sources are ranked and
+cited and which research tools this company has; this step only asks for its answer. Write what it
+found into the guide as **cited glance facts**: each fact short, with its source in that entry's
+`docs` (`{label, url, note}`). **Put the coverage line in the glance too** ("What we looked at"):
+each source read, unreadable, or found nothing. A zero is a finding; a source you could not read is
+named, never guessed. When their own site and a third party disagree on what they do, their own
+site wins and the guide says so.
+
+**2 · Say where they sit in the chain.** One of: **end customer** (uses what you sell), **channel**
+(resells or delivers it to their own customers), **channel of channels** (serves the companies that
+resell), or **platform partner** (their product and yours connect). The chain position, not the
+folder the call was filed under, decides which lens the guide uses: a partner is read for what they
+can sell, an end customer for what they need.
+
+**3 · Lay their offers beside yours.** Read your company's offer catalog from the store (each
+product, the claims it may make and how proven each is, its price-disclosure rule, and the chain
+positions it fits). Then, for each of your offers, write one of:
+- **add-on** — they can sell it alongside what they already sell;
+- **replace** — it does something they do today, better or cheaper;
+- **underneath** — it powers something they already sell, invisibly;
+- **no fit** — say why in a few words.
+
+For every offer that fits, write **how it makes them money**: a margin, a retained client, a
+higher price, a cost they stop paying. An offer with no answer to that is not a fit.
+
+**4 · Pick the one to lead with, and say why.** One offer leads; the rest wait behind it. Put it in
+the guide as the FIRST `contextBar` entry, `{"label": "Lead with", "value": "<offer> — <why, in
+one line>"}`, so it is the first thing on the page. If they would resell it, add a section whose
+job is to **get their words for it**: what they would call it, who they would sell it to, and what
+their customer would have to hear. Their name for it beats yours.
+
+**5 · Partners: what they resell under their own name, and what they supply under a partner's.**
+For a channel or platform partner, write both sides in the glance. It decides whether your offer
+goes out under their brand, under yours, or not at all.
+
+**6 · Say only what is proven.** A claim the guide makes about an offer comes from that offer's
+claims in the store, and only from the ones marked proven and still current. A claim marked held or
+unproven is never said on the call; offer a test on their own data instead. A price is said only
+when that offer's disclosure rule allows it in this conversation.
+
+**7 · One question, only if the fit is genuinely unclear.** In a live chat, if two offers fit
+equally and the user would choose differently, ask them in one plain question before building. A
+scheduled run never asks: it picks the stronger fit, says why in the guide, and names the runner-up.
+
+---
+
 ## Step 2 — Run the advisors (this is what makes it good, not generic)
 
 **Do not hand-type the advisor list.** Resolve it live, the same way `aii-advisors` Step 1.5 does:
@@ -81,6 +137,17 @@ Output ONE valid JSON object in exactly this shape. All fields present; arrays m
 | `dont` | string[] | the crisp DON'Ts, one per line. |
 | `lens` | string | *optional.* The advisor whose lens produced `why`. **Carried, never rendered live.** |
 | `label` · `hint` · `mins` · `kind` · `lane` | string | *optional.* The board row's short name, its one-line hint, its timing, its `must`/`if`/`play` tag, and its lane override. |
+
+**Every question the guide asks is earned by what Step 1.5 found (added 2026-10-29).** Sort each
+thing you need to know by the evidence you have on it:
+- **absent** (the research found nothing) → a **discovery** question: open, about them.
+- **conflicting** (two sources disagree, or the research disagrees with the CRM) → a **test**
+  question that settles it without telling them they are wrong.
+- **confirmed** (a cited source says it) → **confirm and expand**: say what you found and ask what
+  it means for them.
+
+Put why this question is being asked in that item's `why`, and the follow-up in its `do` as
+*"If they say X, ask Y."* A question the research already answered is not asked; it is said.
 
 **Two authoring standards. An item fails if it misses either.**
 
@@ -310,7 +377,14 @@ recipient READS; the talk track is what the operator SAYS. They are never the sa
 
 ---
 
-## Step 4 — Build the shell + save to the client folder
+## Step 4 — Build the shell and file it through the connector
+
+⛔ **NOTHING IS SAVED ON THE USER'S COMPUTER (2026-10-29).** The finished guide is filed to the
+company's Drive (the user's own drive or a shared drive) through the connector and opens from the
+store. It is never saved into a workspace, client or Calls folder on the user's machine, and no
+local copy is kept. **A scheduled build runs only in a cloud routine**, never in a task, script or
+session on the user's computer. A build the user asks for in a live chat always uses `--cloud`, puts
+its working files in a temporary folder (`--out-dir`), and deletes them once the guide is filed.
 
 1. Write `config.json`:
 ```json
@@ -405,9 +479,10 @@ node "<skill-folder>/build-call-guide.js" guide.json config.json out.html --gate
    - Get the Calls folder first: `node "<skill-folder>/build-call-guide.js" --print-folder-sql --channel <c> --company <x> [--partner <p>] --tenant <your company>`.
      Run that SQL through the board connector and save the rows to `folder.json`. If the resolver raised, save
      `{"error": "<message>"}` instead.
-   - Add `--folder folder.json` to the build. On a desktop that's all you add. On a cloud seat, or anywhere with
-     no operator folder, also add `--cloud --run-id <job_run id>`: the row then registers with no local path,
-     and the bytes sit on this disk only until they're uploaded.
+   - Add `--folder folder.json --cloud --run-id <job_run id, or your session id in a live chat> --out-dir <a temporary folder>`
+     to EVERY build, on every seat: the row registers with no local path, and the bytes sit in the temporary
+     folder only until they're uploaded. *(Until 2026-10-29 a desktop build left out `--cloud` and kept a copy in
+     the user's folders. That is what the rule above ends.)*
    - **Exit 0** means stdout carries `hosted` (`status: "ready"`, `hostedHalf: "planned"`). Run `hosted.steps`
      1–7 **in order, in this same run**: register, settle, mint one ticket, upload, read the row, confirm, then
      prove. Step 4 uploads through `upload-call-doc.js`. If that exits 3 with `door_unreachable` (a cloud
@@ -450,11 +525,13 @@ node "<skill-folder>/register-call-doc.js" --settle "<planPath>" --result "<resu
    feature, not a failure to work around. Fix what the reason says and build again.
 
    **Never skip (c) and rename the file yourself.** The rename IS the proof that the row landed.
-3. **Save the finished `out.html` into the client folder**, named by the meeting so it links cleanly:
-```
-<clients-root>/<ClientName>/<ProspectCompany>/<YYYYMMDD>_callguide_<person>_<calendar-invite-name>.html
-```
-(A guide and its debrief share the `<ProspectCompany>` folder and the meeting name, so they read as a matched pair: `..._callguide_<person>_...` and `..._debrief_<person>_...`.) Create the `<ProspectCompany>` subfolder if it doesn't exist.
+3. **Delete the temporary folder once step 7 says OPENABLE.** The filed copy, named
+`<YYYYMMDD>_callguide_<person>_<calendar-invite-name>.html` in the company's Calls folder on Drive, is
+the only copy. (A guide and its debrief share the Calls folder and the meeting name, so they read as a
+matched pair: `..._callguide_<person>_...` and `..._debrief_<person>_...`.)
+> *This step used to read "Save the finished `out.html` into the client folder", at
+> `<clients-root>/<ClientName>/<ProspectCompany>/`. Quoted so a session that remembers it knows it was
+> withdrawn on purpose (ruled 2026-10-29: nothing is written on the user's computer).*
 
 ---
 
@@ -479,12 +556,12 @@ After the guide HTML is saved, write **one tiny pointer file** to the file store
     "fileId": "<file-store id of the saved guide>",
     "fileTitle": "<the saved .html filename>",
     "viewUrl": "<the guide's file-store view URL>",
-    "localPath": "<the ABSOLUTE local filesystem path where you saved the guide .html — e.g. /Users/<user>/.../Calls/<file>.html — or null for a guide filed from the cloud>",
+    "localPath": null,
     "createdAt": "<ISO timestamp>"
   }
   ```
-- **`localPath` is what makes the guide open as a real page, not code.** A file store shows raw HTML *source* for an `.html` file, so the modal can't open the file-store URL on a call. Instead it opens `file://<localPath>` — a rendered browser tab the user can park behind their camera. Record the exact path you wrote the file to (the path your file tool used). Do **not** hardcode anyone's home folder in the skill: each machine writes its own `localPath`, so it's automatically correct for whoever runs that instance. If you only have the file-store URL and no local path, still write the pointer — the modal falls back to the file-store URL.
-- **`localPath` may be `null`.** A guide built and filed in the cloud has no path on any machine: it was registered with `localPath` null and filed through `upload-call-doc.js`, which returned its `fileId` and `viewUrl`. Write `"localPath": null` — never an empty string, and never a made-up path — and fill `fileId` and `viewUrl` from what the upload returned. The modal falls back to the file-store copy, exactly as above.
+- **`localPath` is always `null` (2026-10-29).** No guide is saved on the user's computer, so there is no local path to record. The guide opens from the store through the Command Center; the pointer's `fileId` and `viewUrl` are the filed Drive copy. *(It used to record a `file://` path so the modal could open a rendered local copy; that copy no longer exists.)*
+- **What `null` means.** A guide built and filed in the cloud has no path on any machine: it was registered with `localPath` null and filed through `upload-call-doc.js`, which returned its `fileId` and `viewUrl`. Write `"localPath": null` — never an empty string, and never a made-up path — and fill `fileId` and `viewUrl` from what the upload returned. The modal falls back to the file-store copy, exactly as above.
 - **One writer rule:** you (the skill) are the only thing that writes pointers. The button and the scheduled sweep both reach the guide through you, so both get the pointer for free.
 - **Some file stores can't overwrite** — that's why it's one file per guide, not one master index. On a **regenerate** (Step 5), the eventId/date+domain are the same, so the pointer filename is the same; if a write collides, that's fine — the old pointer already points at the same meeting. (You may delete the stale pointer first if the fileId changed.)
 
@@ -531,7 +608,7 @@ node "<skill-folder>/register-call-doc.js" --by-ref <planPath> --base <result.js
 ```
 It writes `<plan>.byref.plan.json` and prints `{out, baseStateId, wantSha256, fullGuideChars, patchChars}`. **Run THAT plan's `sql` with its `params`** in Step 4 (b) — and as `hosted.steps` step 1 — instead of the plain plan, then `--settle` with it. The store rebuilds the guide from the base plus the patch and writes NOTHING unless it hashes to `wantSha256`. `refused` with `KEPT-REF-CHANGED-IN-TRANSIT` = a character changed on the way: send the same sql and params again, copied exactly. If `--by-ref` itself refuses, run the plain plan as before. **From 0.9.64, prefer `register-call-doc.js --short <planPath> --base <result.json from (b), unedited>`**: it sends the same patch WITHOUT the 17,984-character statement (a measured 50K-character guide regen: 58,630 characters sent down to 39,245), and a first build (no base) goes short as the whole guide. Keep `--by-ref` for a store that answers 42883 (no `call_doc_register` yet).
 
-**Regenerate with `--folder` too (v0.9.50), and `--cloud` on a seat with no operator folder:** `--regen <readplan.json> --rows <result.json> [--gate <gate.json>] --folder folder.json [--cloud --run-id <id> [--out-dir <dir>]]`. In cloud mode it never looks for the stored local path. It renders the kept state onto this disk (`--out-dir`, or a fresh temp folder by default) under the row's own `file_title`, keeps the row's `local_path` as it is (NULL for a cloud-born row), and prints the same `hosted.steps`. That's how a row stranded with "filing pending" or "NO DEVICE BRIDGE" gets re-filed from any seat. The exit codes are the same as a build: 0 with a ready handoff, **20 NOT OPENABLE** without `--folder`, and 4 when the folder is unresolved. The refusals also stay: 3–7 when kept state is missing or unusable, 12–15 for the open-loop gate.
+**Regenerate with `--folder` and `--cloud`, always (`--cloud` on every seat since 2026-10-29, Step 4):** `--regen <readplan.json> --rows <result.json> [--gate <gate.json>] --folder folder.json --cloud --run-id <id> --out-dir <a temporary folder>`. In cloud mode it never looks for the stored local path. It renders the kept state onto this disk (`--out-dir`, or a fresh temp folder by default) under the row's own `file_title`, keeps the row's `local_path` as it is (NULL for a cloud-born row), and prints the same `hosted.steps`. That's how a row stranded with "filing pending" or "NO DEVICE BRIDGE" gets re-filed from any seat. The exit codes are the same as a build: 0 with a ready handoff, **20 NOT OPENABLE** without `--folder`, and 4 when the folder is unresolved. The refusals also stay: 3–7 when kept state is missing or unusable, 12–15 for the open-loop gate.
 
 **FOLD THE NEW DETAILS IN PER SEGMENT — never by rewriting the guide.** Change only the segments the operator's notes actually touch, carry every untouched segment through unchanged, and mark what changed. A regeneration that rewrites a segment nobody commented on has thrown away authored work and called it an update. (Ruling D1, same 2026-08-05 card: auto-fix anything the note touches, and every auto-changed segment is VISIBLY MARKED with one-click revert.)
 
@@ -545,7 +622,7 @@ It writes `<plan>.byref.plan.json` and prints `{out, baseStateId, wantSha256, fu
 
 A guide is NOT done when the HTML saves. It is done only when **both REQUIRED OUTPUTS below are confirmed to exist** — because on an unattended sweep run nobody is watching, and a pointer that silently failed to write leaves the daily-brief modal guessing the filename (the exact break the Discovery Fix exists to kill).
 
-1. **Guide HTML** — exists at the saved path and is non-trivial in size (re-read or stat it).
+1. **Guide HTML** — the filed copy exists on Drive (read back by its `fileId`) and is non-trivial in size, and the temporary folder is gone.
 2. **Pointer** — the `guideptr_*.json` landed in `Artifacts/_indexes/` (capture the fileId on write AND re-find it by title). **A missing pointer is a build FAILURE, not a footnote** — retry the write once; if it still fails, report the guide as INCOMPLETE, not done.
 
 0. **Openable (v0.9.50): check this first.** `register-call-doc.js --openable readback.json` exits 0 on the row read back by `doc_id`. Exit 20 means the guide is **NOT done**, whatever else landed. A build that exited 20 is not done either.

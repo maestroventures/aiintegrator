@@ -1,9 +1,9 @@
 ---
 name: aii-call-debrief
-version: v1.8 (2026-10-26 — Step 4f keeps the buyer's own words, buyerWords, tagged by kind and person type; dr_debrief_keeps_buyer_words_20261026_173407). Previously v1.7 (2026-10-15 — what was said comes only from the full transcript, never a notetaker's summary; dr_we_read_the_full_transcript_never_a_transcription_service_summary_20261015)
+version: v1.9 (2026-10-29 — the guide's research joins the conflict gate and new learnings feed the next guide; Step 4g records the door they came in through and the offer that actually got their interest; the debrief is filed through the connector and never saved on the user's computer). Previously v1.8 (2026-10-26 — Step 4f keeps the buyer's own words, buyerWords). Before that v1.7 (2026-10-15 — what was said comes only from the full transcript, never a notetaker's summary; dr_we_read_the_full_transcript_never_a_transcription_service_summary_20261015)
 description: >
   AI Integrator Blueprint: Call Debrief. Builds a deep, advisor-driven debrief of a call that
-  already happened and saves it as a standalone interactive HTML file in the client folder. Use
+  already happened and files it as an interactive page through the connector. Use
   whenever the user says "debrief," "debrief my call with [person/company]," "I just got off a
   call with [name]," "what did I learn on the [company] call," or when a transcript lands for a
   call that has no debrief yet. Reads the full transcript, what we had on file (the invite, the
@@ -66,6 +66,13 @@ Be specific and honest — name the actual moment, quote the actual line. Generi
 ## Step 3 — The conflict gate (do not skip)
 
 Compare what we had on file (the invite, the guide, earlier decisions, the CRM) with what the full transcript shows. **Wherever they genuinely disagree on something that matters** — who is coming, how committed they are, what was promised, who decides — put it in the `conflicts` array. Name the on-file source in `onFileSource` ("the invite", "the guide", "Oct 8 decision", "the CRM") and who said it and when in `saidBy` ("Sam, 23:26"); the page shows "On file (the invite)" vs "Said on the call (Sam, 23:26)". Show both readings and how to settle it. **Never silently pick one.** If the sources agree, leave `conflicts` empty and move on — the gate fires only on real conflict.
+
+**The guide's research is on file too (added 2026-10-29).** When the call guide carried researched
+facts (its cited glance facts, its "Lead with" and its fit of your offers to theirs), each one is an
+on-file source. Where the call contradicts one, it is a conflict like any other, with `onFileSource`
+`"the research"`. Then write `newLearnings`: what the call taught that the research did not have,
+each one line with who said it and when. The next guide for this company reads them before it
+researches again, so a fact learned on a call is never re-researched or contradicted.
 
 ---
 
@@ -199,6 +206,25 @@ no other home. The call guide reads them for the next buyer of the same kind (`a
 
 ---
 
+## Step 4g — The door they came in through, and the offer that got their interest (added 2026-10-29)
+
+**Why:** a company sells several things and reaches people several ways. Which way brought them in,
+and which offer they actually leaned into, are two different facts, and they often disagree. Kept on
+every debrief, they show which outreach brings in which buyers, and which offer each kind of buyer
+really wants, so the next campaign leads with what works instead of what was assumed.
+
+- **`doorIn`** — how this person reached the call: the outbound campaign or message that started it
+  (its name or id as the store holds it), a referral (who), a partner (which), or inbound. Read it
+  from the record of how the meeting was booked; if nothing on file says, write `"unknown"` and never
+  guess.
+- **`offerThatBit`** — the one offer they leaned into on the call, with the transcript line that
+  shows it, verbatim, and `"none"` when nothing landed. It is often not the offer the guide led with;
+  say so when it differs.
+
+Both travel inside the debrief's own content, like `buyerWords`.
+
+---
+
 ## Step 5 — Produce the debrief JSON (the locked schema)
 
 Output ONE valid JSON object in exactly this shape. All keys present; arrays may be empty (`conflicts` especially). Use `\n\n` for paragraph breaks; `<strong></strong>` allowed inside `point`/`draft`/`why`.
@@ -222,6 +248,9 @@ Output ONE valid JSON object in exactly this shape. All keys present; arrays may
   "followups": [ {"channel":"Email|Text|Call","to":"<name>","subject":"<if email>","draft":"the full draft text (this becomes the real Gmail/email draft body in Step 7), use \\n\\n for breaks"} ],
   "nextGuideSeed": "one tight paragraph seeding the next call guide — goal + where they're stuck + the play",
   "buyerWords": [ {"quote":"<the other side's own line, VERBATIM from the transcript>","kind":"problem|objection|trigger|signal","said_by":"<name>","person_type":"<their title, responsibility or level>","at":"<mm:ss>"} ],
+  "newLearnings": [ {"learned":"<what the call taught that the research did not have, one line>","said_by":"<name>","at":"<mm:ss>"} ],
+  "doorIn": {"kind":"campaign|referral|partner|inbound|unknown","name":"<the campaign, referrer or partner, as the store holds it>","source":"<where on file this came from>"},
+  "offerThatBit": {"offer":"<the offer they leaned into, or none>","line":"<their line, VERBATIM from the transcript>","at":"<mm:ss>","ledWith":"<the offer the guide led with>"},
   "crmLog": "the clean summary to log to the CRM — outcome, what held/slipped, blocker, next, any watch-out",
   "promises": [ {"to":{"name":"<who it was promised to>","email":"<their address, or empty when the lead is attached>"},"what":"<the thing promised, short, one per row>","sourceLine":"<the user's own words, VERBATIM from the transcript>","sourceKind":"transcript","deliverable":"<the thing, in the words said>","contextLine":"<the line that names it, verbatim> | null","acceptedBy":"<their yes to an offer, verbatim> | null","spokenDue":"<the words said, e.g. 'by Friday'> | null","spokenDueAt":"<ISO time with offset, only when a date was said> | null","waitsOn":"<what THEY owe before he can deliver, plain words, only when his words wait on them> | null","waitsOnWhyNot":"<why a line that reads conditional does not wait on them> | null","handed_to":{"name":"<the teammate who will do it, as said>"} | null} ],
   "notPromises": [ {"line":"<a send-promise line from the transcript that is not the user's promise>","why":"<why: the other side's promise, already kept on the call, an offer they did not take up, or talk (a turn of phrase, a hypothetical)>"} ]
@@ -234,7 +263,12 @@ Write the JSON to a temp file, e.g. `debrief.json`.
 
 ---
 
-## Step 6 — Build the shell + save to the client folder
+## Step 6 — Build the shell and file it through the connector
+
+⛔ **NOTHING IS SAVED ON THE USER'S COMPUTER (2026-10-29).** Same rule as `aii-call-guide` Step 4: the
+debrief is filed to the company's Drive through the connector and opens from the store, with no local
+copy. A scheduled build runs only in a cloud routine; a build in a live chat always uses `--cloud`,
+keeps its working files in a temporary folder (`--out-dir`) and deletes them once filed.
 
 1. Write `config.json`:
 ```json
@@ -283,9 +317,10 @@ node "<skill-folder>/build-call-debrief.js" debrief.json config.json out.html --
    - Get the Calls folder first: `node "<skill-folder>/build-call-debrief.js" --print-folder-sql --channel <c> --company <x> [--partner <p>] --tenant <your company>`.
      Run that SQL through the board connector and save the rows to `folder.json`. If the resolver raised, save
      `{"error": "<message>"}` instead.
-   - Add `--folder folder.json` to the build. On a desktop that's all you add. On a cloud seat, or anywhere with
-     no operator folder, also add `--cloud --run-id <job_run id>`: the row then registers with no local path,
-     and the bytes sit on this disk only until they're uploaded.
+   - Add `--folder folder.json --cloud --run-id <job_run id, or your session id in a live chat> --out-dir <a temporary folder>`
+     to EVERY build, on every seat (2026-10-29): the row registers with no local path, and the bytes sit in
+     the temporary folder only until they're uploaded. *(Until then a desktop build left out `--cloud` and kept
+     a copy in the user's folders.)*
    - **Exit 0** means stdout carries `hosted` (`status: "ready"`, `hostedHalf: "planned"`). Run `hosted.steps`
      1–7 **in order, in this same run**: register, settle, mint one ticket, upload, read the row, confirm, then
      prove. Step 4 uploads through `upload-call-doc.js`. If that exits 3 with `door_unreachable` (a cloud
@@ -337,11 +372,12 @@ node "<skill-folder>/register-call-doc.js" --settle "<planPath>" --result "<resu
    feature, not a failure to work around. Fix what the reason says and build again.
 
    **Never skip (c) and rename the file yourself.** The rename IS the proof that the row landed.
-3. **Save the finished `out.html` into the client folder**, named by the call so it sits next to its guide:
-```
-<clients-root>/<ClientName>/<ProspectCompany>/<YYYYMMDD>_debrief_<person>_<calendar-invite-name>.html
-```
-(Same convention as the guide — a guide and its debrief share the `<ProspectCompany>` folder and the meeting name, so they read as a matched pair: `..._callguide_<person>_...` and `..._debrief_<person>_...`.) Create the `<ProspectCompany>` subfolder if it doesn't exist.
+3. **Delete the temporary folder once the build is OPENABLE.** The filed copy, named
+`<YYYYMMDD>_debrief_<person>_<calendar-invite-name>.html` in the company's Calls folder on Drive, is the
+only copy, beside its guide (`..._callguide_<person>_...`).
+> *This step used to read "Save the finished `out.html` into the client folder", at
+> `<clients-root>/<ClientName>/<ProspectCompany>/`. Withdrawn 2026-10-29: nothing is written on the
+> user's computer.*
 
 ---
 
@@ -384,7 +420,7 @@ If a debrief built without a transcript already exists and the transcript now ar
 **Re-file a debrief that was built but never filed, and don't re-author it (v0.9.50).** Every debrief built since 2026-09-17 keeps its content as kept state. To re-file one from any seat, cloud included:
 ```
 node "<skill-folder>/build-call-debrief.js" --regen-plan <docId> --tenant <your company>
-node "<skill-folder>/build-call-debrief.js" --regen <readplan.json> --rows <result.json> --folder folder.json [--cloud --run-id <id> [--out-dir <dir>]]
+node "<skill-folder>/build-call-debrief.js" --regen <readplan.json> --rows <result.json> --folder folder.json --cloud --run-id <id> --out-dir <a temporary folder>
 ```
 Run the first command's SQL through the board connector and save the FULL result for `--rows`. When the kept content carries `promises`, the regen prints the same `promises` plan as a build. Run it after settle: it is idempotent, so it also writes any row an earlier run missed. A cloud job's rows write as `job:<built_by>`; a session passes `--promise-by session:<id>`. A promise that was reworded makes a new row, and the old row stays until it is delivered or waived. Never delete one. The regen renders from kept state under the row's own `file_title`, keeps its `local_path` and any `NO TRANSCRIPT:` declaration, and prints the same `hosted.steps` as Step 6. It says whether the bytes match the recorded render (`reproducedStored`). Exit 0 means it produced a ready handoff. **Exit 20 = NOT OPENABLE** (no `--folder`). Exit 4 = the folder is unresolved. Exit 4 with **NO KEPT STATE** (a debrief from before 2026-09-17) means there is nothing to re-render: file the existing local copy through the hosted steps from the seat that holds it, or re-author it.
 
@@ -397,7 +433,7 @@ A debrief is NOT done when the HTML saves. It is done only when **every REQUIRED
 For each required output the state is either **CONFIRMED** (you captured the id the create call returned, or you re-read / re-listed and found it) or **N/A — `<reason>`** (a stated reason it doesn't apply, e.g. "no lead in the CRM → note skipped"). **"Attempted but unconfirmed" is a FAILURE, not a pass.**
 
 0. **Openable (v0.9.50): check this first, and there is no N/A.** `register-call-doc.js --openable readback.json` exits 0 on the row read back by `doc_id`. Exit 20 = the debrief is **NOT done** (done means the operator can open it within 24h of the call). A build that exited 20 is not done either.
-1. **Debrief HTML** — exists at the saved path and is non-trivial in size (re-read or stat it). Confirm the conflict gate rendered if there were conflicts.
+1. **Debrief HTML** — the filed copy exists on Drive (read back by its `fileId`) and is non-trivial in size, and the temporary folder is gone. Confirm the conflict gate rendered if there were conflicts.
 2. **Email draft** — for every Email item in `followups`, a real draft exists (the id the create-draft call returned, or re-list drafts and find it). N/A only if there were no Email follow-ups.
 3. **CRM note** — the `crmLog` note exists on the lead (its note id). N/A only if there's no lead.
 4. **Review task** — the `⚑ NEEDS [USER] — Review call debrief` task exists on the lead (its task id). N/A only if there's no lead.
