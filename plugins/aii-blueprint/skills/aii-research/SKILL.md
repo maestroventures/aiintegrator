@@ -70,6 +70,31 @@ The subject may already be known. Search the store before searching the web, and
 what is missing. A match is updated, never duplicated: **Resolve, never type** (`blueprint-core.md`
 §5.17).
 
+## Step 2.5 — Find the research tools this company has, from its registry
+
+**Why:** a session that only knows its own web search misses what the company already pays for: a
+company database, a people-finder, a social network, a deep-research service. And one that names a
+tool from memory breaks the day that tool changes. *(Added 2026-10-29.)*
+
+Ask the registry, BY CATEGORY (`blueprint-core.md` §11 rule 4), never by a tool's name, which
+connectors answer `CAN` for what this question needs:
+- **`web-research`** — search the web, read a page, research a company or person in depth;
+- **`prospecting-data`** — find or enrich a company, find people by role, find a work email, match a
+  named person, get a social profile.
+
+Use every tool that answers `CAN` for the question, and the session's own web search and page reads
+as the floor when none does. **A tool that spends money or credits is used only with the person's
+yes**, and only for what the question needs. A tool registered with what it is strong and weak at
+carries those notes: read them before you trust its answer (for example, a person found by name
+alone needs a company match before it is believed).
+
+**Write a coverage line** with the answer: each source and tool you tried, and whether it was read,
+could not be read, or found nothing. A zero is a finding, and a source you could not read is named,
+never guessed around.
+
+**For a partner or reseller, add the partner view:** what they sell under their own name, and what
+they supply under someone else's. It decides whether an offer could go out under their brand.
+
 ## Step 3 — Rank the sources, and record the rank
 
 From most to least trusted:
